@@ -1,0 +1,12 @@
+{
+    "experimentalServices": {
+      "frontend": {
+        "rootDirectory": "frontend",
+        "entrypoint": "frontend"
+      },
+      "backend": {
+        "rootDirectory": "backend",
+        "entrypoint": "backend"
+      }
+    }
+  }
