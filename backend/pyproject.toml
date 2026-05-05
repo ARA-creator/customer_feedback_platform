@@ -7,3 +7,8 @@ line-length = 100
 [tool.isort]
 profile = "black"
 line_length = 100
+
+# Vercel (Flask) — when the service root is `backend/`, point at the Flask app object.
+# See: https://vercel.com/docs/frameworks/backend/flask#exporting-the-flask-application
+[tool.vercel]
+entrypoint = "main:app"

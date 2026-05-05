@@ -1,8 +1,0 @@
-# Repo-level Python metadata (tooling + Vercel Flask entrypoint wiring).
-#
-# Vercel Flask supports pointing at a Flask `app` object in a non-default module
-# via `[tool.vercel].entrypoint`.
-#
-# See: https://vercel.com/docs/frameworks/backend/flask#exporting-the-flask-application
-[tool.vercel]
-entrypoint = "backend.main:app"
