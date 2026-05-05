@@ -13,9 +13,9 @@ python-dotenv==1.0.1
 nltk==3.9.1
 textblob==0.18.0.post0     # Optional classic sentiment; VADER will be primary
 
-# For optional future transformer models
-transformers==4.46.1
-torch==2.5.1                # CPU version; can be swapped for GPU build later
+# NOTE: Heavy ML deps (torch/transformers) are intentionally excluded from the
+# default serverless install (Vercel Functions bundle limit). If you need them
+# locally, install via extras from pyproject.toml or pin them in a separate file.
 
 # Security / encryption
 cryptography==43.0.3
@@ -37,7 +37,8 @@ pytest==8.3.3
 pytest-cov==6.0.0
 
 # CSV / Data utilities
-pandas==2.2.3
+# pandas is optional; include only when needed in non-serverless environments.
+# pandas==2.2.3
 
 # Word cloud (Phase 4)
 wordcloud==1.9.4

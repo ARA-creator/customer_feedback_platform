@@ -10,8 +10,6 @@ dependencies = [
   "python-dotenv==1.0.1",
   "nltk==3.9.1",
   "textblob==0.18.0.post0",
-  "transformers==4.46.1",
-  "torch==2.5.1",
   "cryptography==43.0.3",
   "passlib[bcrypt]==1.7.4",
   "requests==2.32.3",
@@ -23,9 +21,19 @@ dependencies = [
   "google-genai==1.73.1",
   "pytest==8.3.3",
   "pytest-cov==6.0.0",
-  "pandas==2.2.3",
   "wordcloud==1.9.4",
   "Pillow==10.4.0",
+]
+
+[project.optional-dependencies]
+# Heavy ML stack (not suitable for Vercel Functions bundle limits).
+ml = [
+  "transformers==4.46.1",
+  "torch==2.5.1",
+]
+# Local-only utilities that are easy to add outside serverless.
+data = [
+  "pandas==2.2.3",
 ]
 
 [tool.pytest.ini_options]
