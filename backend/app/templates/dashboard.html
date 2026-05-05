@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Customer Feedback Platform{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold" style="font-family: serif; color: #e2e8f0;">Feedback Dashboard</h1>
+        <span class="px-4 py-2 rounded-md" style="background-color: rgba(148, 163, 184, 0.15); color: #94a3b8;">
+            Feedback submission removed
+        </span>
+    </div>
+    
+    {% if error %}
+    <div class="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-lg">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Metric Cards Row -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Total Feedback -->
+        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-400 mb-1">Total Feedback</p>
+                    <p class="text-2xl font-bold text-white">{{ total_feedback }}</p>
+                </div>
+                <div class="p-3 bg-green-500/20 rounded-lg">
+                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Positive Feedback -->
+        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-400 mb-1">Positive</p>
+                    <p class="text-2xl font-bold text-white">{{ positive_count }}</p>
+                </div>
+                <div class="p-3 bg-green-500/20 rounded-lg">
+                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Negative Feedback -->
+        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-400 mb-1">Negative</p>
+                    <p class="text-2xl font-bold text-red-400">{{ negative_count }}</p>
+                </div>
+                <div class="p-3 bg-red-500/20 rounded-lg">
+                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- High Priority -->
+        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-400 mb-1">High Priority</p>
+                    <p class="text-2xl font-bold text-yellow-400">{{ high_priority_count }}</p>
+                </div>
+                <div class="p-3 bg-yellow-500/20 rounded-lg">
+                    <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Sentiment Pie Chart -->
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <h2 class="text-lg font-semibold text-white mb-4">Sentiment Distribution</h2>
+            <div style="height: 300px; position: relative;">
+                <canvas id="sentimentChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Category Bar Chart -->
+        <div class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+            <h2 class="text-lg font-semibold text-white mb-4">Feedback by Category</h2>
+            <div style="height: 300px; position: relative;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Cloud - Keep as is -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700 p-6">
+        <h2 class="text-lg font-semibold text-white mb-4">Word Cloud - Most Common Words in Feedback</h2>
+        {% if has_wordcloud_data %}
+        <div class="flex justify-center items-center bg-slate-900/50 rounded-lg p-4">
+            <img src="{{ url_for('views.wordcloud_image') }}" 
+                 alt="Word Cloud" 
+                 class="max-w-full h-auto rounded"
+                 style="max-height: 500px;"
+                 onload="this.style.display='block';"
+                 onerror="this.style.display='none';">
+        </div>
+        {% else %}
+        <div class="text-center text-slate-400 py-8">
+            No feedback data available for word cloud
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Priority Queue -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700">
+        <div class="px-6 py-4 border-b border-slate-700">
+            <h2 class="text-lg font-semibold text-white">Priority Queue</h2>
+            <p class="text-sm text-slate-400 mt-1">Top feedback items requiring attention</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-700">
+                <thead class="bg-slate-700/50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Priority</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Sentiment</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Rating</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Preview</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-slate-800 divide-y divide-slate-700">
+                    {% for item in priority_queue %}
+                    <tr class="hover:bg-slate-700/50 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-semibold rounded {% if item.priority >= 100 %}bg-red-500/20 text-red-400{% elif item.priority >= 50 %}bg-yellow-500/20 text-yellow-400{% else %}bg-green-500/20 text-green-400{% endif %}">
+                                {{ item.priority }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs rounded {% if item.sentiment_label == 'negative' %}bg-red-500/20 text-red-400{% elif item.sentiment_label == 'positive' %}bg-green-500/20 text-green-400{% else %}bg-slate-600 text-slate-300{% endif %}">
+                                {{ item.sentiment_label or 'N/A' }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-200">{{ item.category or 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if item.rating %}
+                            <span class="text-yellow-400">{% for i in range(item.rating) %}★{% endfor %}</span>
+                            {% else %}
+                            <span class="text-slate-500">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-slate-300">{{ item.message_preview }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                            {% if item.created_at %}
+                            {{ item.created_at[:10] }}
+                            {% else %}
+                            —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not priority_queue %}
+                    <tr>
+                        <td colspan="6" class="px-6 py-4 text-center text-slate-400">No priority items found</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Recent Feedback List -->
+    <div class="bg-slate-800 rounded-lg border border-slate-700">
+        <div class="px-6 py-4 border-b border-slate-700">
+            <h2 class="text-lg font-semibold text-white">Recent Feedback</h2>
+        </div>
+        <div class="divide-y divide-slate-700">
+            {% for item in feedback_list %}
+            <div class="px-6 py-4 hover:bg-slate-700/30 transition">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <span class="px-2 py-1 text-xs rounded {% if item.sentiment_label == 'negative' %}bg-red-500/20 text-red-400{% elif item.sentiment_label == 'positive' %}bg-green-500/20 text-green-400{% else %}bg-slate-600 text-slate-300{% endif %}">
+                                {{ item.sentiment_label or 'N/A' }}
+                            </span>
+                            {% if item.category %}
+                            <span class="text-sm text-slate-400">{{ item.category }}</span>
+                            {% endif %}
+                            {% if item.rating %}
+                            <span class="text-yellow-400 text-sm">{% for i in range(item.rating) %}★{% endfor %}</span>
+                            {% endif %}
+                            <span class="text-xs text-slate-500">{{ item.source }}</span>
+                        </div>
+                        <p class="text-slate-200 mb-1">{{ item.message }}</p>
+                        <div class="text-xs text-slate-400">
+                            {% if item.created_at %}
+                            {{ item.created_at[:19]|replace('T', ' ') }}
+                            {% endif %}
+                            {% if item.customer_id %}
+                            • Customer: {{ item.customer_id }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% if not feedback_list %}
+            <div class="px-6 py-8 text-center text-slate-400">No feedback found</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Wait for page to fully load and Chart.js to be available
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded');
+        return;
+    }
+
+    // Destroy existing charts if they exist (prevent duplicates)
+    if (window.sentimentChartInstance) {
+        window.sentimentChartInstance.destroy();
+    }
+    if (window.categoryChartInstance) {
+        window.categoryChartInstance.destroy();
+    }
+
+    // Sentiment Pie Chart - Dark theme colors
+    const sentimentCanvas = document.getElementById('sentimentChart');
+    if (sentimentCanvas) {
+        const sentimentCtx = sentimentCanvas.getContext('2d');
+        const sentimentData = {{ sentiment_data | tojson }};
+        
+        const sentimentLabels = Object.keys(sentimentData);
+        const sentimentValues = Object.values(sentimentData);
+        
+        if (sentimentLabels.length > 0 && sentimentValues.some(v => v > 0)) {
+            window.sentimentChartInstance = new Chart(sentimentCtx, {
+                type: 'pie',
+                data: {
+                    labels: sentimentLabels,
+                    datasets: [{
+                        data: sentimentValues,
+                        backgroundColor: [
+                            '#ef4444', // red for negative
+                            '#64748b', // slate for neutral
+                            '#10b981', // green for positive
+                        ],
+                        borderColor: '#1e293b',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#e2e8f0',
+                            },
+                        },
+                    },
+                },
+            });
+        } else {
+            sentimentCanvas.parentElement.innerHTML += '<p class="text-slate-400 text-center mt-4">No sentiment data available</p>';
+        }
+    }
+
+    // Category Bar Chart - Dark theme
+    const categoryCanvas = document.getElementById('categoryChart');
+    if (categoryCanvas) {
+        const categoryCtx = categoryCanvas.getContext('2d');
+        const categoryData = {{ category_data | tojson }};
+        
+        const categoryLabels = Object.keys(categoryData);
+        const categoryValues = Object.values(categoryData);
+        
+        if (categoryLabels.length > 0 && categoryValues.some(v => v > 0)) {
+            window.categoryChartInstance = new Chart(categoryCtx, {
+                type: 'bar',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{
+                        label: 'Feedback Count',
+                        data: categoryValues,
+                        backgroundColor: '#10b981',
+                        borderColor: '#059669',
+                        borderWidth: 1,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                color: '#94a3b8',
+                            },
+                            grid: {
+                                color: '#334155',
+                            },
+                        },
+                        x: {
+                            ticks: {
+                                color: '#94a3b8',
+                            },
+                            grid: {
+                                color: '#334155',
+                            },
+                        },
+                    },
+                },
+            });
+        } else {
+            categoryCanvas.parentElement.innerHTML += '<p class="text-slate-400 text-center mt-4">No category data available</p>';
+        }
+    }
+});
+</script>
+{% endblock %}

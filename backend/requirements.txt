@@ -1,0 +1,44 @@
+# Web framework
+Flask==3.0.3
+
+# Database & ORM
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10    # PostgreSQL driver (use in prod)
+alembic==1.14.0            # For migrations later (optional in MVP)
+
+# Environment & config
+python-dotenv==1.0.1
+
+# NLP & sentiment
+nltk==3.9.1
+textblob==0.18.0.post0     # Optional classic sentiment; VADER will be primary
+
+# For optional future transformer models
+transformers==4.46.1
+torch==2.5.1                # CPU version; can be swapped for GPU build later
+
+# Security / encryption
+cryptography==43.0.3
+passlib[bcrypt]==1.7.4      # For password hashing when we add users
+
+# HTTP, parsing & utilities
+requests==2.32.3
+python-dateutil==2.9.0.post0
+flask-cors==4.0.0
+feedparser==6.0.11
+beautifulsoup4==4.12.3
+google-generativeai==0.8.6
+google-genai==1.73.1
+
+# Dashboard assets (we'll mostly include JS via CDN, no Python deps needed)
+
+# Testing
+pytest==8.3.3
+pytest-cov==6.0.0
+
+# CSV / Data utilities
+pandas==2.2.3
+
+# Word cloud (Phase 4)
+wordcloud==1.9.4
+Pillow==10.4.0

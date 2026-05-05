@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Feedback - Customer Feedback Platform{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-900 mb-6">Submit Feedback</h1>
+
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('views.submit_feedback') }}" class="bg-white rounded-lg shadow p-6 space-y-6">
+        <div>
+            <label for="message" class="block text-sm font-medium text-gray-700 mb-2">
+                Feedback Message <span class="text-red-500">*</span>
+            </label>
+            <textarea
+                id="message"
+                name="message"
+                rows="5"
+                required
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Tell us about your experience..."></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email (optional)</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="your@email.com">
+            </div>
+
+            <div>
+                <label for="customer_id" class="block text-sm font-medium text-gray-700 mb-2">Customer ID (optional)</label>
+                <input
+                    type="text"
+                    id="customer_id"
+                    name="customer_id"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="POL12345">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="rating" class="block text-sm font-medium text-gray-700 mb-2">Rating (1-5)</label>
+                <select
+                    id="rating"
+                    name="rating"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Select rating</option>
+                    <option value="5">5 - Excellent</option>
+                    <option value="4">4 - Good</option>
+                    <option value="3">3 - Average</option>
+                    <option value="2">2 - Poor</option>
+                    <option value="1">1 - Very Poor</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                <select
+                    id="category"
+                    name="category"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Select category</option>
+                    <option value="claims">Claims</option>
+                    <option value="policy_admin">Policy Administration</option>
+                    <option value="customer_service">Customer Service</option>
+                    <option value="premium_payment">Premium Payment</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="border-t pt-4">
+            <div class="flex items-start">
+                <input
+                    type="checkbox"
+                    id="consent_given"
+                    name="consent_given"
+                    class="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                <label for="consent_given" class="ml-2 text-sm text-gray-700">
+                    I consent to the processing of my feedback for analysis and improvement purposes
+                </label>
+            </div>
+            <div class="mt-3">
+                <label for="consent_text" class="block text-sm font-medium text-gray-700 mb-2">Consent Statement (optional)</label>
+                <textarea
+                    id="consent_text"
+                    name="consent_text"
+                    rows="2"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Any additional consent details..."></textarea>
+            </div>
+        </div>
+
+        <div class="flex space-x-4">
+            <button
+                type="submit"
+                class="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                Submit Feedback
+            </button>
+            <a
+                href="{{ url_for('views.dashboard') }}"
+                class="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 text-center focus:outline-none focus:ring-2 focus:ring-gray-500">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

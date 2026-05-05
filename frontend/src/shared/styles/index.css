@@ -1,0 +1,413 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  body {
+    /* Soft mint off-white; mirrors executive-style dashboards */
+    background-color: #f0f4f1;
+    color: #111827;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    line-height: 1.6;
+  }
+
+  html.dark body {
+    background-color: #030712;
+    color: #f3f4f6;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  :root {
+    --el-green: #009750;
+    --el-green-dark: #007a42;
+    --surface: #ffffff;
+    --surface-muted: #f3f6f4;
+    --app-canvas: #f0f4f1;
+    --app-mint-tint: rgba(0, 151, 80, 0.06);
+    --border: #e5e7eb;
+    --text: #111827;
+    --text-muted: #6b7280;
+  }
+
+  /** Full-app background: light green gradient “glow” (light mode only). */
+  .app-shell-bg {
+    background-color: var(--app-canvas);
+    background-image:
+      radial-gradient(ellipse 100% 85% at 50% -15%, rgba(255, 255, 255, 0.95) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 55% at 100% 8%, var(--app-mint-tint), transparent 52%),
+      radial-gradient(ellipse 65% 50% at 0% 95%, rgba(0, 151, 80, 0.045), transparent 48%);
+  }
+
+  html.dark .app-shell-bg {
+    background-image: none;
+    background-color: #030712;
+  }
+
+  /**
+   * Sidebar active color: brand green (#009750). Reference designs often use orange for “active”;
+   * we keep semantic active = primary brand for Customer Pulse / Enterprise Life.
+   */
+  .sidebar-shell {
+    @apply border-r border-gray-200/90 bg-white shadow-sm backdrop-blur-sm dark:border-gray-800 dark:bg-[#111318] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.04)];
+  }
+
+  .sidebar-link {
+    @apply flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium min-h-[44px];
+  }
+  
+  .sidebar-link-active {
+    @apply bg-[#009750] text-white shadow-sm;
+  }
+  
+  .sidebar-link-inactive {
+    @apply text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white;
+  }
+  
+  .card {
+    @apply rounded-2xl border border-gray-200/90 dark:border-gray-800;
+    background-color: #ffffff;
+    background-image:
+      radial-gradient(ellipse 95% 75% at 100% -5%, rgba(0, 151, 80, 0.07), transparent 52%),
+      radial-gradient(ellipse 85% 70% at -5% 105%, rgba(0, 151, 80, 0.05), transparent 48%),
+      linear-gradient(180deg, #ffffff 0%, #f9fbf9 100%);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.045), 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.18s ease, transform 0.18s ease;
+  }
+
+  html.dark .card {
+    background-image: none;
+    background-color: rgb(3 7 18);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.08);
+  }
+
+  .card:hover {
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.07), 0 4px 10px rgba(0, 151, 80, 0.04);
+  }
+
+  html.dark .card:hover {
+    box-shadow: 0 10px 22px rgba(16, 24, 40, 0.10), 0 3px 8px rgba(16, 24, 40, 0.06);
+  }
+
+  /** Base metric / KPI (overview row uses .metric-card--kpi + tint modifiers). */
+  .metric-card {
+    @apply rounded-2xl transition-shadow transition-transform duration-200 ease-out;
+  }
+
+  .metric-card--kpi {
+    @apply relative flex w-full min-h-[7.5rem] flex-col justify-between gap-3 overflow-visible p-4 text-left;
+    border-radius: 0.875rem;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .metric-card--kpi::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    display: block;
+  }
+
+  .metric-card--kpi .metric-card__body {
+    @apply relative z-[1] flex w-full min-w-0 items-start gap-3;
+  }
+
+  .metric-card--kpi .metric-card__text {
+    @apply flex min-w-0 flex-1 flex-col items-start;
+  }
+
+  .metric-card--kpi .metric-card__value {
+    @apply text-2xl font-bold tabular-nums text-gray-900 sm:text-3xl dark:text-gray-100;
+  }
+
+  .metric-card--kpi .metric-card__label {
+    @apply mt-0.5 text-xs font-medium text-gray-500 sm:text-sm dark:text-gray-400;
+  }
+
+  .metric-card--kpi .metric-card__icon {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full border shadow-none;
+  }
+
+  .metric-card--kpi .metric-card__track {
+    @apply relative z-[1] h-1 w-full overflow-hidden rounded-full;
+    background: var(--kpi-track-rail, #e5e7eb);
+  }
+
+  html.dark .metric-card--kpi .metric-card__track {
+    background: var(--kpi-track-rail-dark, rgba(55, 65, 81, 0.85));
+  }
+
+  .metric-card--kpi .metric-card__track-fill {
+    @apply h-full rounded-full;
+    width: var(--kpi-pct, 0%);
+    background: var(--kpi-track-fill, rgba(100, 116, 128, 0.28));
+    transition: width 0.25s ease-out;
+  }
+
+  .metric-card--kpi .metric-card__footer {
+    @apply relative z-[1] mt-1 w-full;
+  }
+
+  .metric-card--kpi:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+    transform: translateY(-1px);
+  }
+
+  /* KPI tints: Viridis-aligned (charts use same hues). Neutral icon uses dark glyph on yellow-green for contrast. */
+  .metric-card--tint-total {
+    --kpi-track-fill: rgba(33, 145, 140, 0.34);
+    --kpi-track-rail: #eceff1;
+    --kpi-track-rail-dark: rgba(51, 65, 85, 0.55);
+    background-color: #f7fbfa;
+    border: 1px solid rgba(33, 145, 140, 0.06);
+  }
+
+  .metric-card--tint-total::before {
+    background: radial-gradient(circle at 100% 0%, rgba(33, 145, 140, 0.04) 0%, transparent 58%);
+  }
+
+  .metric-card--tint-total .metric-card__icon {
+    border: 1px solid rgba(33, 145, 140, 0.22);
+    background-color: #21918c;
+    color: #fff;
+  }
+
+  html.dark .metric-card--tint-total {
+    --kpi-track-fill: rgba(72, 209, 204, 0.28);
+    background-color: rgba(15, 23, 42, 0.58);
+    border-color: rgba(72, 209, 204, 0.1);
+  }
+
+  html.dark .metric-card--tint-total::before {
+    background: radial-gradient(circle at 100% 0%, rgba(72, 209, 204, 0.05) 0%, transparent 55%);
+  }
+
+  html.dark .metric-card--tint-total .metric-card__icon {
+    border-color: rgba(72, 209, 204, 0.35);
+    background-color: rgba(33, 145, 140, 0.92);
+  }
+
+  .metric-card--tint-negative {
+    --kpi-track-fill: rgba(217, 108, 108, 0.4);
+    --kpi-track-rail: #eceff1;
+    --kpi-track-rail-dark: rgba(51, 65, 85, 0.55);
+    background-color: #fdf8f8;
+    border: 1px solid rgba(217, 108, 108, 0.1);
+  }
+
+  .metric-card--tint-negative::before {
+    background: radial-gradient(circle at 100% 0%, rgba(217, 108, 108, 0.06) 0%, transparent 58%);
+  }
+
+  .metric-card--tint-negative .metric-card__icon {
+    border: 1px solid rgba(217, 108, 108, 0.35);
+    background-color: #d96c6c;
+    color: #fff;
+  }
+
+  html.dark .metric-card--tint-negative {
+    --kpi-track-fill: rgba(248, 172, 172, 0.3);
+    background-color: rgba(15, 23, 42, 0.58);
+    border-color: rgba(248, 172, 172, 0.12);
+  }
+
+  html.dark .metric-card--tint-negative::before {
+    background: radial-gradient(circle at 100% 0%, rgba(248, 172, 172, 0.08) 0%, transparent 55%);
+  }
+
+  html.dark .metric-card--tint-negative .metric-card__icon {
+    border-color: rgba(248, 172, 172, 0.45);
+    background-color: rgba(217, 108, 108, 0.95);
+  }
+
+  .metric-card--tint-positive {
+    --kpi-track-fill: rgba(111, 191, 115, 0.4);
+    --kpi-track-rail: #eceff1;
+    --kpi-track-rail-dark: rgba(51, 65, 85, 0.55);
+    background-color: #f7fcf7;
+    border: 1px solid rgba(111, 191, 115, 0.1);
+  }
+
+  .metric-card--tint-positive::before {
+    background: radial-gradient(circle at 100% 0%, rgba(111, 191, 115, 0.06) 0%, transparent 58%);
+  }
+
+  .metric-card--tint-positive .metric-card__icon {
+    border: 1px solid rgba(111, 191, 115, 0.35);
+    background-color: #6fbf73;
+    color: #fff;
+  }
+
+  html.dark .metric-card--tint-positive {
+    --kpi-track-fill: rgba(140, 214, 144, 0.32);
+    background-color: rgba(15, 23, 42, 0.58);
+    border-color: rgba(140, 214, 144, 0.14);
+  }
+
+  html.dark .metric-card--tint-positive::before {
+    background: radial-gradient(circle at 100% 0%, rgba(140, 214, 144, 0.08) 0%, transparent 55%);
+  }
+
+  html.dark .metric-card--tint-positive .metric-card__icon {
+    border-color: rgba(140, 214, 144, 0.45);
+    background-color: rgba(111, 191, 115, 0.95);
+  }
+
+  .metric-card--tint-neutral {
+    --kpi-track-fill: rgba(230, 199, 107, 0.48);
+    --kpi-track-rail: #eceff1;
+    --kpi-track-rail-dark: rgba(51, 65, 85, 0.55);
+    background-color: #fefdf8;
+    border: 1px solid rgba(230, 199, 107, 0.12);
+  }
+
+  .metric-card--tint-neutral::before {
+    background: radial-gradient(circle at 100% 0%, rgba(230, 199, 107, 0.1) 0%, transparent 58%);
+  }
+
+  .metric-card--tint-neutral .metric-card__icon {
+    border: 1px solid rgba(180, 150, 60, 0.35);
+    background-color: #e6c76b;
+    color: #1e190d;
+  }
+
+  html.dark .metric-card--tint-neutral {
+    --kpi-track-fill: rgba(238, 215, 150, 0.34);
+    background-color: rgba(15, 23, 42, 0.58);
+    border-color: rgba(238, 215, 150, 0.14);
+  }
+
+  html.dark .metric-card--tint-neutral::before {
+    background: radial-gradient(circle at 100% 0%, rgba(238, 215, 150, 0.1) 0%, transparent 55%);
+  }
+
+  html.dark .metric-card--tint-neutral .metric-card__icon {
+    border-color: rgba(238, 215, 150, 0.4);
+    background-color: rgba(230, 199, 107, 0.95);
+    color: #1a170d;
+  }
+
+  .metric-card--tint-priority {
+    --kpi-track-fill: rgba(72, 40, 120, 0.34);
+    --kpi-track-rail: #eceff1;
+    --kpi-track-rail-dark: rgba(51, 65, 85, 0.55);
+    background-color: #faf9fc;
+    border: 1px solid rgba(72, 40, 120, 0.06);
+  }
+
+  .metric-card--tint-priority::before {
+    background: radial-gradient(circle at 100% 0%, rgba(72, 40, 120, 0.04) 0%, transparent 58%);
+  }
+
+  .metric-card--tint-priority .metric-card__icon {
+    border: 1px solid rgba(72, 40, 120, 0.24);
+    background-color: #482878;
+    color: #fff;
+  }
+
+  html.dark .metric-card--tint-priority {
+    --kpi-track-fill: rgba(167, 139, 250, 0.26);
+    background-color: rgba(15, 23, 42, 0.58);
+    border-color: rgba(167, 139, 250, 0.1);
+  }
+
+  html.dark .metric-card--tint-priority::before {
+    background: radial-gradient(circle at 100% 0%, rgba(167, 139, 250, 0.05) 0%, transparent 55%);
+  }
+
+  html.dark .metric-card--tint-priority .metric-card__icon {
+    border-color: rgba(167, 139, 250, 0.35);
+    background-color: rgba(72, 40, 120, 0.92);
+  }
+
+  .metric-card--kpi:focus {
+    outline: none;
+  }
+
+  .metric-card--kpi:focus-visible {
+    outline: none;
+  }
+
+  .metric-card--tint-total:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(33, 145, 140, 0.35);
+  }
+
+  .metric-card--tint-negative:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(217, 108, 108, 0.45);
+  }
+
+  .metric-card--tint-positive:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(111, 191, 115, 0.45);
+  }
+
+  .metric-card--tint-neutral:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(230, 199, 107, 0.55);
+  }
+
+  .metric-card--tint-priority:focus-visible {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(72, 40, 120, 0.35);
+  }
+
+  html.dark .metric-card--tint-total:focus-visible {
+    box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgba(72, 209, 204, 0.38);
+  }
+
+  html.dark .metric-card--tint-negative:focus-visible {
+    box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgba(248, 172, 172, 0.45);
+  }
+
+  html.dark .metric-card--tint-positive:focus-visible {
+    box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgba(140, 214, 144, 0.42);
+  }
+
+  html.dark .metric-card--tint-neutral:focus-visible {
+    box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgba(238, 215, 150, 0.5);
+  }
+
+  html.dark .metric-card--tint-priority:focus-visible {
+    box-shadow: 0 0 0 2px rgb(15 23 42), 0 0 0 4px rgba(167, 139, 250, 0.38);
+  }
+
+  html.dark .metric-card--kpi:hover {
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer utilities {
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: cfp-skeleton-shimmer 1.25s ease-in-out infinite;
+  }
+
+  html.dark .skeleton-shimmer::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+  }
+
+  @keyframes cfp-skeleton-shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
