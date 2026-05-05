@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import Sidebar from '../shared/components/layout/Sidebar'
-import Dashboard from '../features/dashboard/components/Dashboard'
 import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
 import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
-import InboxLite from '../features/inbox/components/InboxLite'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminIntegrations from '../features/admin/components/AdminIntegrations'
@@ -15,6 +13,9 @@ import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui'
+import DashboardOverviewPage from '../pages/dashboard/Overview'
+import DashboardInsightsPage from '../pages/dashboard/Insights'
+import InboxPage from '../pages/inbox/Inbox'
 
 function App() {
   const [auth, setAuth] = useState(null)
@@ -81,6 +82,15 @@ function App() {
       }
     })()
   }, [])
+
+  const navigateToInboxWithPreset = useCallback((preset) => {
+    try {
+      sessionStorage.setItem('cfp_inbox_peak_preset', JSON.stringify(preset || {}))
+    } catch {
+      // ignore
+    }
+    setCurrentView('inbox')
+  }, [setCurrentView])
 
   useEffect(() => {
     if (!currentView.startsWith('admin_')) return
@@ -149,38 +159,20 @@ function App() {
         />
         <main className="flex-1 overflow-y-auto">
           {!isAdminUI && currentView === 'overview' && (
-            <Dashboard
-              mode="overview"
-              isAdminUser={false}
+            <DashboardOverviewPage
               userRole={auth?.role}
               onNavigateToInsights={() => setCurrentView('insights')}
-              onNavigateToInbox={(preset) => {
-                try {
-                  sessionStorage.setItem('cfp_inbox_peak_preset', JSON.stringify(preset || {}))
-                } catch {
-                  // ignore
-                }
-                setCurrentView('inbox')
-              }}
+              onNavigateToInbox={navigateToInboxWithPreset}
             />
           )}
           {!isAdminUI && currentView === 'insights' && (
-            <Dashboard
-              mode="insights"
-              isAdminUser={false}
+            <DashboardInsightsPage
               userRole={auth?.role}
               onNavigateBack={() => setCurrentView('overview')}
-              onNavigateToInbox={(preset) => {
-                try {
-                  sessionStorage.setItem('cfp_inbox_peak_preset', JSON.stringify(preset || {}))
-                } catch {
-                  // ignore
-                }
-                setCurrentView('inbox')
-              }}
+              onNavigateToInbox={navigateToInboxWithPreset}
             />
           )}
-          {!isAdminUI && currentView === 'inbox' && <InboxLite onNavigate={setCurrentView} />}
+          {!isAdminUI && currentView === 'inbox' && <InboxPage onNavigate={setCurrentView} />}
           {currentView === 'notifications' && <Notifications isAdminUI={isAdminUI} onNavigate={setCurrentView} />}
           {!isAdminUI && currentView === 'customer' && <Customer360 onNavigate={setCurrentView} />}
           {currentView === 'channels' && <Channels />}
