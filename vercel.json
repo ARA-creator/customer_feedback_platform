@@ -5,8 +5,7 @@
       "routePrefix": "/"
     },
     "backend": {
-      "entrypoint": "backend/main.py",
-      "framework": "flask",
+      "entrypoint": "backend",
       "routePrefix": "/api"
     }
   }
