@@ -1,12 +1,12 @@
 {
-    "experimentalServices": {
-      "frontend": {
-        "rootDirectory": "frontend",
-        "entrypoint": "frontend"
-      },
-      "backend": {
-        "rootDirectory": "backend",
-        "entrypoint": "backend"
-      }
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/"
+    },
+    "backend": {
+      "entrypoint": "backend",
+      "routePrefix": "/api"
     }
   }
+}
