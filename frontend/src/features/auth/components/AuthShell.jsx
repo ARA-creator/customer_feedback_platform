@@ -58,6 +58,25 @@ export default function AuthShell({ onAuthenticated }) {
   const [role, setRole] = useState('agent')
   const [error, setError] = useState(null)
 
+  const formatApiErrorMessage = (err, fallback) => {
+    const apiErr = err?.response?.data?.error
+    if (typeof apiErr === 'string' && apiErr.trim()) return apiErr
+    if (apiErr && typeof apiErr === 'object') {
+      const code = typeof apiErr.code === 'string' ? apiErr.code : ''
+      const msg = typeof apiErr.message === 'string' ? apiErr.message : ''
+      const joined = [code, msg].filter(Boolean).join(': ')
+      if (joined) return joined
+      try {
+        return JSON.stringify(apiErr)
+      } catch {
+        // ignore
+      }
+    }
+    const msg = err?.message
+    if (typeof msg === 'string' && msg.trim()) return msg
+    return fallback
+  }
+
   const strengthHint = useMemo(() => {
     const len = password.length
     if (!isSignup) return null
@@ -123,7 +142,7 @@ export default function AuthShell({ onAuthenticated }) {
           setError('An account with this email already exists. Please sign in instead.')
           return
         }
-        setError(err?.response?.data?.error || 'Unable to create account. Please try again.')
+        setError(formatApiErrorMessage(err, 'Unable to create account. Please try again.'))
         return
       }
     }
@@ -141,7 +160,7 @@ export default function AuthShell({ onAuthenticated }) {
         setError('Incorrect password. Please try again.')
         return
       }
-      setError(err?.response?.data?.error || 'Unable to sign in. Please try again.')
+      setError(formatApiErrorMessage(err, 'Unable to sign in. Please try again.'))
     }
   }
 
