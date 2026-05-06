@@ -12,7 +12,7 @@ import AdminReleaseImpact from '../features/admin/components/AdminReleaseImpact'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
-import { AuthLoadingScreen } from '../shared/components/ui'
+import { AuthLoadingScreen, ErrorBoundary } from '../shared/components/ui'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
@@ -125,68 +125,72 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden app-shell-bg text-gray-900 relative dark:text-gray-100">
-      {/* Mobile overlay to close sidebar when clicking outside */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-20 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <ErrorBoundary>
+      <div className="flex h-screen overflow-hidden app-shell-bg text-gray-900 relative dark:text-gray-100">
+        {/* Mobile overlay to close sidebar when clicking outside */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-      <Sidebar
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        sidebarOpen={sidebarOpen}
-        onSignOut={signOut}
-        theme={theme}
-        permissions={permissions}
-        userRole={auth?.role}
-        isAdminUser={isAdminUI}
-        canAccessWebhooks={canAccessWebhooks}
-        user={
-          auth
-            ? { id: auth.id, email: auth.email, role: auth.role }
-            : null
-        }
-      />
-      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
-        <Header
+        <Sidebar
           currentView={currentView}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          setCurrentView={setCurrentView}
+          sidebarOpen={sidebarOpen}
+          onSignOut={signOut}
           theme={theme}
-          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          permissions={permissions}
+          userRole={auth?.role}
+          isAdminUser={isAdminUI}
+          canAccessWebhooks={canAccessWebhooks}
+          user={
+            auth
+              ? { id: auth.id, email: auth.email, role: auth.role }
+              : null
+          }
         />
-        <main className="flex-1 overflow-y-auto">
-          {!isAdminUI && currentView === 'overview' && (
-            <DashboardOverviewPage
-              userRole={auth?.role}
-              onNavigateToInsights={() => setCurrentView('insights')}
-              onNavigateToInbox={navigateToInboxWithPreset}
-            />
-          )}
-          {!isAdminUI && currentView === 'insights' && (
-            <DashboardInsightsPage
-              userRole={auth?.role}
-              onNavigateBack={() => setCurrentView('overview')}
-              onNavigateToInbox={navigateToInboxWithPreset}
-            />
-          )}
-          {!isAdminUI && currentView === 'inbox' && <InboxPage onNavigate={setCurrentView} />}
-          {currentView === 'notifications' && <Notifications isAdminUI={isAdminUI} onNavigate={setCurrentView} />}
-          {!isAdminUI && currentView === 'customer' && <Customer360 onNavigate={setCurrentView} />}
-          {currentView === 'channels' && <Channels />}
-          {currentView === 'admin_overview' && (
-            <AdminOverview auth={auth} onNavigate={(view) => setCurrentView(view)} />
-          )}
-          {currentView === 'admin_users' && <AdminUsers />}
-          {currentView === 'admin_roles' && <AdminRoles />}
-          {currentView === 'admin_integrations' && <AdminIntegrations />}
-          {currentView === 'admin_release_impact' && <AdminReleaseImpact />}
-          {currentView === 'admin_db' && <AdminDbConnection />}
-        </main>
+        <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+          <Header
+            currentView={currentView}
+            onToggleSidebar={() => setSidebarOpen((open) => !open)}
+            theme={theme}
+            onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          />
+          <main className="flex-1 overflow-y-auto">
+            {!isAdminUI && currentView === 'overview' && (
+              <DashboardOverviewPage
+                userRole={auth?.role}
+                onNavigateToInsights={() => setCurrentView('insights')}
+                onNavigateToInbox={navigateToInboxWithPreset}
+              />
+            )}
+            {!isAdminUI && currentView === 'insights' && (
+              <DashboardInsightsPage
+                userRole={auth?.role}
+                onNavigateBack={() => setCurrentView('overview')}
+                onNavigateToInbox={navigateToInboxWithPreset}
+              />
+            )}
+            {!isAdminUI && currentView === 'inbox' && <InboxPage onNavigate={setCurrentView} />}
+            {currentView === 'notifications' && (
+              <Notifications isAdminUI={isAdminUI} onNavigate={setCurrentView} />
+            )}
+            {!isAdminUI && currentView === 'customer' && <Customer360 onNavigate={setCurrentView} />}
+            {currentView === 'channels' && <Channels />}
+            {currentView === 'admin_overview' && (
+              <AdminOverview auth={auth} onNavigate={(view) => setCurrentView(view)} />
+            )}
+            {currentView === 'admin_users' && <AdminUsers />}
+            {currentView === 'admin_roles' && <AdminRoles />}
+            {currentView === 'admin_integrations' && <AdminIntegrations />}
+            {currentView === 'admin_release_impact' && <AdminReleaseImpact />}
+            {currentView === 'admin_db' && <AdminDbConnection />}
+          </main>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   )
 }
 
