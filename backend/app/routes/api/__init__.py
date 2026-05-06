@@ -1,16 +1,14 @@
 import logging
-import os
 
 from flask import Blueprint
 
 logger = logging.getLogger(__name__)
 
-# NOTE:
-# - Locally, the backend serves API routes under `/api/*`.
-# - On Vercel Services, the backend service is mounted under `/api`, so adding
-#   another `/api` prefix would result in `/api/api/*`.
-_ON_VERCEL = bool(os.getenv("VERCEL"))
-api_bp = Blueprint("api", __name__, url_prefix="" if _ON_VERCEL else "/api")
+# On Vercel Services, the backend is mounted under `/api` via `routePrefix`,
+# so the blueprint should not add another `/api` layer (which would become `/api/api/...`).
+# Locally (without Services), requests should still be made to `/api/...` because the
+# frontend uses `/api` as its base URL.
+api_bp = Blueprint("api", __name__, url_prefix="")
 
 # Import route modules so decorators register on api_bp.
 # These modules may be populated incrementally during the refactor.
