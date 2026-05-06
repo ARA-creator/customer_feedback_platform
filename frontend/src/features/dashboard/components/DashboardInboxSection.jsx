@@ -96,7 +96,7 @@ export default function DashboardInboxSection({
                     className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-[#009750]/60 focus:border-[#009750]"
                   />
                 </div>
-                <div className="w-[200px] shrink-0">
+                <div className="w-full sm:w-56 shrink-0">
                   <label className="text-xs font-medium text-gray-600 mb-1 block">Saved views</label>
                   <select
                     value={selectedSavedView}

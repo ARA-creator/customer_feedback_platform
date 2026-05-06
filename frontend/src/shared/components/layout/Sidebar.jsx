@@ -154,8 +154,8 @@ function Sidebar({
     <aside
       className={`
         sidebar-shell flex flex-col flex-shrink-0 z-30
-        fixed inset-y-0 left-0 transform transition-all duration-200 ease-out
-        w-64 max-w-[85vw]
+        fixed inset-y-0 left-0 h-[100dvh] max-h-[100dvh] transform transition-all duration-200 ease-out
+        w-64 max-w-[85vw] overflow-x-hidden
         ${c ? 'md:w-[4.5rem] md:max-w-[4.5rem]' : 'md:w-64 md:max-w-none'}
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         md:static md:translate-x-0
@@ -222,7 +222,7 @@ function Sidebar({
       </div>
 
       <nav
-        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden ${
+        className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain ${
           c ? 'md:px-1.5 md:py-3' : 'px-3 py-3'
         } space-y-1`}
         aria-label="Main navigation"

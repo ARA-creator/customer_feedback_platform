@@ -22,7 +22,11 @@ function App() {
   const [auth, setAuth] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [currentView, setCurrentView] = useState('overview')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    // Mobile-first: start with drawer closed on small screens.
+    if (typeof window === 'undefined') return true
+    return window.matchMedia?.('(min-width: 768px)')?.matches ?? true
+  })
   const [theme, setTheme] = useState(() => localStorage.getItem('cfp_theme') || 'light')
 
   useEffect(() => {
@@ -127,7 +131,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen overflow-hidden app-shell-bg text-gray-900 relative dark:text-gray-100">
+      <div className="flex h-[100dvh] max-h-[100dvh] overflow-hidden overflow-x-hidden app-shell-bg text-gray-900 relative dark:text-gray-100">
         {/* Mobile overlay to close sidebar when clicking outside */}
         {sidebarOpen && (
           <div
@@ -152,14 +156,14 @@ function App() {
               : null
           }
         />
-        <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
           <Header
             currentView={currentView}
             onToggleSidebar={() => setSidebarOpen((open) => !open)}
             theme={theme}
             onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
           />
-          <main className="flex-1 overflow-y-auto">
+          <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
             {!isAdminUI && currentView === 'overview' && (
               <DashboardOverviewPage
                 userRole={auth?.role}

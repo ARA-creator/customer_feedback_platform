@@ -65,10 +65,37 @@ if (import.meta.env.DEV) {
   )
 }
 
+function formatAxiosApiErrorPayload(data) {
+  if (data == null) return ''
+  if (typeof data === 'string') return data
+  if (typeof data === 'object') {
+    const e = data.error
+    if (typeof e === 'string') return e
+    if (e && typeof e === 'object') {
+      const code = typeof e.code === 'string' ? e.code : ''
+      const msg = typeof e.message === 'string' ? e.message : ''
+      const joined = [code, msg].filter(Boolean).join(': ')
+      if (joined) return joined
+    }
+    try {
+      return JSON.stringify(data)
+    } catch {
+      return String(data)
+    }
+  }
+  return String(data)
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', error.response?.data || error.message)
+    const status = error.response?.status
+    const cfg = error.config || {}
+    const path = cfg.url ? String(cfg.url) : ''
+    const base = cfg.baseURL ? String(cfg.baseURL) : ''
+    const fullUrl = path.startsWith('http') ? path : `${base}${path}`
+    const detail = formatAxiosApiErrorPayload(error.response?.data)
+    console.error(`API Error${status != null ? ` ${status}` : ''}`, fullUrl || path || '(unknown url)', detail || error.message)
     return Promise.reject(error)
   }
 )

@@ -32,8 +32,8 @@ function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
                             ? 'Audit logs'
                             : 'Overview'
   return (
-    <header className="bg-white/90 backdrop-blur-sm border-b border-emerald-100/50 px-4 sm:px-6 py-4 flex items-center justify-between shadow-sm dark:bg-gray-950 dark:border-gray-800">
-      <div className="flex items-center">
+    <header className="bg-white/90 backdrop-blur-sm border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-sm dark:bg-gray-950 dark:border-gray-800">
+      <div className="flex min-w-0 items-center">
         {/* Hamburger toggle - mobile only */}
         <button
           type="button"
@@ -43,12 +43,12 @@ function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
           <span className="sr-only">Toggle sidebar</span>
           <FiMenu className="h-5 w-5" aria-hidden="true" />
         </button>
-        <nav className="text-sm text-gray-600 dark:text-gray-300" aria-label="Breadcrumb">
-          <span className="text-gray-500 dark:text-gray-400">Customer Pulse</span>
-          <span className="mx-2 text-gray-400" aria-hidden>
+        <nav className="min-w-0 text-sm text-gray-600 dark:text-gray-300" aria-label="Breadcrumb">
+          <span className="hidden sm:inline text-gray-500 dark:text-gray-400">Customer Pulse</span>
+          <span className="hidden sm:inline mx-2 text-gray-400" aria-hidden>
             /
           </span>
-          <span className="text-gray-900 font-medium dark:text-gray-100">
+          <span className="block min-w-0 truncate text-gray-900 font-medium dark:text-gray-100">
             {label}
           </span>
         </nav>

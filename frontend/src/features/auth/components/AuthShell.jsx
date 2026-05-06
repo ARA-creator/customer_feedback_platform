@@ -165,7 +165,7 @@ export default function AuthShell({ onAuthenticated }) {
   }
 
   return (
-    <div className="min-h-screen app-shell-bg text-gray-900">
+    <div className="min-h-screen overflow-x-hidden app-shell-bg text-gray-900">
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
         {/* Left hero */}
         <div className="hidden lg:flex relative overflow-hidden">
@@ -220,7 +220,7 @@ export default function AuthShell({ onAuthenticated }) {
         </div>
 
         {/* Right card */}
-        <div className="flex items-center justify-center p-6 lg:p-10">
+        <div className="flex items-start sm:items-center justify-center px-4 py-8 sm:p-6 lg:p-10">
           <div className="w-full max-w-md">
             <div className="card p-6 lg:p-7">
               <div className="flex items-center gap-3">
@@ -249,6 +249,17 @@ export default function AuthShell({ onAuthenticated }) {
               )}
 
               <form onSubmit={submitAsync} className="mt-6 space-y-4">
+                {/* Helps browser password managers associate username+password (accessibility). */}
+                <input
+                  type="text"
+                  name="username"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
                 <div>
                   <FieldLabel>Email</FieldLabel>
                   <TextInput

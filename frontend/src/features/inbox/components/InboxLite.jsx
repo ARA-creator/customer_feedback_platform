@@ -602,27 +602,27 @@ export default function InboxLite({ onNavigate }) {
       </div>
 
       <div className="card p-4 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
+          <div className="flex w-full sm:flex-1 min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
             <FiSearch className="h-4 w-4 text-gray-500" />
             <input
               value={qDraft}
               onChange={(e) => setQDraft(e.target.value)}
               placeholder="Search feedback…"
-              className="w-64 bg-transparent outline-none placeholder:text-gray-400"
+              className="w-full min-w-0 bg-transparent outline-none placeholder:text-gray-400"
             />
           </div>
           <button
             type="button"
             onClick={() => setQ(qDraft.trim())}
-            className="inline-flex min-h-[40px] items-center rounded-lg bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#007a42]"
+            className="inline-flex w-full sm:w-auto min-h-[44px] items-center justify-center rounded-lg bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#007a42]"
           >
             Search
           </button>
           <select
             value={sentiment}
             onChange={(e) => setSentiment(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
             <option value="all">All sentiments</option>
             <option value="positive">Positive</option>
@@ -630,9 +630,9 @@ export default function InboxLite({ onNavigate }) {
             <option value="negative">Negative</option>
           </select>
 
-          <details className="relative">
+          <details className="relative w-full sm:w-auto">
             <summary
-              className="list-none inline-flex min-h-[44px] cursor-pointer select-none items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40"
+              className="list-none inline-flex w-full sm:w-auto min-h-[44px] cursor-pointer select-none items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40"
               aria-label="Filter by channel"
               title="Filter by channel"
             >
@@ -646,7 +646,7 @@ export default function InboxLite({ onNavigate }) {
               </span>
             </summary>
             <div
-              className="absolute left-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+              className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
               role="menu"
               aria-label="Channel options"
             >
@@ -699,7 +699,7 @@ export default function InboxLite({ onNavigate }) {
           <select
             value={insuranceTagFilter}
             onChange={(e) => setInsuranceTagFilter(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             title="Filter by insurance tag"
             aria-label="Insurance tag"
           >
@@ -711,7 +711,7 @@ export default function InboxLite({ onNavigate }) {
             ))}
           </select>
 
-          <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+          <div className="inline-flex w-full sm:w-auto items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
             <FiCalendar className="h-4 w-4 text-gray-500" />
             <select
               value={dateRange}
@@ -735,7 +735,7 @@ export default function InboxLite({ onNavigate }) {
                 setPeakHour(null)
                 setPeakRangeDays(null)
               }}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
+              className="inline-flex w-full sm:w-auto min-h-[44px] items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
               title="Clear peak-time filter"
             >
               <span>
@@ -751,7 +751,7 @@ export default function InboxLite({ onNavigate }) {
             <button
               type="button"
               onClick={() => setLocationFilter('')}
-              className="inline-flex min-h-[44px] max-w-[16rem] items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100 dark:hover:bg-amber-950/50"
+              className="inline-flex w-full sm:w-auto min-h-[44px] max-w-full sm:max-w-[16rem] items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100 dark:hover:bg-amber-950/50"
               title="Clear location filter"
             >
               <span className="min-w-0 truncate">Location: {locationFilter.trim()}</span>
@@ -879,7 +879,7 @@ export default function InboxLite({ onNavigate }) {
               aria-label="Open feedback details"
               aria-current={listHighlightId === it.id ? 'true' : undefined}
             >
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <SentimentPill label={it.sentiment_label} />
                 <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                   {(it.source_group || it.source || 'source').replace(/_/g, ' ')}
@@ -924,7 +924,7 @@ export default function InboxLite({ onNavigate }) {
                       return next
                     })
                   }}
-                  className={`ml-auto inline-flex min-h-[32px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                  className={`ml-auto inline-flex min-h-[40px] sm:min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
                     isArchived
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200'
                       : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -973,7 +973,7 @@ export default function InboxLite({ onNavigate }) {
 
       {openItem && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Feedback details"
@@ -984,10 +984,11 @@ export default function InboxLite({ onNavigate }) {
           tabIndex={-1}
         >
           <div
-            className="w-full max-w-2xl max-h-[85vh] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-950"
+            className="w-full max-w-2xl h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain rounded-none sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-xl dark:border-gray-700 dark:bg-gray-950 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:pb-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className="sticky top-0 z-10 -mx-4 sm:-mx-5 px-4 sm:px-5 pt-4 sm:pt-5 pb-3 bg-white/95 backdrop-blur border-b border-gray-100 dark:bg-gray-950/95 dark:border-gray-800">
+              <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1014,7 +1015,7 @@ export default function InboxLite({ onNavigate }) {
                       }}
                       aria-label="View customer"
                       title={canViewCustomer ? 'View customer' : 'No customer identifier found for this feedback yet'}
-                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
+                      className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px] items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
                     >
                       <FiEye className="h-5 w-5" aria-hidden />
                     </button>
@@ -1025,10 +1026,11 @@ export default function InboxLite({ onNavigate }) {
                   onClick={() => setOpenItem(null)}
                   aria-label="Close"
                   title="Close"
-                  className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px] items-center justify-center rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   <FiX className="h-5 w-5" aria-hidden />
                 </button>
+              </div>
               </div>
             </div>
 
