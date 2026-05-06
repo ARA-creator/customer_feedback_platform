@@ -1,11 +1,16 @@
 import logging
+import os
 
 from flask import Blueprint
 
 logger = logging.getLogger(__name__)
 
-# NOTE: This blueprint must keep the same name and url_prefix as the legacy module.
-api_bp = Blueprint("api", __name__, url_prefix="/api")
+# NOTE:
+# - Locally, the backend serves API routes under `/api/*`.
+# - On Vercel Services, the backend service is mounted under `/api`, so adding
+#   another `/api` prefix would result in `/api/api/*`.
+_ON_VERCEL = bool(os.getenv("VERCEL"))
+api_bp = Blueprint("api", __name__, url_prefix="" if _ON_VERCEL else "/api")
 
 # Import route modules so decorators register on api_bp.
 # These modules may be populated incrementally during the refactor.
