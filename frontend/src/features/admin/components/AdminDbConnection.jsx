@@ -39,7 +39,7 @@ export default function AdminDbConnection() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
 
-  const [sqlitePath, setSqlitePath] = useState('feedback.db')
+  const [sqlitePath, setSqlitePath] = useState(':memory:')
   const [url, setUrl] = useState('')
 
   const payload = useMemo(() => {
@@ -256,7 +256,7 @@ export default function AdminDbConnection() {
                     value={sqlitePath}
                     onChange={(e) => setSqlitePath(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
-                    placeholder="feedback.db"
+                    placeholder=":memory:"
                   />
                 </Field>
               )}

@@ -14,9 +14,22 @@ const trimmedBackend = rawBackend != null ? String(rawBackend).trim() : ''
  */
 export const USE_DEV_API_PROXY = import.meta.env.DEV && trimmedBackend === ''
 
-const BACKEND_ORIGIN = USE_DEV_API_PROXY ? '' : normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)
+/**
+ * When deployed with Vercel Services, frontend + backend share the same origin
+ * and the backend is mounted under `/api`. In that case, prefer same-origin
+ * requests (empty origin) unless the user explicitly provided VITE_BACKEND_ORIGIN.
+ */
+const USE_SAME_ORIGIN_BACKEND = !import.meta.env.DEV && trimmedBackend === ''
 
-const apiBaseURL = USE_DEV_API_PROXY ? '/api' : `${normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)}/api`
+const BACKEND_ORIGIN =
+  USE_DEV_API_PROXY || USE_SAME_ORIGIN_BACKEND
+    ? ''
+    : normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)
+
+const apiBaseURL =
+  USE_DEV_API_PROXY || USE_SAME_ORIGIN_BACKEND
+    ? '/api'
+    : `${normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)}/api`
 
 export function getBackendOrigin() {
   return BACKEND_ORIGIN

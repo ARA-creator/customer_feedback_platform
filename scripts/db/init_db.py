@@ -5,7 +5,8 @@ Usage:
     python init_db.py
 
 Environment:
-    - DATABASE_URL: SQLAlchemy database URL. If not set, falls back to local SQLite.
+    - DATABASE_URL: SQLAlchemy database URL (recommended: Neon Postgres for deployments).
+      If not set, the backend config falls back to in-memory SQLite.
 """
 
 import sys

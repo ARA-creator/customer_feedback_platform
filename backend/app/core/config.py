@@ -17,10 +17,12 @@ if ENV_PATH.exists():
 class BaseConfig:
     """Base configuration shared by all environments."""
 
-    # Database: default to local SQLite for dev, override in production
+    # Database: prefer external DB via DATABASE_URL (e.g. Neon Postgres).
+    # When DATABASE_URL is not set, fall back to in-memory SQLite to avoid
+    # creating local stateful DB files in the repo.
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        f"sqlite:///{PROJECT_ROOT / 'feedback.db'}",
+        "sqlite:///:memory:",
     )
 
     SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true"

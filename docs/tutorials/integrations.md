@@ -511,8 +511,9 @@ curl -X POST http://localhost:5000/integrations/whatsapp/twilio \
 
 **Check Database:**
 ```bash
-# If using SQLite:
-sqlite3 feedback.db "SELECT id, source, message_encrypted, created_at FROM feedback ORDER BY id DESC LIMIT 5;"
+# If using Postgres (recommended for deployments, e.g. Neon):
+# Requires `DATABASE_URL` to be set in your shell or `.env`.
+psql "$DATABASE_URL" -c "SELECT id, source, message_encrypted, created_at FROM feedback ORDER BY id DESC LIMIT 5;"
 ```
 
 ---

@@ -205,8 +205,9 @@ def _build_db_url(payload: Dict[str, Any]) -> str:
         if path in {":memory:", "memory"}:
             return "sqlite:///:memory:"
         if not path:
-            # default to repo root feedback.db
-            return "sqlite:///feedback.db"
+            # Prefer in-memory sqlite when no path is provided, to avoid
+            # creating stateful DB files on disk (especially in serverless).
+            return "sqlite:///:memory:"
         if path.startswith("sqlite:"):
             return path
         # allow relative file paths

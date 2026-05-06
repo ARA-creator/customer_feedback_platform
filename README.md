@@ -102,6 +102,6 @@ git push -u origin main
 
 ## Notes
 
-- Local runtime data such as `feedback.db` stays at the repository root for now.
+- Production uses an external database via `DATABASE_URL` (for example Neon Postgres).
 - Backend `.env` values are loaded from the repo root `.env`.
 - The first reorganization pass preserves behavior while making the codebase easier to scale and split further by domain.
