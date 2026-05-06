@@ -39,4 +39,4 @@ export const getProductPulseTrend = async (params = undefined) => {
   return response.data
 }
 
-export const getWordCloudUrl = () => `${getBackendOrigin()}/wordcloud.png`
+export const getWordCloudUrl = () => `${getBackendOrigin()}/api/wordcloud.png`
