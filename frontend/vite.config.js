@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      // Enable source maps so production runtime errors can be traced back to
+      // the original source modules during deployment debugging.
+      sourcemap: true,
+    },
     server: {
       proxy: {
         '/api': { target: proxyTarget, changeOrigin: true, secure: false },
