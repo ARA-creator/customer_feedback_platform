@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+from pathlib import Path
 from typing import List, Literal, Optional, TypedDict
 
 import nltk
@@ -13,56 +15,84 @@ class SentimentResult(TypedDict):
     score: float
 
 
-# Ensure the VADER lexicon is available. If it's missing, try to download it once.
+def _nltk_data_dir() -> str:
+    """
+    Directory to store NLTK resources.
+
+    On serverless (Vercel), only /tmp is writable, so we default there.
+    """
+    return os.getenv("NLTK_DATA", "/tmp/nltk_data")
+
+
 def _ensure_vader_lexicon() -> None:
+    """Ensure the VADER lexicon is available; never crash app startup."""
     try:
         nltk.data.find("sentiment/vader_lexicon.zip")
+        return
     except LookupError:
-        logger.info("Downloading VADER lexicon for the first time...")
-        nltk.download("vader_lexicon")
+        pass
+    except Exception:
+        logger.exception("NLTK: unexpected error while checking VADER lexicon")
+        return
+
+    try:
+        data_dir = _nltk_data_dir()
+        Path(data_dir).mkdir(parents=True, exist_ok=True)
+        if data_dir not in nltk.data.path:
+            nltk.data.path.append(data_dir)
+        logger.info("NLTK: downloading VADER lexicon to %s", data_dir)
+        nltk.download("vader_lexicon", download_dir=data_dir, quiet=True)
+    except Exception:
+        # If this fails on serverless, we don't want the whole API to 500.
+        logger.exception("NLTK: failed to download VADER lexicon")
 
 
 _ensure_vader_lexicon()
-_vader = SentimentIntensityAnalyzer()
+try:
+    _vader = SentimentIntensityAnalyzer()
+except Exception:
+    logger.exception("NLTK: failed to initialize VADER analyzer (lexicon missing?)")
+    _vader = None
 
 # Domain tuning: VADER's default lexicon can underweight complaint language
 # common in benefit/payment escalation emails.
-_vader.lexicon.update(
-    {
-        "annoyed": -2.4,
-        "annoying": -2.2,
-        "frustrated": -2.8,
-        "frustrating": -2.8,
-        "frustration": -2.4,
-        "unpaid": -2.6,
-        "nonpayment": -2.6,
-        "delayed": -1.8,
-        "delay": -1.4,
-        "overdue": -2.2,
-        # Insurance / claims context (lean toward capturing customer distress)
-        "denied": -2.8,
-        "denial": -2.4,
-        "rejected": -2.2,
-        "dispute": -2.0,
-        "lapse": -2.0,
-        "lapsed": -2.0,
-        "underinsured": -1.8,
-        "underpaid": -2.2,
-        "exclusion": -1.8,
-        "excluded": -1.8,
-        "rescission": -2.2,
-        "nonrenewal": -1.8,
-        "cancellation": -1.4,
-        "complaint": -1.8,
-        "escalation": -1.6,
-        "breach": -2.0,
-        "badfaith": -2.6,
-        "bad-faith": -2.6,
-        # Insurance domain: "benefits" = covered services (not generic positive affect)
-        "benefit": 0.0,
-        "benefits": 0.0,
-    }
-)
+if _vader is not None:
+    _vader.lexicon.update(
+        {
+            "annoyed": -2.4,
+            "annoying": -2.2,
+            "frustrated": -2.8,
+            "frustrating": -2.8,
+            "frustration": -2.4,
+            "unpaid": -2.6,
+            "nonpayment": -2.6,
+            "delayed": -1.8,
+            "delay": -1.4,
+            "overdue": -2.2,
+            # Insurance / claims context (lean toward capturing customer distress)
+            "denied": -2.8,
+            "denial": -2.4,
+            "rejected": -2.2,
+            "dispute": -2.0,
+            "lapse": -2.0,
+            "lapsed": -2.0,
+            "underinsured": -1.8,
+            "underpaid": -2.2,
+            "exclusion": -1.8,
+            "excluded": -1.8,
+            "rescission": -2.2,
+            "nonrenewal": -1.8,
+            "cancellation": -1.4,
+            "complaint": -1.8,
+            "escalation": -1.6,
+            "breach": -2.0,
+            "badfaith": -2.6,
+            "bad-faith": -2.6,
+            # Insurance domain: "benefits" = covered services (not generic positive affect)
+            "benefit": 0.0,
+            "benefits": 0.0,
+        }
+    )
 
 # When any of these insurance topic tags apply, allow a small compound nudge for ambiguous VADER scores.
 _INSURANCE_TOPIC_TAGS_FOR_SENTIMENT_GATE = frozenset(
@@ -279,6 +309,11 @@ def analyze_sentiment(
     """
     prepared = _prepare_text_for_analysis(text, source)
     if not prepared:
+        return {"label": "neutral", "score": 0.0}
+
+    if _vader is None:
+        # Fail safe: if VADER can't initialize (missing lexicon on serverless),
+        # do not crash ingestion/auth endpoints that import this module.
         return {"label": "neutral", "score": 0.0}
 
     scores = _vader.polarity_scores(prepared)
