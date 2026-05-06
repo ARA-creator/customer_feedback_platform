@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict
+from urllib.parse import unquote
 
 from flask import jsonify, request
 from sqlalchemy import desc, func
@@ -48,9 +49,20 @@ def customer_profile(customer_key: str):
         except PermissionError as e:
             return jsonify({"error": str(e)}), 401
 
+        # Path may arrive with literal %3A (no ':') or double-encoded %253A after some
+        # clients/proxies; normalize so "email_hash:<hex>" always parses.
+        ck = (customer_key or "").strip()
+        while True:
+            decoded = unquote(ck)
+            if decoded == ck:
+                break
+            ck = decoded
+        customer_key = ck.strip()
+
         if ":" not in customer_key:
             return jsonify({"error": "Invalid customer key"}), 400
         prefix, raw_value = customer_key.split(":", 1)
+        prefix = prefix.strip().lower()
         raw_value = raw_value.strip()
         if not raw_value:
             return jsonify({"error": "Invalid customer key"}), 400
