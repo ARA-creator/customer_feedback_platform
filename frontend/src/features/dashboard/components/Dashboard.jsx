@@ -170,6 +170,31 @@ function Dashboard({
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
   const [overviewTimeFilter, setOverviewTimeFilter] = useState('all') // all | today | week | month
 
+  const openFeedbackModal = (item) => {
+    setSelectedFeedback(item)
+    setIsDetailOpen(true)
+
+    if (unreadPriorityIds.has(item.id)) {
+      setUnreadPriorityIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
+    }
+    if (unreadRecentIds.has(item.id)) {
+      setUnreadRecentIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
+    }
+  }
+
+  const closeFeedbackModal = () => {
+    setIsDetailOpen(false)
+    setSelectedFeedback(null)
+  }
+
   const controller = useDashboardController({
     // identity
     mode,
@@ -1038,31 +1063,6 @@ function Dashboard({
     customDateTo,
     statusById,
   ])
-
-  const openFeedbackModal = (item) => {
-    setSelectedFeedback(item)
-    setIsDetailOpen(true)
-
-    if (unreadPriorityIds.has(item.id)) {
-      setUnreadPriorityIds((prev) => {
-        const next = new Set(prev)
-        next.delete(item.id)
-        return next
-      })
-    }
-    if (unreadRecentIds.has(item.id)) {
-      setUnreadRecentIds((prev) => {
-        const next = new Set(prev)
-        next.delete(item.id)
-        return next
-      })
-    }
-  }
-
-  const closeFeedbackModal = () => {
-    setIsDetailOpen(false)
-    setSelectedFeedback(null)
-  }
   const handleExportCsv = () => {
     try {
       const rows = []
