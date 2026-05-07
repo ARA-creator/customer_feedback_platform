@@ -117,7 +117,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     }
     try {
       const res = await markRead({ ids: idsToMark })
-      setUnread(Number(res?.unread ?? unread) || 0)
+      setUnread((prev) => {
+        const server = Number(res?.unread)
+        if (Number.isFinite(server)) return Math.max(0, server)
+        return Math.max(0, (Number(prev) || 0) - idsToMark.length)
+      })
       const nowIso = new Date().toISOString()
       setItems((prev) => prev.map((x) => (idsToMark.includes(x.id) ? { ...x, read_at: x.read_at || nowIso } : x)))
       clearSelection()
@@ -136,7 +140,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     }
     try {
       const res = await markUnread({ ids: idsToMark })
-      setUnread(Number(res?.unread ?? unread) || 0)
+      setUnread((prev) => {
+        const server = Number(res?.unread)
+        if (Number.isFinite(server)) return Math.max(0, server)
+        return Math.max(0, (Number(prev) || 0) + idsToMark.length)
+      })
       setItems((prev) => prev.map((x) => (idsToMark.includes(x.id) ? { ...x, read_at: null } : x)))
       clearSelection()
     } catch (e) {
@@ -189,7 +197,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     if (!n?.read_at && n?.id) {
       try {
         const res = await markRead({ ids: [n.id] })
-        setUnread(Number(res?.unread ?? unread) || 0)
+        setUnread((prev) => {
+          const server = Number(res?.unread)
+          if (Number.isFinite(server)) return Math.max(0, server)
+          return Math.max(0, (Number(prev) || 0) - 1)
+        })
         setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)))
       } catch {
         // ignore
@@ -391,7 +403,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                               }
                               try {
                                 const res = await markRead({ ids: [n.id] })
-                                setUnread(Number(res?.unread ?? unread) || 0)
+                                setUnread((prev) => {
+                                  const server = Number(res?.unread)
+                                  if (Number.isFinite(server)) return Math.max(0, server)
+                                  return Math.max(0, (Number(prev) || 0) - 1)
+                                })
                                 setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)))
                               } catch (e) {
                                 setError(e?.response?.data?.error || e?.message || 'Failed to mark read')
@@ -410,7 +426,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                               e.stopPropagation()
                               try {
                                 const res = await markUnread({ ids: [n.id] })
-                                setUnread(Number(res?.unread ?? unread) || 0)
+                                setUnread((prev) => {
+                                  const server = Number(res?.unread)
+                                  if (Number.isFinite(server)) return Math.max(0, server)
+                                  return Math.max(0, (Number(prev) || 0) + 1)
+                                })
                                 setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: null } : x)))
                               } catch (err) {
                                 setError(err?.response?.data?.error || err?.message || 'Failed to mark unread')
