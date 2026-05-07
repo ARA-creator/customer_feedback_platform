@@ -229,8 +229,13 @@ def _scope_feedback_query(db, q, *, user: User, perms: set[str]):
 
 
 def _current_user(db: SessionLocal) -> Optional[User]:
-    uid = session.get("user_id")
-    if not uid:
+    uid_raw = session.get("user_id")
+    if not uid_raw:
+        return None
+    try:
+        uid = int(uid_raw)
+    except (TypeError, ValueError):
+        session.pop("user_id", None)
         return None
     # Be careful selecting all columns: in production, schema may temporarily lag behind
     # mapped columns during deployments. Loading only the fields needed for access control
@@ -247,7 +252,7 @@ def _current_user(db: SessionLocal) -> Optional[User]:
                 User.email_verified_at,
             )
         )
-        .filter(User.id == int(uid))
+        .filter(User.id == uid)
         .first()
     )
     if not user:

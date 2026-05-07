@@ -136,77 +136,92 @@ def create_app() -> Flask:
 
     # Ensure tables exist for the current models (dev-friendly).
     # For production, prefer migrations; but this keeps local setups working.
-    Base.metadata.create_all(bind=engine)
-    seed_rbac()
+    # Never crash module import/cold-start: a bad Neon URL or firewall would
+    # otherwise abort the entire serverless invocation (FUNCTION_INVOCATION_FAILED).
+    app.extensions["database_bootstrapped"] = False
+    try:
+        Base.metadata.create_all(bind=engine)
+        seed_rbac()
+        app.extensions["database_bootstrapped"] = True
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Database bootstrap failed (create_all / RBAC seed). API routes that "
+            "need the database will fail until DATABASE_URL/connectivity are fixed."
+        )
 
     # Lightweight dev migration for auth table schema changes.
     # SQLAlchemy create_all() does not alter existing tables.
-    try:
-        with engine.connect() as conn:
-            dialect = engine.dialect.name
-            cols: set[str] = set()
+    if app.extensions.get("database_bootstrapped"):
+        try:
+            with engine.connect() as conn:
+                dialect = engine.dialect.name
+                cols: set[str] = set()
 
-            if dialect == "sqlite":
-                info = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                if dialect == "sqlite":
+                    info = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                    if info:
+                        cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
+                elif dialect in {"postgresql", "postgres"}:
+                    rows = conn.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_schema = 'public' AND table_name = 'users'"
+                        )
+                    ).fetchall()
+                    cols = {r[0] for r in rows}
+                else:
+                    cols = set()
+
+                if cols:
+                    # Use dialect-appropriate types.
+                    dt = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+                    add_if_missing: list[tuple[str, str]] = [
+                        ("role", "VARCHAR(50)"),
+                        ("created_at", dt),
+                        ("is_active", "BOOLEAN"),
+                        ("suspended_at", dt),
+                        ("deleted_at", dt),
+                        ("full_name", "VARCHAR(160)"),
+                        ("email_verified_at", dt),
+                        ("email_verification_nonce", "VARCHAR(64)"),
+                        ("email_verification_code_hash", "VARCHAR(128)"),
+                        ("email_verification_code_expires_at", dt),
+                        ("password_reset_nonce", "VARCHAR(64)"),
+                        ("password_reset_code_hash", "VARCHAR(128)"),
+                        ("password_reset_code_expires_at", dt),
+                        ("last_login_at", dt),
+                    ]
+
+                    for name, col_type in add_if_missing:
+                        if name in cols:
+                            continue
+                        if dialect in {"postgresql", "postgres"}:
+                            conn.execute(
+                                text(f'ALTER TABLE users ADD COLUMN IF NOT EXISTS "{name}" {col_type}')
+                            )
+                        else:
+                            conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {col_type}"))
+                    conn.commit()
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to run users table dev migration")
+
+        # Lightweight dev migration for reply draft approval fields.
+        try:
+            with engine.connect() as conn:
+                info = conn.execute(text("PRAGMA table_info(feedback_reply_drafts)")).fetchall()
                 if info:
                     cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
-            elif dialect in {"postgresql", "postgres"}:
-                rows = conn.execute(
-                    text(
-                        "SELECT column_name FROM information_schema.columns "
-                        "WHERE table_schema = 'public' AND table_name = 'users'"
-                    )
-                ).fetchall()
-                cols = {r[0] for r in rows}
-            else:
-                cols = set()
-
-            if cols:
-                # Use dialect-appropriate types.
-                dt = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
-                add_if_missing: list[tuple[str, str]] = [
-                    ("role", "VARCHAR(50)"),
-                    ("created_at", dt),
-                    ("is_active", "BOOLEAN"),
-                    ("suspended_at", dt),
-                    ("deleted_at", dt),
-                    ("full_name", "VARCHAR(160)"),
-                    ("email_verified_at", dt),
-                    ("email_verification_nonce", "VARCHAR(64)"),
-                    ("email_verification_code_hash", "VARCHAR(128)"),
-                    ("email_verification_code_expires_at", dt),
-                    ("password_reset_nonce", "VARCHAR(64)"),
-                    ("password_reset_code_hash", "VARCHAR(128)"),
-                    ("password_reset_code_expires_at", dt),
-                    ("last_login_at", dt),
-                ]
-
-                for name, col_type in add_if_missing:
-                    if name in cols:
-                        continue
-                    if dialect in {"postgresql", "postgres"}:
+                    if "approval_note" not in cols:
+                        conn.execute(text("ALTER TABLE feedback_reply_drafts ADD COLUMN approval_note TEXT"))
+                    if "approval_assigned_to_user_id" not in cols:
                         conn.execute(
-                            text(f'ALTER TABLE users ADD COLUMN IF NOT EXISTS "{name}" {col_type}')
+                            text(
+                                "ALTER TABLE feedback_reply_drafts ADD COLUMN approval_assigned_to_user_id INTEGER"
+                            )
                         )
-                    else:
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {col_type}"))
-                conn.commit()
-    except Exception:
-        logging.getLogger(__name__).exception("Failed to run users table dev migration")
-
-    # Lightweight dev migration for reply draft approval fields.
-    try:
-        with engine.connect() as conn:
-            info = conn.execute(text("PRAGMA table_info(feedback_reply_drafts)")).fetchall()
-            if info:
-                cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
-                if "approval_note" not in cols:
-                    conn.execute(text("ALTER TABLE feedback_reply_drafts ADD COLUMN approval_note TEXT"))
-                if "approval_assigned_to_user_id" not in cols:
-                    conn.execute(text("ALTER TABLE feedback_reply_drafts ADD COLUMN approval_assigned_to_user_id INTEGER"))
-                conn.commit()
-    except Exception:
-        logging.getLogger(__name__).exception("Failed to run feedback_reply_drafts table dev migration")
+                    conn.commit()
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to run feedback_reply_drafts table dev migration")
 
     # Make config available in templates
     @app.context_processor
