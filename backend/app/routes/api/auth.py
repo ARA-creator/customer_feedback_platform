@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from email_validator import EmailNotValidError, validate_email
 from flask import current_app, jsonify, request, session
 from passlib.hash import argon2
+from sqlalchemy.orm import load_only
 
 from ...database import SessionLocal
 from ...models import Role, User, UserRole
@@ -195,7 +196,23 @@ def auth_login():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = (
+            db.query(User)
+            .options(
+                load_only(
+                    User.id,
+                    User.email,
+                    User.password_hash,
+                    User.role,
+                    User.deleted_at,
+                    User.is_active,
+                    User.email_verified_at,
+                    User.last_login_at,
+                )
+            )
+            .filter(User.email == email)
+            .first()
+        )
         if not user:
             return jsonify({"error": "No account found"}), 404
         if getattr(user, "deleted_at", None):

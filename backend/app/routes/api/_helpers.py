@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from flask import session
 from sqlalchemy import and_, desc, func, or_
+from sqlalchemy.orm import load_only
 
 from ...database import SessionLocal
 from ...models import (
@@ -231,7 +232,24 @@ def _current_user(db: SessionLocal) -> Optional[User]:
     uid = session.get("user_id")
     if not uid:
         return None
-    user = db.query(User).filter(User.id == int(uid)).first()
+    # Be careful selecting all columns: in production, schema may temporarily lag behind
+    # mapped columns during deployments. Loading only the fields needed for access control
+    # prevents hard failures (e.g., missing newly-added auth columns).
+    user = (
+        db.query(User)
+        .options(
+            load_only(
+                User.id,
+                User.email,
+                User.role,
+                User.is_active,
+                User.deleted_at,
+                User.email_verified_at,
+            )
+        )
+        .filter(User.id == int(uid))
+        .first()
+    )
     if not user:
         return None
     if getattr(user, "deleted_at", None):
