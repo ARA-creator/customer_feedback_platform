@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FiEye, FiEyeOff, FiShield, FiBookOpen } from 'react-icons/fi'
-import { authLogin, authSignup } from '../services/auth.api'
+import { authForgotPassword, authLogin, authSignup } from '../services/auth.api'
+import { ToastStack } from '../../../shared/components/ui'
 
 const ROLE_OPTIONS = [
   { value: 'management', label: 'Management' },
@@ -52,11 +53,13 @@ export default function AuthShell({ onAuthenticated }) {
   const [mode, setMode] = useState('login') // 'login' | 'signup'
   const isSignup = mode === 'signup'
 
+  const [info, setInfo] = useState(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [role, setRole] = useState('agent')
   const [error, setError] = useState(null)
+  const [toasts, setToasts] = useState([])
 
   const formatApiErrorMessage = (err, fallback) => {
     const apiErr = err?.response?.data?.error
@@ -107,6 +110,7 @@ export default function AuthShell({ onAuthenticated }) {
   const submitAsync = async (e) => {
     e.preventDefault()
     setError(null)
+    setInfo(null)
     const normalizedEmail = email.trim().toLowerCase()
 
     if (!normalizedEmail) {
@@ -134,6 +138,10 @@ export default function AuthShell({ onAuthenticated }) {
 
       try {
         const data = await authSignup({ email: normalizedEmail, password, role })
+        setToasts((t) => [
+          { id: `${Date.now()}-signup`, type: 'success', title: 'Account created', message: 'Welcome email sent (if SMTP is configured).', ttlMs: 3500 },
+          ...t,
+        ])
         onAuthenticated?.(data?.user || { email: normalizedEmail, role })
         return
       } catch (err) {
@@ -149,6 +157,10 @@ export default function AuthShell({ onAuthenticated }) {
 
     try {
       const data = await authLogin({ email: normalizedEmail, password })
+      setToasts((t) => [
+        { id: `${Date.now()}-login`, type: 'success', title: 'Signed in', message: 'Welcome back.', ttlMs: 2500 },
+        ...t,
+      ])
       onAuthenticated?.(data?.user || { email: normalizedEmail })
     } catch (err) {
       const status = err?.response?.status
@@ -166,6 +178,10 @@ export default function AuthShell({ onAuthenticated }) {
 
   return (
     <div className="min-h-screen overflow-x-hidden app-shell-bg text-gray-900">
+      <ToastStack
+        toasts={toasts}
+        onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))}
+      />
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
         {/* Left hero */}
         <div className="hidden lg:flex relative overflow-hidden">
@@ -247,6 +263,11 @@ export default function AuthShell({ onAuthenticated }) {
                   {error}
                 </div>
               )}
+              {info && (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                  {info}
+                </div>
+              )}
 
               <form onSubmit={submitAsync} className="mt-6 space-y-4">
                 {/* Helps browser password managers associate username+password (accessibility). */}
@@ -321,6 +342,36 @@ export default function AuthShell({ onAuthenticated }) {
                   {isSignup ? 'Create account' : 'Continue'}
                 </button>
               </form>
+
+              {!isSignup && (
+                <div className="mt-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-gray-600 hover:text-gray-900"
+                    onClick={async () => {
+                      setError(null)
+                      setInfo(null)
+                      const normalizedEmail = email.trim().toLowerCase()
+                      if (!normalizedEmail) {
+                        setError('Enter your email above first.')
+                        return
+                      }
+                      try {
+                        await authForgotPassword({ email: normalizedEmail })
+                        setInfo('If that email exists, we sent a 6-digit reset code.')
+                        setToasts((t) => [
+                          { id: `${Date.now()}-forgot`, type: 'info', title: 'Check your inbox', message: 'If the email exists, a 6-digit reset code was sent.', ttlMs: 4500 },
+                          ...t,
+                        ])
+                      } catch (err) {
+                        setError(formatApiErrorMessage(err, 'Could not send reset email.'))
+                      }
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
               <div className="mt-5 text-center text-sm text-gray-600">
                 {isSignup ? (

@@ -179,7 +179,7 @@ export default function AdminOverview({ auth, onNavigate }) {
                 onClick={async () => {
                   if (
                     !window.confirm(
-                      'Recompute insurance tags for all feedback (oldest first, batches of 500)? Existing tags are overwritten when force=true. Continue?',
+                      'Recompute themes for all feedback (oldest first, batches of 500)? Existing themes are overwritten when force=true. Continue?',
                     )
                   ) {
                     return
@@ -229,7 +229,7 @@ export default function AdminOverview({ auth, onNavigate }) {
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100 dark:hover:bg-amber-950/60"
               >
                 <FiRefreshCw className={`h-4 w-4 ${insuranceReprocessBusy ? 'animate-spin' : ''}`} />
-                Backfill insurance tags
+                Backfill themes
               </button>
             )}
             {canIntegrations && (
@@ -307,7 +307,7 @@ export default function AdminOverview({ auth, onNavigate }) {
 
         {insuranceReprocessLog && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-xs font-mono text-amber-950 whitespace-pre-wrap dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
-            <div className="mb-1 font-semibold text-amber-900 dark:text-amber-200">Insurance tags</div>
+            <div className="mb-1 font-semibold text-amber-900 dark:text-amber-200">Themes</div>
             {insuranceReprocessLog}
           </div>
         )}

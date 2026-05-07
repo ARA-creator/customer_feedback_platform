@@ -4,6 +4,7 @@ import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
 import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
+import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminIntegrations from '../features/admin/components/AdminIntegrations'
@@ -17,6 +18,37 @@ import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
+import VerifyEmailPage from '../pages/auth/VerifyEmail'
+import ResetPasswordPage from '../pages/auth/ResetPassword'
+
+function playNotificationBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const o = ctx.createOscillator()
+    const g = ctx.createGain()
+    o.type = 'sine'
+    o.frequency.value = 880
+    g.gain.value = 0.0001
+    o.connect(g)
+    g.connect(ctx.destination)
+    o.start()
+    const now = ctx.currentTime
+    g.gain.setTargetAtTime(0.05, now, 0.01)
+    g.gain.setTargetAtTime(0.0001, now + 0.12, 0.02)
+    o.stop(now + 0.18)
+    o.onended = () => {
+      try {
+        ctx.close()
+      } catch {
+        // ignore
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
 
 function App() {
   const [auth, setAuth] = useState(null)
@@ -28,6 +60,7 @@ function App() {
     return window.matchMedia?.('(min-width: 768px)')?.matches ?? true
   })
   const [theme, setTheme] = useState(() => localStorage.getItem('cfp_theme') || 'light')
+  const [liveToasts, setLiveToasts] = useState([])
 
   useEffect(() => {
     let cancelled = false
@@ -88,6 +121,23 @@ function App() {
     })()
   }, [])
 
+  useEffect(() => {
+    const cleanup = connectNotificationsStream((evt) => {
+      if (evt?.type !== 'notification.created' || !evt?.notification) return
+      const n = evt.notification
+      const id = `${Date.now()}-${Math.random()}`
+      setLiveToasts((prev) => [
+        { id, title: n.title || 'New notification', body: n.body || '', href: n.href || 'notifications' },
+        ...prev,
+      ].slice(0, 3))
+      playNotificationBeep()
+      window.setTimeout(() => {
+        setLiveToasts((prev) => prev.filter((t) => t.id !== id))
+      }, 6500)
+    })
+    return cleanup
+  }, [])
+
   const navigateToInboxWithPreset = useCallback((preset) => {
     try {
       sessionStorage.setItem('cfp_inbox_peak_preset', JSON.stringify(preset || {}))
@@ -120,6 +170,16 @@ function App() {
   }
 
   if (!isAuthed) {
+    // Deep-link routes used by email verification + password reset.
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname || ''
+      if (path.startsWith('/verify-email')) {
+        return <VerifyEmailPage onDone={() => window.location.assign('/')} />
+      }
+      if (path.startsWith('/reset-password')) {
+        return <ResetPasswordPage onDone={() => window.location.assign('/')} />
+      }
+    }
     return (
       <AuthShell
         onAuthenticated={(payload) => {
@@ -194,6 +254,50 @@ function App() {
             {currentView === 'admin_db' && <AdminDbConnection />}
           </main>
         </div>
+
+        {liveToasts.length > 0 && (
+          <div className="fixed bottom-4 right-4 z-50 space-y-2 w-[min(92vw,22rem)]">
+            {liveToasts.map((t) => (
+              <div
+                key={t.id}
+                className="rounded-2xl border border-emerald-200/60 bg-white/70 px-4 py-3 shadow-[0_18px_46px_rgba(16,185,129,0.16),0_10px_30px_rgba(2,6,23,0.10)] backdrop-blur-md dark:border-emerald-400/15 dark:bg-gray-950/35"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-[#009750]" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.title}</p>
+                    {t.body ? (
+                      <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">
+                        {t.body}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLiveToasts((prev) => prev.filter((x) => x.id !== t.id))
+                          setCurrentView('notifications')
+                        }}
+                        className="inline-flex min-h-[36px] items-center rounded-xl bg-[#009750] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#007a42] focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLiveToasts((prev) => prev.filter((x) => x.id !== t.id))}
+                        className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/20 dark:border-white/10 dark:bg-gray-950/30 dark:text-gray-100 dark:hover:bg-gray-950/55"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   )

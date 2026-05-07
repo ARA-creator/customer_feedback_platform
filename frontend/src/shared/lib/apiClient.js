@@ -55,6 +55,20 @@ const api = axios.create({
   },
 })
 
+let csrfToken = ''
+export function setCsrfToken(next) {
+  csrfToken = String(next || '')
+}
+
+api.interceptors.request.use((config) => {
+  const method = String(config?.method || 'get').toLowerCase()
+  if (!['get', 'head', 'options'].includes(method) && csrfToken) {
+    config.headers = config.headers || {}
+    config.headers['X-CSRF-Token'] = csrfToken
+  }
+  return config
+})
+
 if (import.meta.env.DEV) {
   api.interceptors.request.use(
     (config) => {

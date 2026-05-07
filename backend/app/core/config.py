@@ -49,6 +49,32 @@ class BaseConfig:
     EMAIL_USERNAME = os.getenv("EMAIL_USERNAME", None)
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", None)
 
+    # Outbound email (SMTP) for auth + notifications
+    SMTP_HOST = os.getenv("SMTP_HOST", "").strip() or None
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip() or None
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip() or None
+    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+    SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "lexietate@gmail.com").strip()
+    SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Customer Pulse").strip() or "Customer Pulse"
+    SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", SMTP_FROM_EMAIL).strip()
+
+    # Frontend base URL for deep links in emails
+    FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").strip().rstrip("/")
+
+    # Auth / session hardening
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "").strip().lower() in {"1", "true", "yes", "on"}
+    REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    PERMANENT_SESSION_LIFETIME_SECONDS = int(os.getenv("PERMANENT_SESSION_LIFETIME_SECONDS", "1209600"))  # 14d
+
+    # If enabled, users must verify email before accessing the app.
+    REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "").strip().lower() in {"1", "true", "yes", "on"}
+
+    # Rate limiting (Flask-Limiter). Disable by setting empty.
+    RATE_LIMIT_AUTH = os.getenv("RATE_LIMIT_AUTH", "10 per minute")
+
     # Optional: automatic email polling (runs inside the Flask process)
     EMAIL_POLL_ENABLED = os.getenv("EMAIL_POLL_ENABLED", "").lower() in {"1", "true", "yes", "on"}
     EMAIL_POLL_INTERVAL_SECONDS = int(os.getenv("EMAIL_POLL_INTERVAL_SECONDS", "60"))

@@ -10,9 +10,7 @@ import {
   FiLayout,
   FiLink2,
   FiLogOut,
-  FiSearch,
   FiServer,
-  FiSettings,
   FiUsers,
 } from 'react-icons/fi'
 import { connectNotificationsStream, getUnreadCount } from '../../../features/notifications/services/notifications.api'
@@ -200,15 +198,6 @@ function Sidebar({
           >
             <button
               type="button"
-              disabled
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-gray-400 opacity-50 cursor-not-allowed dark:text-gray-500"
-              title="Search (coming soon)"
-              aria-label="Search, coming soon"
-            >
-              <FiSearch className="h-4 w-4" aria-hidden />
-            </button>
-            <button
-              type="button"
               onClick={() => setCollapsed(!railCollapsed)}
               className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-300 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750] focus-visible:ring-offset-2"
               title={c ? 'Expand sidebar' : 'Collapse to icon rail'}
@@ -367,16 +356,10 @@ function Sidebar({
         </button>
         <button
           type="button"
-          disabled
-          className={`sidebar-link w-full cursor-not-allowed opacity-50 sidebar-link-inactive ${
-            c ? 'md:justify-center md:px-2 md:space-x-0' : ''
-          }`}
-          title="Settings (coming soon)"
-          aria-label="Settings, coming soon"
-        >
-          <FiSettings className="h-5 w-5 shrink-0" aria-hidden />
-          <span className={c ? 'md:sr-only' : ''}>Settings</span>
-        </button>
+          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+        />
       </nav>
 
       {/* —— User strip + visible sign out —— */}

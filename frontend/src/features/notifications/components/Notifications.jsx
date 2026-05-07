@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiAlertCircle, FiBell, FiCheck, FiChevronDown, FiRefreshCw } from 'react-icons/fi'
+import { FiAlertCircle, FiBell, FiCheck, FiRefreshCw } from 'react-icons/fi'
 import {
   connectNotificationsStream,
   getNotifications,
@@ -230,28 +230,31 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           <button
             type="button"
             onClick={() => load({ reset: true })}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-gray-200 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            aria-label="Refresh notifications"
+            title="Refresh"
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-            Refresh
           </button>
           <button
             type="button"
             disabled={selectedCount === 0}
             onClick={markSelectedRead}
-            className="inline-flex min-h-[44px] items-center rounded-xl border border-gray-200 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            aria-label="Mark selected notifications as read"
             title="Mark selected as read"
           >
-            Mark selected read
+            <FiCheck className="h-4 w-4" aria-hidden />
           </button>
           <button
             type="button"
             disabled={selectedCount === 0}
             onClick={markSelectedUnread}
-            className="inline-flex min-h-[44px] items-center rounded-xl border border-gray-200 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            aria-label="Mark selected notifications as unread"
             title="Mark selected as unread"
           >
-            Mark selected unread
+            <FiBell className="h-4 w-4" aria-hidden />
           </button>
           {selectedCount > 0 && (
             <button

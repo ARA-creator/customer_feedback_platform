@@ -2,8 +2,9 @@ import logging
 import os
 import threading
 import time
+from datetime import timedelta
 
-from flask import Flask
+from flask import Flask, request, session
 from flask_cors import CORS
 from sqlalchemy import text
 
@@ -30,6 +31,7 @@ from .routes.integrations import _submit_to_feedback_api
 from .core.database import SessionLocal
 from .models import ExternalIngestedItem
 from .services.rbac import seed_rbac
+from .extensions import limiter
 
 
 def create_app() -> Flask:
@@ -37,6 +39,9 @@ def create_app() -> Flask:
     app = Flask(__name__)
     config = get_config()
     app.config.from_object(config)
+    app.permanent_session_lifetime = timedelta(
+        seconds=int(getattr(config, "PERMANENT_SESSION_LIFETIME_SECONDS", 1209600))
+    )
 
     # Basic logging configuration
     logging.basicConfig(
@@ -72,6 +77,50 @@ def create_app() -> Flask:
     app.register_blueprint(views_bp)
     app.register_blueprint(integrations_bp)
 
+    # Rate limiting (Flask-Limiter).
+    limiter.enabled = bool(getattr(config, "RATE_LIMIT_AUTH", ""))
+    limiter.storage_uri = os.getenv("RATE_LIMIT_STORAGE_URI", "memory://")
+    limiter.init_app(app)
+
+    @app.before_request
+    def _csrf_protect():
+        """
+        CSRF protection for cookie-based sessions.
+
+        - For state-changing requests, require `X-CSRF-Token` to match the session token.
+        - Exempt unauthenticated auth endpoints (login/signup/forgot/reset/verify) so users can start sessions.
+        """
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            return None
+
+        path = request.path or ""
+        if not path.startswith("/api/"):
+            return None
+
+        # No session: nothing to protect (and we don't want to block login/signup).
+        if not session.get("user_id"):
+            return None
+
+        # Exempt auth endpoints involved in initial auth / email flows.
+        if path.startswith("/api/auth/") and any(
+            path.endswith(s)
+            for s in (
+                "/login",
+                "/signup",
+                "/forgot-password",
+                "/reset-password",
+                "/verify-email",
+                "/logout",
+            )
+        ):
+            return None
+
+        expected = session.get("csrf_token")
+        provided = request.headers.get("X-CSRF-Token")
+        if not expected or not provided or str(provided) != str(expected):
+            return {"error": "CSRF token missing or invalid"}, 403
+        return None
+
     # Ensure tables exist for the current models (dev-friendly).
     # For production, prefer migrations; but this keeps local setups working.
     Base.metadata.create_all(bind=engine)
@@ -96,6 +145,24 @@ def create_app() -> Flask:
                     conn.execute(text("ALTER TABLE users ADD COLUMN suspended_at DATETIME"))
                 if "deleted_at" not in cols:
                     conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at DATETIME"))
+                if "full_name" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(160)"))
+                if "email_verified_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verified_at DATETIME"))
+                if "email_verification_nonce" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_nonce VARCHAR(64)"))
+                if "email_verification_code_hash" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_code_hash VARCHAR(128)"))
+                if "email_verification_code_expires_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_code_expires_at DATETIME"))
+                if "password_reset_nonce" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_nonce VARCHAR(64)"))
+                if "password_reset_code_hash" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_code_hash VARCHAR(128)"))
+                if "password_reset_code_expires_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_code_expires_at DATETIME"))
+                if "last_login_at" not in cols:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN last_login_at DATETIME"))
                 conn.commit()
     except Exception:
         logging.getLogger(__name__).exception("Failed to run users table dev migration")

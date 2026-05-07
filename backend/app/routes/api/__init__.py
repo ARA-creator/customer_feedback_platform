@@ -4,11 +4,10 @@ from flask import Blueprint
 
 logger = logging.getLogger(__name__)
 
-# On Vercel Services, the backend is mounted under `/api` via `routePrefix`,
-# so the blueprint should not add another `/api` layer (which would become `/api/api/...`).
-# Locally (without Services), requests should still be made to `/api/...` because the
-# frontend uses `/api` as its base URL.
-api_bp = Blueprint("api", __name__, url_prefix="")
+# The frontend and tests expect API routes under `/api/...`.
+# If you deploy behind a platform-level route prefix, keep that prefix aligned
+# with this blueprint (i.e., do not double-prefix).
+api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 # Import route modules so decorators register on api_bp.
 # These modules may be populated incrementally during the refactor.

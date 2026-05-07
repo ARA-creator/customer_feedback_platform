@@ -603,22 +603,21 @@ export default function InboxLite({ onNavigate }) {
 
       <div className="card p-4 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
-          <div className="flex w-full sm:flex-1 min-w-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-            <FiSearch className="h-4 w-4 text-gray-500" />
+          <div className="flex w-full sm:flex-[2] min-w-0 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+            <FiSearch className="h-4 w-4 text-gray-400" />
             <input
               value={qDraft}
               onChange={(e) => setQDraft(e.target.value)}
               placeholder="Search feedback…"
-              className="w-full min-w-0 bg-transparent outline-none placeholder:text-gray-400"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  setQ(qDraft.trim())
+                }
+              }}
+              className="w-full min-w-0 bg-transparent outline-none placeholder:text-gray-400 text-gray-800 dark:text-gray-100"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setQ(qDraft.trim())}
-            className="inline-flex w-full sm:w-auto min-h-[44px] items-center justify-center rounded-lg bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#007a42]"
-          >
-            Search
-          </button>
           <select
             value={sentiment}
             onChange={(e) => setSentiment(e.target.value)}
@@ -700,10 +699,10 @@ export default function InboxLite({ onNavigate }) {
             value={insuranceTagFilter}
             onChange={(e) => setInsuranceTagFilter(e.target.value)}
             className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            title="Filter by insurance tag"
-            aria-label="Insurance tag"
+            title="Filter by theme"
+            aria-label="Theme"
           >
-            <option value="all">All insurance tags</option>
+            <option value="all">All themes</option>
             {INSURANCE_TAG_OPTIONS.map((t) => (
               <option key={t} value={t}>
                 {t.replace(/_/g, ' ')}
@@ -905,7 +904,7 @@ export default function InboxLite({ onNavigate }) {
                   <span
                     key={`${it.id}-${t}`}
                     className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    title="Insurance tag"
+                    title="Theme"
                   >
                     {String(t).replace(/_/g, ' ')}
                   </span>

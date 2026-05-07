@@ -21,10 +21,19 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(255), nullable=False, unique=True, index=True)
     password_hash = Column(Text, nullable=False)
+    full_name = Column(String(160), nullable=True)
     role = Column(String(50), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     suspended_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    email_verification_nonce = Column(String(64), nullable=True)
+    email_verification_code_hash = Column(String(128), nullable=True)
+    email_verification_code_expires_at = Column(DateTime(timezone=True), nullable=True)
+    password_reset_nonce = Column(String(64), nullable=True)
+    password_reset_code_hash = Column(String(128), nullable=True)
+    password_reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

@@ -159,7 +159,7 @@ export default function OverviewChartsSection({
               )}
             </div>
 
-            {/* Insurance tags (horizontal bars) */}
+            {/* Themes (horizontal bars) */}
             {!isCx && (
             <div className="card p-4 sm:p-6">
               <div
@@ -169,15 +169,15 @@ export default function OverviewChartsSection({
                     : 'mb-6'
                 }`}
               >
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Insurance tags</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Themes</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
                   {overviewInsuranceTagsCaption.subtitle}
                 </span>
               </div>
               {!analyticsLoading && analyticsDelayPassed && categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl leading-relaxed">
-                  Each item is counted once: the top-matching auto-tag, or &quot;No tag data&quot; if tags are
-                  missing. Bar totals in this time range add up to the number of items shown (up to
+                  Each item is counted once: the top-matching theme, or &quot;No theme data&quot; if themes are missing.
+                  Bar totals in this time range add up to the number of items shown (up to
                   20,000) and should match &quot;Total feedback&quot; when the same time filter applies.
                 </p>
               )}

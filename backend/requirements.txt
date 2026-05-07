@@ -20,6 +20,7 @@ textblob==0.18.0.post0     # Optional classic sentiment; VADER will be primary
 # Security / encryption
 cryptography==43.0.3
 passlib[bcrypt]==1.7.4      # For password hashing when we add users
+argon2-cffi==23.1.0         # Recommended password hashing backend (Passlib argon2)
 
 # HTTP, parsing & utilities
 requests==2.32.3
@@ -29,6 +30,10 @@ feedparser==6.0.11
 beautifulsoup4==4.12.3
 google-generativeai==0.8.6
 google-genai==1.73.1
+
+# Auth hardening
+flask-limiter==3.8.0
+email-validator==2.2.0
 
 # Dashboard assets (we'll mostly include JS via CDN, no Python deps needed)
 
