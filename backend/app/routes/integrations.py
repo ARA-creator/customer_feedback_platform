@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -561,12 +562,56 @@ def google_forms_webhook():
         db.close()
 
 
-@integrations_bp.route("/email/poll", methods=["POST"])
+def _email_poll_payload_from_request():
+    """
+    POST: JSON body. GET: optional query params (used by Vercel Cron).
+
+    GET requires CRON_SECRET and Authorization: Bearer <CRON_SECRET> (sent automatically by Vercel).
+    """
+    if request.method == "GET":
+        cron_secret = (os.getenv("CRON_SECRET") or "").strip()
+        if not cron_secret:
+            return None, (
+                jsonify(
+                    {
+                        "error": "Configure CRON_SECRET to enable GET (Vercel Cron) on this endpoint.",
+                    }
+                ),
+                503,
+            )
+        auth = (request.headers.get("Authorization") or "").strip()
+        if auth != f"Bearer {cron_secret}":
+            return None, (jsonify({"error": "Unauthorized"}), 401)
+
+        data = {}
+        if request.args.get("hours_back") is not None:
+            try:
+                data["hours_back"] = int(request.args.get("hours_back"))
+            except (TypeError, ValueError):
+                return None, (jsonify({"error": "hours_back must be an integer"}), 400)
+        if request.args.get("folder"):
+            data["folder"] = request.args.get("folder")
+        if request.args.get("imap_port") is not None:
+            try:
+                data["imap_port"] = int(request.args.get("imap_port"))
+            except (TypeError, ValueError):
+                return None, (jsonify({"error": "imap_port must be an integer"}), 400)
+        for key in ("imap_server", "username", "password"):
+            v = request.args.get(key)
+            if v is not None and str(v).strip() != "":
+                data[key] = v
+        return data, None
+
+    data = request.get_json(silent=True) or {}
+    return data, None
+
+
+@integrations_bp.route("/email/poll", methods=["GET", "POST"])
 def email_poll():
     """
     Poll email inbox for new messages and process them as feedback.
 
-    Expects JSON with:
+    POST expects JSON with optional:
         - imap_server: str
         - imap_port: int (default 993)
         - username: str
@@ -575,9 +620,16 @@ def email_poll():
         - hours_back: int (default 24)
 
     Or reads from config if not provided.
+
+    GET is for Vercel Cron only: requires CRON_SECRET and matching Authorization Bearer header.
+    Optional query params: hours_back, folder, imap_port, imap_server, username, password.
     """
+    payload, error_response = _email_poll_payload_from_request()
+    if error_response:
+        return error_response
+
     config = get_config()
-    data = request.get_json(silent=True) or {}
+    data = payload
 
     imap_server = data.get("imap_server") or getattr(config, "EMAIL_IMAP_SERVER", None)
     imap_port = data.get("imap_port", 993)

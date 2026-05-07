@@ -148,18 +148,32 @@ curl -X POST http://localhost:5000/integrations/email/poll \
 
 Once email polling works:
 
-1. **Set up automatic polling:**
+1. **Vercel (recommended if you deploy on Vercel):**  
+   - Set **`CRON_SECRET`** in the Vercel project (Production).  
+   - Root **`vercel.json`** includes **`crons`** that **GET** `/api/integrations/email/poll`; Vercel sends **`Authorization: Bearer <CRON_SECRET>`**.  
+   - **GET without a valid Bearer token returns `401`;** without `CRON_SECRET` configured, **GET returns `503`**.  
+   - Hobby plans only allow infrequent cron; see Vercel’s cron pricing/limit docs—you may need **`0 9 * * *`** (daily) until you upgrade.  
+   - Test after deploy:
+
    ```bash
-   python worker_email_poll.py --interval 900  # Every 15 minutes
+   curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+     "https://YOUR_APP.vercel.app/api/integrations/email/poll"
    ```
 
-2. **Or use cron job:**
+   Optional GET query params: `hours_back`, `folder` (same idea as POST JSON).
+
+2. **Set up automatic polling locally / on a VPS:**
+   ```bash
+   python scripts/workers/email_poll.py --interval 900  # Every 15 minutes
+   ```
+
+3. **Or use system cron:**
    ```bash
    crontab -e
-   # Add: */15 * * * * cd /path/to/project && python worker_email_poll.py --once
+   # Add: */15 * * * * cd /path/to/project && python scripts/workers/email_poll.py --once
    ```
 
-3. **Check your dashboard** - New emails will appear as feedback entries!
+4. **Check your dashboard** - New emails will appear as feedback entries!
 
 ## Security Notes
 

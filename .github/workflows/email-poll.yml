@@ -1,0 +1,33 @@
+name: Email poll (scheduled)
+
+on:
+  schedule:
+    # Every 15 minutes (UTC). Adjust if you want less frequent polling.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call email poll endpoint
+        env:
+          POLL_URL: ${{ secrets.EMAIL_POLL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$POLL_URL" ]; then
+            echo "Missing secret EMAIL_POLL_URL"
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing secret CRON_SECRET"
+            exit 1
+          fi
+
+          # Vercel cron invokes GET and sends Authorization: Bearer <CRON_SECRET>.
+          # We mimic the same here.
+          curl -sS -f \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            "${POLL_URL}"
+

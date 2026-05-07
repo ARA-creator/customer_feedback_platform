@@ -55,6 +55,10 @@ class BaseConfig:
     EMAIL_POLL_HOURS_BACK = int(os.getenv("EMAIL_POLL_HOURS_BACK", "24"))
     EMAIL_POLL_FOLDER = os.getenv("EMAIL_POLL_FOLDER", "INBOX")
 
+    # Vercel Cron: when set, GET /integrations/email/poll requires Authorization: Bearer <CRON_SECRET>.
+    # Vercel injects this header automatically for scheduled jobs when CRON_SECRET is set in the project.
+    CRON_SECRET = os.getenv("CRON_SECRET", "").strip() or None
+
     # Web monitor (RSS-based) - Optional
     WEB_MONITOR_ENABLED = os.getenv("WEB_MONITOR_ENABLED", "").lower() in {"1", "true", "yes", "on"}
     WEB_MONITOR_INTERVAL_SECONDS = int(os.getenv("WEB_MONITOR_INTERVAL_SECONDS", "300"))
