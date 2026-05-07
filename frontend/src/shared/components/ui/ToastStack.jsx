@@ -33,7 +33,7 @@ export default function ToastStack({ toasts, onDismiss }) {
         return (
           <div
             key={t.id}
-            className={`rounded-2xl border px-3.5 py-3 shadow-sm backdrop-blur-md ${base}`}
+            className={`rounded-2xl border px-3.5 py-3 shadow-sm ${base}`}
           >
             <div className="flex items-start gap-2.5">
               <Icon className="mt-0.5 h-4 w-4 opacity-90" aria-hidden />

@@ -55,7 +55,7 @@ function StatCard({ label, value, sub, accent = 'emerald' }) {
   }
   const shell = accentMap[accent] || accentMap.slate
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm backdrop-blur-md transition-transform duration-200 hover:-translate-y-[1px] ${shell}`}>
+    <div className={`rounded-2xl border p-4 shadow-sm transition-transform duration-200 hover:-translate-y-[1px] ${shell}`}>
       <p className="text-[11px] font-semibold uppercase tracking-wider opacity-80">{label}</p>
       <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
       {sub ? <p className="mt-1 text-xs opacity-80">{sub}</p> : null}
@@ -65,7 +65,7 @@ function StatCard({ label, value, sub, accent = 'emerald' }) {
 
 function SectionCard({ title, subtitle, right, children }) {
   return (
-    <div className="card p-4 sm:p-6 bg-white/65 backdrop-blur-md dark:bg-gray-950/25">
+    <div className="card p-4 sm:p-6 bg-white/90 dark:bg-gray-950/75">
       <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
@@ -237,13 +237,13 @@ export default function DashboardInsightsSection({
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="rounded-3xl border border-emerald-100/70 bg-white/55 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/25 px-4 sm:px-6 py-4 sm:py-5">
+      <div className="rounded-3xl border border-emerald-100/70 bg-white/90 shadow-sm dark:border-white/10 dark:bg-gray-950/75 px-4 sm:px-6 py-4 sm:py-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={() => onNavigateBack?.()}
-              className="inline-flex items-center justify-center h-11 w-11 rounded-2xl border border-gray-200 bg-white/70 text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+              className="inline-flex items-center justify-center h-11 w-11 rounded-2xl border border-gray-200 bg-white/90 text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
               aria-label="Back to overview"
             >
               <FiArrowLeft className="w-5 h-5" aria-hidden />
@@ -263,7 +263,7 @@ export default function DashboardInsightsSection({
               id="insights-product-filter"
               value={insightsProductKey}
               onChange={(e) => setInsightsProductKey(e.target.value)}
-              className="min-h-[44px] max-w-[min(100vw-2rem,22rem)] rounded-2xl border border-gray-200 bg-white/70 px-3.5 py-2 text-xs font-semibold text-gray-900 shadow-sm backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#009750]/25 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100"
+              className="min-h-[44px] max-w-[min(100vw-2rem,22rem)] rounded-2xl border border-gray-200 bg-white/90 px-3.5 py-2 text-xs font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#009750]/25 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100"
               aria-label="Filter insights by product name"
             >
               <option value="">All products</option>
@@ -275,7 +275,7 @@ export default function DashboardInsightsSection({
             </select>
 
             <div
-              className="inline-flex rounded-2xl border border-gray-200 bg-white/70 p-1 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/35"
+              className="inline-flex rounded-2xl border border-gray-200 bg-white/90 p-1 shadow-sm dark:border-white/10 dark:bg-gray-950/70"
               role="group"
               aria-label="Insights range"
             >
@@ -510,7 +510,7 @@ export default function DashboardInsightsSection({
                   return (
                     <div
                       key={s.source}
-                      className="rounded-2xl border border-gray-200/70 bg-white/60 px-4 py-3 shadow-sm backdrop-blur-md transition-transform duration-200 hover:-translate-y-[1px] dark:border-white/10 dark:bg-gray-950/25"
+                      className="rounded-2xl border border-gray-200/70 bg-white/90 px-4 py-3 shadow-sm transition-transform duration-200 hover:-translate-y-[1px] dark:border-white/10 dark:bg-gray-950/70"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -554,7 +554,7 @@ export default function DashboardInsightsSection({
                 return (
                   <div
                     key={`src-pill-${k}`}
-                    className="rounded-full border border-gray-200 bg-white/70 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100"
+                    className="rounded-full border border-gray-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100"
                     title={`${humanizeSource(k)}: ${total} (${fmtPct(share)})`}
                   >
                     <span className="inline-flex items-center gap-2">
@@ -710,7 +710,7 @@ export default function DashboardInsightsSection({
                 )}
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-gray-200/70 bg-white/55 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/30">
+              <div className="overflow-x-auto rounded-2xl border border-gray-200/70 bg-white/90 shadow-sm dark:border-white/10 dark:bg-gray-950/70">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr>

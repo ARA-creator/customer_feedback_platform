@@ -50,6 +50,20 @@
       radial-gradient(ellipse 65% 50% at 0% 95%, rgba(0, 151, 80, 0.045), transparent 48%);
   }
 
+  /** Auth-only background: same glow, but no frosted blur layer. */
+  .auth-shell-bg {
+    background-color: var(--app-canvas);
+    background-image:
+      radial-gradient(ellipse 100% 85% at 50% -15%, rgba(255, 255, 255, 0.95) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 55% at 100% 8%, var(--app-mint-tint), transparent 52%),
+      radial-gradient(ellipse 65% 50% at 0% 95%, rgba(0, 151, 80, 0.045), transparent 48%);
+  }
+
+  html.dark .auth-shell-bg {
+    background-image: none;
+    background-color: #030712;
+  }
+
   html.dark .app-shell-bg {
     background-image: none;
     background-color: #030712;
@@ -67,25 +81,25 @@
     z-index: 0;
     background: radial-gradient(
         ellipse 60% 38% at 50% 0%,
-        rgba(255, 255, 255, 0.42) 0%,
-        rgba(255, 255, 255, 0.18) 55%,
-        rgba(255, 255, 255, 0.06) 100%
+        rgba(255, 255, 255, 0.22) 0%,
+        rgba(255, 255, 255, 0.12) 55%,
+        rgba(255, 255, 255, 0.04) 100%
       ),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 70%);
-    backdrop-filter: blur(18px) saturate(1.25);
-    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 70%);
+    backdrop-filter: blur(8px) saturate(1.08);
+    -webkit-backdrop-filter: blur(8px) saturate(1.08);
   }
 
   html.dark .app-shell-bg::before {
     background: radial-gradient(
         ellipse 60% 38% at 50% 0%,
-        rgba(17, 24, 39, 0.55) 0%,
-        rgba(3, 7, 18, 0.35) 60%,
-        rgba(3, 7, 18, 0.18) 100%
+        rgba(17, 24, 39, 0.38) 0%,
+        rgba(3, 7, 18, 0.22) 60%,
+        rgba(3, 7, 18, 0.10) 100%
       ),
-      linear-gradient(180deg, rgba(17, 24, 39, 0.25) 0%, rgba(3, 7, 18, 0.10) 70%);
-    backdrop-filter: blur(16px) saturate(1.05);
-    -webkit-backdrop-filter: blur(16px) saturate(1.05);
+      linear-gradient(180deg, rgba(17, 24, 39, 0.14) 0%, rgba(3, 7, 18, 0.06) 70%);
+    backdrop-filter: blur(7px) saturate(1.02);
+    -webkit-backdrop-filter: blur(7px) saturate(1.02);
   }
 
   /**
@@ -93,7 +107,7 @@
    * we keep semantic active = primary brand for Customer Pulse / Enterprise Life.
    */
   .sidebar-shell {
-    @apply border-r border-gray-200/90 bg-white shadow-sm backdrop-blur-sm dark:border-gray-800 dark:bg-[#111318] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.04)];
+    @apply border-r border-gray-200/90 bg-white/95 shadow-sm dark:border-gray-800 dark:bg-[#111318] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.04)];
   }
 
   .sidebar-link {

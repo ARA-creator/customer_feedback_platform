@@ -177,7 +177,7 @@ export default function AuthShell({ onAuthenticated }) {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden app-shell-bg text-gray-900">
+    <div className="min-h-screen overflow-x-hidden auth-shell-bg text-gray-900">
       <ToastStack
         toasts={toasts}
         onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))}

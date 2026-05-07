@@ -32,7 +32,7 @@ function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
                             ? 'Audit logs'
                             : 'Overview'
   return (
-    <header className="bg-white/90 backdrop-blur-sm border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-sm dark:bg-gray-950 dark:border-gray-800">
+    <header className="bg-white/95 border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-3 shadow-sm dark:bg-gray-950/90 dark:border-gray-800">
       <div className="flex min-w-0 items-center">
         {/* Hamburger toggle - mobile only */}
         <button

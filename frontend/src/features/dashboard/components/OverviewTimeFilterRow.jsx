@@ -9,7 +9,7 @@ const FILTERS = [
 
 export default function OverviewTimeFilterRow({ value, onChange }) {
   return (
-    <div className="mb-4 rounded-2xl border border-emerald-100/60 bg-white/35 px-3 py-2.5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/25 sm:px-4 sm:py-3">
+    <div className="mb-4 rounded-2xl border border-emerald-100/60 bg-white/80 px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-gray-950/70 sm:px-4 sm:py-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200 shrink-0">
           Filter by:

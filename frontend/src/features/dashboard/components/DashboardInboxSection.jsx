@@ -56,10 +56,10 @@ export default function DashboardInboxSection({
 }) {
   return (
     <>
-      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 mb-4 px-4 sm:px-6 lg:px-8 py-3 bg-white/35 dark:bg-gray-950/35 backdrop-blur-xl border-b border-emerald-100/60 dark:border-white/10 shadow-[0_1px_0_rgba(16,185,129,0.05),0_10px_30px_rgba(2,6,23,0.04)] space-y-3">
+      <div className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 mb-4 px-4 sm:px-6 lg:px-8 py-3 bg-white/85 dark:bg-gray-950/80 border-b border-emerald-100/60 dark:border-white/10 shadow-[0_1px_0_rgba(16,185,129,0.05),0_10px_30px_rgba(2,6,23,0.04)] space-y-3">
         {inboxHasActiveFilters && (
           <div
-            className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200/50 bg-white/55 px-3 py-2.5 shadow-sm backdrop-blur-md dark:border-emerald-400/15 dark:bg-gray-950/35"
+            className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200/50 bg-white/85 px-3 py-2.5 shadow-sm dark:border-emerald-400/15 dark:bg-gray-950/70"
             role="status"
             aria-live="polite"
           >
@@ -82,7 +82,7 @@ export default function DashboardInboxSection({
           </div>
         )}
 
-        <div className="card p-4 sm:p-6 shadow-md bg-white/60 dark:bg-gray-950/35 backdrop-blur-md">
+        <div className="card p-4 sm:p-6 shadow-md bg-white/90 dark:bg-gray-950/75">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="w-full lg:max-w-md">
               <div className="flex items-end justify-between gap-4">
@@ -221,7 +221,7 @@ export default function DashboardInboxSection({
                       key={t.id}
                       type="button"
                       onClick={() => setSourceFilter(t.id)}
-                      className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all shadow-sm backdrop-blur-md ${
+                      className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all shadow-sm ${
                         active
                           ? 'border-emerald-300/70 bg-emerald-50/80 text-emerald-950 shadow-[0_8px_24px_rgba(16,185,129,0.12)] dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-100'
                           : 'border-gray-200 bg-white/70 text-gray-800 hover:bg-white dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55'
@@ -305,7 +305,7 @@ export default function DashboardInboxSection({
         {inboxLoading || !inboxDelayPassed ? (
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="rounded-2xl border border-gray-200/80 bg-white/60 p-5 animate-pulse backdrop-blur-md dark:border-white/10 dark:bg-gray-950/25">
+              <div key={idx} className="rounded-2xl border border-gray-200/80 bg-white/85 p-5 animate-pulse dark:border-white/10 dark:bg-gray-950/70">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center flex-wrap gap-2">
                     <div className="h-5 w-16 bg-gray-100 rounded-full" />
@@ -341,7 +341,7 @@ export default function DashboardInboxSection({
               return (
                 <div
                   key={item.id}
-                  className="group rounded-2xl border border-gray-200/80 bg-white/60 p-5 shadow-sm backdrop-blur-md transition-all duration-200 cursor-pointer hover:-translate-y-[1px] hover:border-emerald-200/80 hover:shadow-[0_16px_40px_rgba(2,6,23,0.08),0_10px_30px_rgba(16,185,129,0.10),0_0_0_1px_rgba(16,185,129,0.14)] dark:border-white/10 dark:bg-gray-950/25 dark:hover:border-emerald-400/20"
+                  className="group rounded-2xl border border-gray-200/80 bg-white/90 p-5 shadow-sm transition-all duration-200 cursor-pointer hover:-translate-y-[1px] hover:border-emerald-200/80 hover:shadow-[0_16px_40px_rgba(2,6,23,0.08),0_10px_30px_rgba(16,185,129,0.10),0_0_0_1px_rgba(16,185,129,0.14)] dark:border-white/10 dark:bg-gray-950/75 dark:hover:border-emerald-400/20"
                   onClick={() => openFeedbackModal(item)}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -537,7 +537,7 @@ export default function DashboardInboxSection({
         {inboxLoading || !inboxDelayPassed ? (
           <div className="space-y-4">
             {Array.from({ length: 4 }).map((_, idx) => (
-              <div key={idx} className="rounded-2xl border border-gray-200/80 bg-white/60 p-5 animate-pulse backdrop-blur-md dark:border-white/10 dark:bg-gray-950/25">
+              <div key={idx} className="rounded-2xl border border-gray-200/80 bg-white/85 p-5 animate-pulse dark:border-white/10 dark:bg-gray-950/70">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center flex-wrap gap-2">
                     <div className="h-5 w-16 bg-gray-100 rounded-full" />
@@ -573,7 +573,7 @@ export default function DashboardInboxSection({
               return (
                 <div
                   key={item.id}
-                  className="group rounded-2xl border border-gray-200/80 bg-white/60 p-5 shadow-sm backdrop-blur-md transition-all duration-200 cursor-pointer hover:-translate-y-[1px] hover:border-emerald-200/80 hover:shadow-[0_16px_40px_rgba(2,6,23,0.08),0_10px_30px_rgba(16,185,129,0.10),0_0_0_1px_rgba(16,185,129,0.14)] dark:border-white/10 dark:bg-gray-950/25 dark:hover:border-emerald-400/20"
+                  className="group rounded-2xl border border-gray-200/80 bg-white/90 p-5 shadow-sm transition-all duration-200 cursor-pointer hover:-translate-y-[1px] hover:border-emerald-200/80 hover:shadow-[0_16px_40px_rgba(2,6,23,0.08),0_10px_30px_rgba(16,185,129,0.10),0_0_0_1px_rgba(16,185,129,0.14)] dark:border-white/10 dark:bg-gray-950/75 dark:hover:border-emerald-400/20"
                   onClick={() => openFeedbackModal(item)}
                 >
                   <div className="flex items-center justify-between mb-2">

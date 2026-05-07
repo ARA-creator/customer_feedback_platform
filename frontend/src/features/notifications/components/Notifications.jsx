@@ -230,7 +230,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           <button
             type="button"
             onClick={() => load({ reset: true })}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
             aria-label="Refresh notifications"
             title="Refresh"
           >
@@ -240,7 +240,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
             type="button"
             disabled={selectedCount === 0}
             onClick={markSelectedRead}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
             aria-label="Mark selected notifications as read"
             title="Mark selected as read"
           >
@@ -250,7 +250,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
             type="button"
             disabled={selectedCount === 0}
             onClick={markSelectedUnread}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
             aria-label="Mark selected notifications as unread"
             title="Mark selected as unread"
           >
@@ -276,7 +276,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           {loading && <NotificationListSkeleton rows={5} />}
           {!loading && error && (
             <div
-              className="card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-rose-200 bg-rose-50/60 backdrop-blur-md dark:border-rose-900/40 dark:bg-rose-950/20"
+              className="card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-rose-200 bg-rose-50/85 dark:border-rose-900/40 dark:bg-rose-950/35"
               role="alert"
             >
               <div className="flex gap-3 text-sm text-rose-900 dark:text-rose-100">
@@ -334,7 +334,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
               return (
                 <div
                   key={n.id}
-                  className="card p-0 overflow-hidden bg-white/60 backdrop-blur-md dark:bg-gray-950/25"
+                  className="card p-0 overflow-hidden bg-white/90 dark:bg-gray-950/70"
                 >
                   <div
                     role={canNavigate && href ? 'button' : undefined}
@@ -416,7 +416,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                                 setError(e?.response?.data?.error || e?.message || 'Failed to mark read')
                               }
                             }}
-                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
                           >
                             Mark read
                           </button>
@@ -439,7 +439,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                                 setError(err?.response?.data?.error || err?.message || 'Failed to mark unread')
                               }
                             }}
-                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
                           >
                             Mark unread
                           </button>
@@ -460,7 +460,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
             <button
               type="button"
               onClick={() => load({ reset: false })}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/70 px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
             >
               Load more
             </button>
