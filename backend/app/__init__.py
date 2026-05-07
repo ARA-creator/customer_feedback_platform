@@ -130,39 +130,53 @@ def create_app() -> Flask:
     # SQLAlchemy create_all() does not alter existing tables.
     try:
         with engine.connect() as conn:
-            # If users table exists but is missing columns (e.g., role), add them.
-            # SQLite supports ADD COLUMN.
-            info = conn.execute(text("PRAGMA table_info(users)")).fetchall()
-            if info:
-                cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
-                if "role" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(50)"))
-                if "created_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN created_at DATETIME"))
-                if "is_active" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN"))
-                if "suspended_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN suspended_at DATETIME"))
-                if "deleted_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN deleted_at DATETIME"))
-                if "full_name" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN full_name VARCHAR(160)"))
-                if "email_verified_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verified_at DATETIME"))
-                if "email_verification_nonce" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_nonce VARCHAR(64)"))
-                if "email_verification_code_hash" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_code_hash VARCHAR(128)"))
-                if "email_verification_code_expires_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN email_verification_code_expires_at DATETIME"))
-                if "password_reset_nonce" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_nonce VARCHAR(64)"))
-                if "password_reset_code_hash" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_code_hash VARCHAR(128)"))
-                if "password_reset_code_expires_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN password_reset_code_expires_at DATETIME"))
-                if "last_login_at" not in cols:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN last_login_at DATETIME"))
+            dialect = engine.dialect.name
+            cols: set[str] = set()
+
+            if dialect == "sqlite":
+                info = conn.execute(text("PRAGMA table_info(users)")).fetchall()
+                if info:
+                    cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
+            elif dialect in {"postgresql", "postgres"}:
+                rows = conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'users'"
+                    )
+                ).fetchall()
+                cols = {r[0] for r in rows}
+            else:
+                cols = set()
+
+            if cols:
+                # Use dialect-appropriate types.
+                dt = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+                add_if_missing: list[tuple[str, str]] = [
+                    ("role", "VARCHAR(50)"),
+                    ("created_at", dt),
+                    ("is_active", "BOOLEAN"),
+                    ("suspended_at", dt),
+                    ("deleted_at", dt),
+                    ("full_name", "VARCHAR(160)"),
+                    ("email_verified_at", dt),
+                    ("email_verification_nonce", "VARCHAR(64)"),
+                    ("email_verification_code_hash", "VARCHAR(128)"),
+                    ("email_verification_code_expires_at", dt),
+                    ("password_reset_nonce", "VARCHAR(64)"),
+                    ("password_reset_code_hash", "VARCHAR(128)"),
+                    ("password_reset_code_expires_at", dt),
+                    ("last_login_at", dt),
+                ]
+
+                for name, col_type in add_if_missing:
+                    if name in cols:
+                        continue
+                    if dialect in {"postgresql", "postgres"}:
+                        conn.execute(
+                            text(f'ALTER TABLE users ADD COLUMN IF NOT EXISTS "{name}" {col_type}')
+                        )
+                    else:
+                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {col_type}"))
                 conn.commit()
     except Exception:
         logging.getLogger(__name__).exception("Failed to run users table dev migration")
