@@ -7,6 +7,7 @@ from datetime import timedelta
 from flask import Flask, request, session
 from flask_cors import CORS
 from sqlalchemy import text
+from werkzeug.exceptions import HTTPException
 
 from .core.config import get_config
 from .core.database import engine, Base
@@ -76,6 +77,18 @@ def create_app() -> Flask:
     app.register_blueprint(api_bp)
     app.register_blueprint(views_bp)
     app.register_blueprint(integrations_bp)
+
+    @app.errorhandler(Exception)
+    def _handle_unexpected_error(err):  # type: ignore[no-redef]
+        """
+        Ensure API failures return JSON (and expose details in development).
+        """
+        if isinstance(err, HTTPException):
+            return {"error": err.description}, err.code or 500
+        logging.getLogger(__name__).exception("Unhandled server error")
+        if getattr(config, "ENV", "development") == "development":
+            return {"error": "Internal server error", "detail": repr(err)}, 500
+        return {"error": "Internal server error"}, 500
 
     # Rate limiting (Flask-Limiter).
     limiter.enabled = bool(getattr(config, "RATE_LIMIT_AUTH", ""))
