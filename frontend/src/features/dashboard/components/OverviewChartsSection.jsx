@@ -31,6 +31,37 @@ function SentimentPieTooltip({ active, payload, sentimentData }) {
   return null
 }
 
+function SentimentLegendPills({ sentimentData }) {
+  const total = sentimentData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0)
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 w-full px-1">
+      {sentimentData.map((entry, index) => {
+        const pct = total > 0 ? Math.round(((Number(entry.value) || 0) / total) * 100) : 0
+        const label = entry.name || 'Unknown'
+        const count = Number(entry.value) || 0
+        const showPct = label !== 'No Data' && label !== 'Error'
+        return (
+          <div
+            key={`legend-${label}-${index}`}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 text-xs text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200"
+          >
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white/80 dark:ring-gray-950/70"
+              style={{ backgroundColor: entry.color }}
+              aria-hidden
+            />
+            <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
+            <span className="text-gray-600 dark:text-gray-300 tabular-nums">
+              {count}
+              {showPct ? ` · ${pct}%` : ''}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * Overview dashboard charts: sentiment pie, insurance tags, product pulse, 30d sentiment trend.
  */
@@ -53,7 +84,7 @@ export default function OverviewChartsSection({
   return (
     <>
           {/* Charts Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sentiment Distribution */}
             <div className="card p-4 sm:p-6">
               <h2
@@ -71,59 +102,59 @@ export default function OverviewChartsSection({
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-[400px] bg-gray-50 rounded-xl animate-pulse" />
+                <div className="w-full h-72 sm:h-80 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
               ) : (
                 <div className="flex flex-col items-center">
-                  <div className="w-full max-w-md" style={{ height: '320px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={sentimentData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius="48%"
-                          outerRadius="78%"
-                          paddingAngle={2}
-                          dataKey="value"
-                          nameKey="name"
-                          labelLine={false}
-                          stroke="#fff"
-                          strokeWidth={2}
-                        >
-                          {sentimentData.map((entry, index) => (
-                            <Cell key={`sentiment-${entry.name}-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={(tipProps) => <SentimentPieTooltip {...tipProps} sentimentData={sentimentData} />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-4 w-full px-2">
-                    {sentimentData.map((entry, index) => {
-                      const total = sentimentData.reduce((sum, item) => sum + item.value, 0)
-                      const percentage = total > 0 ? ((entry.value / total) * 100).toFixed(0) : 0
-                      return (
-                        <div
-                          key={`legend-${entry.name}-${index}`}
-                          className="flex items-center gap-2 text-sm text-gray-700"
-                        >
-                          <span
-                            className="h-3 w-3 shrink-0 rounded-full"
-                            style={{ backgroundColor: entry.color }}
-                            aria-hidden
-                          />
-                          <span>
-                          <span className="font-medium text-gray-900 dark:text-gray-100">{entry.name}</span>
-                          <span className="text-gray-600 dark:text-gray-300">
-                              {' '}
-                              ({entry.value}
-                              {entry.name !== 'No Data' ? ` · ${percentage}%` : ''})
-                            </span>
-                          </span>
+                  <div className="w-full max-w-md">
+                    <div className="relative w-full aspect-square">
+                      <div className="absolute inset-0">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={sentimentData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius="58%"
+                              outerRadius="88%"
+                              paddingAngle={2}
+                              dataKey="value"
+                              nameKey="name"
+                              labelLine={false}
+                              stroke={isDarkMode ? 'rgba(3,7,18,0.9)' : '#fff'}
+                              strokeWidth={2}
+                              cornerRadius={10}
+                              isAnimationActive
+                            >
+                              {sentimentData.map((entry, index) => (
+                                <Cell key={`sentiment-${entry.name}-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              content={(tipProps) => (
+                                <SentimentPieTooltip
+                                  {...tipProps}
+                                  sentimentData={sentimentData}
+                                />
+                              )}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Total
+                          </div>
+                          <div className="mt-0.5 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                            {sentimentData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0)}
+                          </div>
                         </div>
-                      )
-                    })}
+                      </div>
+                    </div>
                   </div>
+
+                  <SentimentLegendPills sentimentData={sentimentData} />
                 </div>
               )}
             </div>
@@ -156,7 +187,7 @@ export default function OverviewChartsSection({
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-[400px] bg-gray-50 rounded-xl animate-pulse" />
+                <div className="w-full h-72 sm:h-80 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
               ) : (
                 <div
                   style={{
@@ -231,7 +262,7 @@ export default function OverviewChartsSection({
               </span>
             </div>
             {analyticsLoading || !analyticsDelayPassed ? (
-              <div className="w-full h-[320px] bg-gray-50 rounded-xl animate-pulse" />
+              <div className="w-full h-64 sm:h-72 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
             ) : productPulse.length === 0 ? (
               <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
                 No product/policy matches in this time window yet.
@@ -277,7 +308,7 @@ export default function OverviewChartsSection({
                       formatter={(value) => [value, 'Feedback']}
                       labelFormatter={(label) => String(label)}
                     />
-                    <Bar dataKey="total" radius={[0, 8, 8, 0]} barSize={22} maxBarSize={28} fill={VIRIDIS.green} />
+                    <Bar dataKey="total" radius={[0, 10, 10, 0]} barSize={22} maxBarSize={28} fill={VIRIDIS.green} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -285,9 +316,9 @@ export default function OverviewChartsSection({
           </div>
 
           {/* Time-based Analytics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sentiment Trend (Area Chart) */}
-            <div className="card p-4 sm:p-6 xl:col-span-2">
+            <div className="card p-4 sm:p-6 lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Sentiment Trend (Last 30 Days)
@@ -295,7 +326,7 @@ export default function OverviewChartsSection({
                 <span className="text-xs text-gray-500 dark:text-gray-400">Daily counts · GMT</span>
               </div>
               {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-[320px] bg-gray-50 rounded-xl animate-pulse" />
+                <div className="w-full h-64 sm:h-72 lg:h-80 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
               ) : (
                 <div>
                   {trendAllZero && (
@@ -305,7 +336,7 @@ export default function OverviewChartsSection({
                     </p>
                   )}
                   <div
-                    style={{ height: '320px' }}
+                    className={`h-64 sm:h-72 lg:h-80 ${onNavigateToInsights ? 'cursor-pointer' : ''}`}
                     role={onNavigateToInsights ? 'button' : undefined}
                     tabIndex={onNavigateToInsights ? 0 : undefined}
                     onClick={() => onNavigateToInsights?.()}
@@ -316,7 +347,6 @@ export default function OverviewChartsSection({
                         onNavigateToInsights()
                       }
                     }}
-                    className={onNavigateToInsights ? 'cursor-pointer' : undefined}
                     aria-label={onNavigateToInsights ? 'Open insights' : undefined}
                   >
                     <ResponsiveContainer width="100%" height="100%">

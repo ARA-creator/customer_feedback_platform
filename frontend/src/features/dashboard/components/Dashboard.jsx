@@ -1330,7 +1330,7 @@ function Dashboard({
 
   return (
     <DashboardProvider data={controller.data} actions={controller.actions}>
-      <div className="relative p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
+      <div className="relative p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 mx-auto max-w-7xl">
       <FeedbackDetailModal
         open={isDetailOpen && !!selectedFeedback}
         feedback={selectedFeedback}
@@ -1382,13 +1382,13 @@ function Dashboard({
             <button
               type="button"
               onClick={() => reloadDashboardRef.current?.()}
-              className="inline-flex items-center justify-center min-h-[44px] rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center min-h-[44px] rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
             >
               <FiRefreshCw className="h-4 w-4 mr-1.5" />
               Refresh
             </button>
             {isAdminUser && (
-              <label className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer select-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">
+              <label className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer select-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 focus-within:ring-2 focus-within:ring-[#009750]/30">
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 text-[#009750] focus:ring-[#009750]"
@@ -1410,7 +1410,7 @@ function Dashboard({
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="inline-flex items-center justify-center min-h-[44px] rounded-lg bg-[#009750] px-3.5 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#007a42] transition-colors"
+                className="inline-flex items-center justify-center min-h-[44px] rounded-xl bg-[#009750] px-3.5 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#007a42] transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
               >
                 <FiDownload className="w-4 h-4 mr-1.5" />
                 Export CSV
@@ -1441,9 +1441,9 @@ function Dashboard({
         <>
       {mode === 'overview' && (
         <>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4">
+              <div className="mb-4 flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-300 shrink-0">Filter by:</span>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="-mx-1 flex w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch]">
                   {[
                     { id: 'today', label: 'Today', Icon: FiClock },
                     { id: 'week', label: 'This Week', Icon: FiCalendar },
@@ -1456,7 +1456,7 @@ function Dashboard({
                         key={id}
                         type="button"
                         onClick={() => setOverviewTimeFilter(id)}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] ${
+                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[40px] ${
                           active
                             ? 'border-[#009750] bg-[#009750] text-white shadow-sm'
                             : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'

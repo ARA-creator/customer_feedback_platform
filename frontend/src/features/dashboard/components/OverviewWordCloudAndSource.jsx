@@ -37,9 +37,9 @@ export default function OverviewWordCloudAndSource({
         <div className="card p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 sm:mb-6">Word Cloud</h2>
           {analyticsLoading ? (
-            <div className="w-full min-h-[300px] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
+            <div className="w-full h-64 sm:h-72 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
           ) : (
-            <div className="bg-gray-50 dark:bg-gray-950/40 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden h-[300px] min-h-[300px]">
+            <div className="bg-gray-50 dark:bg-gray-950/40 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden h-64 sm:h-72 lg:h-[22rem]">
               <img
                 src={`${getWordCloudUrl()}?t=${Date.now()}`}
                 alt="Word Cloud"
@@ -72,9 +72,9 @@ export default function OverviewWordCloudAndSource({
             How each channel performs by volume and sentiment.
           </p>
           {analyticsLoading || !analyticsDelayPassed ? (
-            <div className="w-full min-h-[300px] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
+            <div className="w-full h-64 sm:h-72 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
           ) : (
-            <div className="min-h-[300px] h-[300px]">
+            <div className="h-64 sm:h-72 lg:h-[22rem]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sourcePerformance} layout="vertical" margin={{ left: 12, right: 12, top: 8, bottom: 8 }}>
                   <XAxis

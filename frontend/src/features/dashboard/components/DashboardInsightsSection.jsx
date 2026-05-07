@@ -110,14 +110,14 @@ export default function DashboardInsightsSection({
           / 90d filter above.
         </p>
         {analyticsLoading || !analyticsDelayPassed ? (
-          <div className="w-full h-[280px] bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
+          <div className="w-full h-64 sm:h-72 bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
         ) : productPulseTrendPivot.products.length === 0 || productPulseTrendPivot.data.length === 0 ? (
           <p className="text-sm text-gray-600 dark:text-gray-300">
             No product matches in this window yet. When feedback includes a detected primary product or policy, trends
             appear here.
           </p>
         ) : (
-          <div style={{ height: '280px' }}>
+          <div className="h-64 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={productPulseTrendPivot.data}>
                 <XAxis
@@ -170,7 +170,7 @@ export default function DashboardInsightsSection({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Category Trends (Last {insightsRange} Days)
@@ -179,9 +179,9 @@ export default function DashboardInsightsSection({
             How frequently each category appears over time. Focus on your top issue types.
           </p>
           {analyticsLoading || !analyticsDelayPassed ? (
-            <div className="w-full h-[260px] bg-gray-50 rounded-xl animate-pulse" />
+            <div className="w-full h-56 sm:h-64 bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
           ) : (
-            <div style={{ height: '260px' }}>
+            <div className="h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={categoryTrendPivot.data}>
                   <XAxis
@@ -250,9 +250,9 @@ export default function DashboardInsightsSection({
             feedback count for the same window.
           </p>
           {analyticsLoading || !analyticsDelayPassed ? (
-            <div className="w-full h-[260px] bg-gray-50 rounded-xl animate-pulse" />
+            <div className="w-full h-56 sm:h-64 bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
           ) : (
-            <div style={{ height: '260px' }}>
+            <div className="h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={Object.entries(insuranceTagsBreakdown || {})
@@ -321,9 +321,9 @@ export default function DashboardInsightsSection({
             Daily feedback volume by top channels (remaining channels grouped as “other”).
           </p>
           {analyticsLoading || !analyticsDelayPassed ? (
-            <div className="w-full h-[260px] bg-gray-50 rounded-xl animate-pulse" />
+            <div className="w-full h-56 sm:h-64 bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
           ) : (
-            <div style={{ height: '260px' }}>
+            <div className="h-56 sm:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={sourceTrends?.data || []}>
                   <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={{ stroke: '#d1d5db' }} />
@@ -361,14 +361,14 @@ export default function DashboardInsightsSection({
           )}
         </div>
 
-        <div className="card p-6 lg:col-span-2">
+        <div className="card p-4 sm:p-6 lg:col-span-2">
           <div className="flex items-start justify-between gap-3 mb-2">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Peak Feedback Times (Last {insightsRange} Days)
             </h2>
           </div>
           {analyticsLoading ? (
-            <div className="w-full h-[260px] bg-gray-50 rounded-xl animate-pulse" />
+            <div className="w-full h-56 sm:h-64 bg-gray-50 dark:bg-gray-900/40 rounded-xl animate-pulse" />
           ) : (
             <>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
