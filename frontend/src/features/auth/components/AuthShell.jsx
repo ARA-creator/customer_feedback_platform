@@ -238,7 +238,7 @@ export default function AuthShell({ onAuthenticated }) {
         {/* Right card */}
         <div className="flex items-start sm:items-center justify-center px-4 py-8 sm:p-6 lg:p-10">
           <div className="w-full max-w-md">
-            <div className="card p-6 lg:p-7">
+            <div className="card p-6 lg:p-7 bg-white/90 dark:bg-gray-950/70">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-2xl bg-[#009750]/10 border border-emerald-200 flex items-center justify-center">
                   <span className="text-sm font-bold text-emerald-800">EL</span>

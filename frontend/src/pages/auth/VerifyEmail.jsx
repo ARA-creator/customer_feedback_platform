@@ -28,7 +28,7 @@ export default function VerifyEmailPage({ onDone }) {
   return (
     <div className="p-4 sm:p-6 lg:p-10 mx-auto max-w-lg">
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
-      <div className="card p-6 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
+      <div className="card p-6 bg-white/90 dark:bg-gray-950/70">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
           Email verification
         </h1>
@@ -42,7 +42,7 @@ export default function VerifyEmailPage({ onDone }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email address"
-            className="w-full min-h-[44px] rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100"
+            className="w-full min-h-[44px] rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100"
             autoComplete="email"
             required
           />
@@ -52,7 +52,7 @@ export default function VerifyEmailPage({ onDone }) {
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="6-digit code"
-            className="w-full min-h-[44px] rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-sm text-gray-900 shadow-sm backdrop-blur-md placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 tracking-[0.28em] text-center"
+            className="w-full min-h-[44px] rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 tracking-[0.28em] text-center"
             required
           />
 
