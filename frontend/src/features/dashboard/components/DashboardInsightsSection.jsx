@@ -39,22 +39,24 @@ export default function DashboardInsightsSection({
 }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="button"
           onClick={() => onNavigateBack?.()}
-          className="inline-flex items-center justify-center h-11 w-11 rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="inline-flex items-center justify-center h-11 w-11 rounded-full border border-gray-200 bg-white/70 text-gray-800 shadow-sm backdrop-blur-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55"
           aria-label="Back to overview"
         >
           <FiArrowLeft className="w-5 h-5" aria-hidden />
         </button>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight">Insights</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 leading-tight tracking-tight">
+            Insights
+          </h2>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Filter by product name to focus charts on one plan; all charts use the same range and product scope.
           </p>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <div className="sm:ml-auto flex flex-wrap items-center justify-start sm:justify-end gap-2">
           <div className="flex flex-col gap-1">
             <label htmlFor="insights-product-filter" className="sr-only">
               Filter by product name
@@ -63,7 +65,7 @@ export default function DashboardInsightsSection({
               id="insights-product-filter"
               value={insightsProductKey}
               onChange={(e) => setInsightsProductKey(e.target.value)}
-              className="min-h-[40px] max-w-[min(100vw-2rem,20rem)] rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              className="min-h-[44px] max-w-[min(100vw-2rem,20rem)] rounded-xl border border-gray-200 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-900 shadow-sm backdrop-blur-md focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100"
               aria-label="Filter insights by product name"
             >
               <option value="">All products</option>
@@ -75,7 +77,7 @@ export default function DashboardInsightsSection({
             </select>
           </div>
           <div
-            className="inline-flex rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
+            className="inline-flex rounded-full border border-gray-200 bg-white/70 p-1 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/35"
             role="group"
             aria-label="Insights range"
           >
@@ -86,10 +88,10 @@ export default function DashboardInsightsSection({
                   key={d}
                   type="button"
                   onClick={() => setInsightsRange(d)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30 ${
                     active
                       ? 'bg-[#009750] text-white'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                      : 'text-gray-800 hover:bg-white dark:text-gray-200 dark:hover:bg-gray-950/55'
                   }`}
                   aria-pressed={active}
                 >
@@ -101,7 +103,7 @@ export default function DashboardInsightsSection({
         </div>
       </div>
 
-      <div className="card p-4 sm:p-6">
+      <div className="card p-4 sm:p-6 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
           Product pulse over time (Last {insightsRange} Days)
         </h2>
@@ -171,7 +173,7 @@ export default function DashboardInsightsSection({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-4 sm:p-6">
+        <div className="card p-4 sm:p-6 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Category Trends (Last {insightsRange} Days)
           </h2>
@@ -241,7 +243,7 @@ export default function DashboardInsightsSection({
           )}
         </div>
 
-        <div className="card p-4 sm:p-6">
+        <div className="card p-4 sm:p-6 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
             Insurance Categories (Last {insightsRange} Days)
           </h2>
@@ -313,7 +315,7 @@ export default function DashboardInsightsSection({
           )}
         </div>
 
-        <div className="card p-4 sm:p-6">
+        <div className="card p-4 sm:p-6 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">
             Source Trend (Last {insightsRange} Days)
           </h2>
@@ -361,7 +363,7 @@ export default function DashboardInsightsSection({
           )}
         </div>
 
-        <div className="card p-4 sm:p-6 lg:col-span-2">
+        <div className="card p-4 sm:p-6 lg:col-span-2 bg-white/60 backdrop-blur-md dark:bg-gray-950/25">
           <div className="flex items-start justify-between gap-3 mb-2">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Peak Feedback Times (Last {insightsRange} Days)
@@ -413,7 +415,7 @@ export default function DashboardInsightsSection({
                 )}
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-2xl border border-gray-200/70 bg-white/55 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-gray-950/30">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr>
