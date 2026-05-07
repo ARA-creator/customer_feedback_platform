@@ -26,7 +26,7 @@ export default function OverviewMetricCards({
   const loading = analyticsLoading || !analyticsDelayPassed
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 sm:gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 xl:gap-6">
       {loading ? (
         <>
           {[
@@ -36,7 +36,12 @@ export default function OverviewMetricCards({
             'metric-card--tint-neutral',
             'metric-card--tint-priority',
           ].map((tintClass, idx) => (
-            <div key={idx} className={`metric-card metric-card--kpi ${tintClass} animate-pulse`}>
+            <div
+              key={idx}
+              className={`metric-card metric-card--kpi ${tintClass} animate-pulse ${
+                idx === 4 ? 'col-span-2 md:col-span-1' : ''
+              }`}
+            >
               <div className="metric-card__body">
                 <div className="h-10 w-10 rounded-full bg-black/[0.06] dark:bg-white/[0.12]" />
                 <div className="metric-card__text w-full min-w-0">
@@ -294,7 +299,7 @@ export default function OverviewMetricCards({
 
           <button
             type="button"
-            className="metric-card metric-card--kpi metric-card--tint-priority w-full cursor-pointer text-left"
+            className="metric-card metric-card--kpi metric-card--tint-priority w-full cursor-pointer text-left col-span-2 md:col-span-1"
             style={{ '--kpi-pct': `${kpiTrackPercent.highPriority}%` }}
             aria-label="View high priority feedback in inbox"
             onPointerEnter={onKpiPointerEnter('highPriority')}

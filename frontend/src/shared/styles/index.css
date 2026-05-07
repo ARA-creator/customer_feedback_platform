@@ -56,6 +56,39 @@
   }
 
   /**
+   * Glassmorphism layer: subtle frosted “sheet” across the app canvas.
+   * Applied to the main shell so pages inherit it.
+   */
+  .app-shell-bg::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+        ellipse 60% 38% at 50% 0%,
+        rgba(255, 255, 255, 0.42) 0%,
+        rgba(255, 255, 255, 0.18) 55%,
+        rgba(255, 255, 255, 0.06) 100%
+      ),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 70%);
+    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  }
+
+  html.dark .app-shell-bg::before {
+    background: radial-gradient(
+        ellipse 60% 38% at 50% 0%,
+        rgba(17, 24, 39, 0.55) 0%,
+        rgba(3, 7, 18, 0.35) 60%,
+        rgba(3, 7, 18, 0.18) 100%
+      ),
+      linear-gradient(180deg, rgba(17, 24, 39, 0.25) 0%, rgba(3, 7, 18, 0.10) 70%);
+    backdrop-filter: blur(16px) saturate(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(1.05);
+  }
+
+  /**
    * Sidebar active color: brand green (#009750). Reference designs often use orange for “active”;
    * we keep semantic active = primary brand for Customer Pulse / Enterprise Life.
    */
@@ -93,11 +126,19 @@
   }
 
   .card:hover {
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.07), 0 4px 10px rgba(0, 151, 80, 0.04);
+    box-shadow:
+      0 16px 36px rgba(0, 0, 0, 0.08),
+      0 6px 16px rgba(0, 151, 80, 0.06),
+      0 0 0 1px rgba(0, 151, 80, 0.10),
+      0 18px 46px rgba(0, 151, 80, 0.12);
   }
 
   html.dark .card:hover {
-    box-shadow: 0 10px 22px rgba(16, 24, 40, 0.10), 0 3px 8px rgba(16, 24, 40, 0.06);
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.42),
+      0 4px 12px rgba(0, 0, 0, 0.22),
+      0 0 0 1px rgba(52, 211, 153, 0.12),
+      0 18px 46px rgba(0, 151, 80, 0.10);
   }
 
   /** Base metric / KPI (overview row uses .metric-card--kpi + tint modifiers). */
@@ -162,7 +203,11 @@
   }
 
   .metric-card--kpi:hover {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+    box-shadow:
+      0 10px 26px rgba(0, 0, 0, 0.06),
+      0 4px 14px rgba(0, 151, 80, 0.06),
+      0 0 0 1px rgba(0, 151, 80, 0.12),
+      0 18px 44px rgba(0, 151, 80, 0.10);
     transform: translateY(-1px);
   }
 
@@ -382,7 +427,10 @@
   }
 
   html.dark .metric-card--kpi:hover {
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      0 14px 34px rgba(0, 0, 0, 0.48),
+      0 0 0 1px rgba(52, 211, 153, 0.12),
+      0 18px 44px rgba(0, 151, 80, 0.10);
   }
 }
 
