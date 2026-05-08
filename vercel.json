@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/index.py": {
+      "excludeFiles": "{.venv/**,web/**,frontend/**,**/node_modules/**,**/.pytest_cache/**,**/__pycache__/**}"
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" }
   ]
