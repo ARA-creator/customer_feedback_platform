@@ -5,7 +5,10 @@ import threading
 from pathlib import Path
 from typing import List, Literal, Optional, TypedDict, Any
 
-import nltk
+try:
+    import nltk  # type: ignore
+except Exception:  # pragma: no cover
+    nltk = None
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,8 @@ def _nltk_data_dir() -> str:
 
 def _ensure_vader_lexicon() -> None:
     """Ensure the VADER lexicon is available; never crash app startup."""
+    if nltk is None:
+        return
     try:
         nltk.data.find("sentiment/vader_lexicon.zip")
         return
@@ -94,6 +99,8 @@ def _get_vader():
             return _vader_obj[0]
         _ensure_vader_lexicon()
         try:
+            if nltk is None:
+                raise RuntimeError("NLTK is not installed")
             from nltk.sentiment import SentimentIntensityAnalyzer
 
             vader = SentimentIntensityAnalyzer()

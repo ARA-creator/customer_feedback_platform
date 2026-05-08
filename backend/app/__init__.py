@@ -21,25 +21,6 @@ from .extensions import limiter
 
 def create_app() -> Flask:
     """Application factory to create and configure the Flask app."""
-    # Heavy integrations (email/social ingestion, Gemini, BS4 stacks) imported here—not at
-    # module load—so serverless cold starts (/api/auth/*) avoid OOM/timeouts before Flask runs.
-    from .integrations.web_monitor import (
-        build_web_mentions,
-        build_web_mentions_from_serpapi,
-        mention_to_feedback_payload,
-        normalize_feed_list,
-        normalize_keywords,
-        url_hash as web_url_hash,
-    )
-    from .routes.integrations import (
-        _submit_to_feedback_api,
-        integrations_bp,
-        poll_email_and_ingest,
-        poll_twilio_whatsapp_and_ingest,
-        poll_tiktok_and_ingest,
-        poll_x_and_ingest,
-    )
-
     app = Flask(__name__)
     config = get_config()
     app.config.from_object(config)
@@ -89,7 +70,17 @@ def create_app() -> Flask:
     # Register blueprints
     app.register_blueprint(api_bp)
     app.register_blueprint(views_bp)
-    app.register_blueprint(integrations_bp)
+    # Integrations are optional in serverless; importing them can pull heavy deps.
+    # If they fail to import (missing wheels / runtime install), we still want
+    # core auth + dashboard API to come up.
+    try:
+        from .routes.integrations import integrations_bp  # noqa: WPS433
+
+        app.register_blueprint(integrations_bp)
+        app.extensions["integrations_available"] = True
+    except Exception:
+        logging.getLogger(__name__).exception("Integrations blueprint failed to import/register")
+        app.extensions["integrations_available"] = False
 
     @app.errorhandler(Exception)
     def _handle_unexpected_error(err):  # type: ignore[no-redef]
@@ -264,6 +255,8 @@ def create_app() -> Flask:
     def _start_email_poller_once() -> None:
         if app.extensions.get("email_poller_started"):
             return
+        if not app.extensions.get("integrations_available"):
+            return
         if not _should_start_email_poller():
             return
 
@@ -325,6 +318,8 @@ def create_app() -> Flask:
     def _start_x_poller_once() -> None:
         if app.extensions.get("x_poller_started"):
             return
+        if not app.extensions.get("integrations_available"):
+            return
         if not _should_start_x_poller():
             return
 
@@ -363,6 +358,8 @@ def create_app() -> Flask:
 
     def _start_tiktok_poller_once() -> None:
         if app.extensions.get("tiktok_poller_started"):
+            return
+        if not app.extensions.get("integrations_available"):
             return
         if not _should_start_tiktok_poller():
             return
@@ -409,6 +406,8 @@ def create_app() -> Flask:
 
     def _start_whatsapp_poller_once() -> None:
         if app.extensions.get("whatsapp_poller_started"):
+            return
+        if not app.extensions.get("integrations_available"):
             return
         if not _should_start_whatsapp_poller():
             return
@@ -480,6 +479,8 @@ def create_app() -> Flask:
 
     def _start_web_monitor_once() -> None:
         if app.extensions.get("web_monitor_started"):
+            return
+        if not app.extensions.get("integrations_available"):
             return
         if not _should_start_web_monitor():
             return

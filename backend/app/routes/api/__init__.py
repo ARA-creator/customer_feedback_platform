@@ -15,6 +15,7 @@ from . import analytics as _analytics  # noqa: F401,E402
 from . import auth as _auth  # noqa: F401,E402
 from . import customers as _customers  # noqa: F401,E402
 from . import feedback as _feedback  # noqa: F401,E402
+from . import health as _health  # noqa: F401,E402
 from . import policies as _policies  # noqa: F401,E402
 from . import releases as _releases  # noqa: F401,E402
 
