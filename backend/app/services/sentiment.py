@@ -16,6 +16,86 @@ _vader_lock = threading.Lock()
 # Placeholder so import never builds VADER (expensive NLTK + disk on serverless cold start).
 _vader_obj: list[Any] = []
 
+# Insurance-domain phrase tuning.
+# Goal: correct common false neutrals/positives around claims, payouts, delays, and lapses.
+_PHRASE_WEIGHTS: list[tuple[re.Pattern[str], float]] = [
+    # Strong positives
+    (re.compile(r"\b(processed quickly|paid promptly|payout (?:was )?received on time|fast payout|claim settled)\b", re.I), 0.55),
+    (re.compile(r"\b(approved quickly|authorization was approved|seamless|resolved my issue so quickly)\b", re.I), 0.45),
+    (re.compile(r"\b(responded immediately|quick response|resolved my concern|resolved everything)\b", re.I), 0.40),
+    (re.compile(r"\b(kept me updated|kept us updated|kept me informed|kept us informed)\b", re.I), 0.40),
+    (re.compile(r"\b(renewal reminder|avoid policy lapse|avoided policy lapse)\b", re.I), 0.90),
+    (re.compile(r"\b(reimbursement was faster than expected|faster than expected|reimburs(?:e|ement))\b", re.I), 0.55),
+    (re.compile(r"\b(handled my complaint professionally|handled my complaint|complaint professionally)\b", re.I), 0.55),
+    (re.compile(r"\b(premium payment|paid my premium|pay(?:ing)? premium)\b", re.I), 0.25),
+    (re.compile(r"\b(smooth|straightforward|easy without|easy and straightforward)\b", re.I), 0.45),
+    (re.compile(r"\b(without (?:any )?issues?|no issues?)\b", re.I), 0.35),
+    (re.compile(r"\b(helpful|professional|explained everything clearly|easy to use|convenient)\b", re.I), 0.25),
+    (re.compile(r"\b(thank you|appreciate)\b", re.I), 0.20),
+
+    # Strong negatives
+    (re.compile(r"\b(claim (?:was )?(?:declined|denied|rejected)|declined without|denied without)\b", re.I), -0.65),
+    (re.compile(r"\b(delayed payout|delay in settlement|settlement has caused|waiting weeks|over a month)\b", re.I), -0.55),
+    (re.compile(r"\b(no response|nobody is responding|stopped responding|still have no resolution)\b", re.I), -0.60),
+    (re.compile(r"\b(cancelled without|policy (?:lapsed|cancelled)|misleading terms)\b", re.I), -0.55),
+    (re.compile(r"\b(refund (?:has )?still not been processed|premium increase is too high)\b", re.I), -0.50),
+    (re.compile(r"\b(rude|unprofessional|worst|regret taking|disappointed|frustrating and slow)\b", re.I), -0.45),
+    (re.compile(r"\b(report to regulator|report(?:ing)? to (?:nic|regulator))\b", re.I), -0.60),
+
+    # Neutral / workflow language: keep close to neutral unless other signals exist
+    (re.compile(r"\b(under review|pending confirmation|still ongoing|forwarded to|get back to me|currently under review)\b", re.I), 0.0),
+    (re.compile(r"\b(expire next month|policy is active until|premium has been updated)\b", re.I), 0.0),
+]
+
+_NEUTRAL_WORKFLOW_PHRASES: list[re.Pattern[str]] = [
+    re.compile(r"\b(under review|currently under review)\b", re.I),
+    re.compile(r"\b(pending confirmation|still ongoing|underwriting process)\b", re.I),
+    re.compile(r"\b(get back to me|forwarded to|escalated for further review)\b", re.I),
+    re.compile(r"\b(request(?:ed)? additional (?:medical )?documents|additional verification)\b", re.I),
+    re.compile(r"\b(submitted successfully|everything has been submitted)\b", re.I),
+    re.compile(r"\b(change of beneficiary|change (?:the )?beneficiary)\b", re.I),
+    re.compile(r"\b(policy is active until|active until)\b", re.I),
+]
+
+_FORCE_NEUTRAL_PHRASES: list[re.Pattern[str]] = [
+    re.compile(r"\b(escalated for further review)\b", re.I),
+]
+
+# Negation cues that should flip/strengthen negative meaning in otherwise mild phrases.
+_NEGATION_CUES = re.compile(r"\b(no|not|never|nothing|none|without)\b", re.I)
+_NEGATION_POSITIVE_EXCEPTIONS = re.compile(r"\b(without (?:any )?issues?|no issues?)\b", re.I)
+
+
+def _insurance_rule_score(text: str) -> float:
+    """
+    Lightweight domain scorer that works even if NLTK is unavailable.
+    Returns a delta in [-1, 1] to combine with VADER compound, or as a fallback score.
+    """
+    t = (text or "").strip()
+    if not t:
+        return 0.0
+    score = 0.0
+    matched_any = False
+    for rx, w in _PHRASE_WEIGHTS:
+        if rx.search(t):
+            matched_any = True
+            score += float(w)
+
+    # If we only matched neutral workflow phrases, stay neutral.
+    if matched_any and abs(score) < 1e-9:
+        return 0.0
+
+    # Negation cues: “not happy”, “no response”, “never received” should be more negative.
+    if _NEGATION_CUES.search(t) and not _NEGATION_POSITIVE_EXCEPTIONS.search(t) and score <= 0.2:
+        score -= 0.20
+
+    # Clip to [-1, 1]
+    if score < -1.0:
+        return -1.0
+    if score > 1.0:
+        return 1.0
+    return float(score)
+
 
 class SentimentResult(TypedDict):
     label: Literal["positive", "neutral", "negative"]
@@ -329,11 +409,14 @@ def analyze_sentiment(
     if not prepared:
         return {"label": "neutral", "score": 0.0}
 
+    rule_delta = _insurance_rule_score(prepared)
+
     vader = _get_vader()
     if vader is None:
-        # Fail safe: if VADER can't initialize (missing lexicon on serverless),
-        # do not crash ingestion/auth endpoints that import this module.
-        return {"label": "neutral", "score": 0.0}
+        # Fallback: still apply domain phrase tuning even when NLTK/VADER isn't available.
+        compound = float(rule_delta)
+        label = _compound_to_label(compound)
+        return {"label": label, "score": compound}
 
     scores = vader.polarity_scores(prepared)
     compound = float(scores.get("compound", 0.0))
@@ -345,5 +428,16 @@ def analyze_sentiment(
             compound = min(compound, worst)
 
     compound = _adjust_compound_for_insurance_context(compound, insurance_tags, source, prepared)
+
+    # If the text is primarily a workflow/status update, keep neutral unless there are
+    # strong positive/negative signals from rules.
+    if any(rx.search(prepared) for rx in _FORCE_NEUTRAL_PHRASES) and abs(rule_delta) < 0.15:
+        compound = 0.0
+    if any(rx.search(prepared) for rx in _NEUTRAL_WORKFLOW_PHRASES):
+        if abs(compound) < 0.35 and abs(rule_delta) < 0.15:
+            compound = 0.0
+
+    # Combine VADER with domain rules (small bounded delta).
+    compound = max(-1.0, min(1.0, float(compound) + float(rule_delta)))
     label = _compound_to_label(compound)
     return {"label": label, "score": compound}
