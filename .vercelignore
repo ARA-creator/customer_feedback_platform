@@ -1,0 +1,15 @@
+.venv
+frontend/node_modules
+frontend/.vite
+frontend/.cache
+backend/__pycache__
+backend/**/__pycache__
+__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Large local artifacts / exports (keep out of serverless bundles)
+web
+
