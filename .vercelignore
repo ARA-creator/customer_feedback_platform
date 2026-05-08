@@ -10,6 +10,9 @@ htmlcov
 # Frontend build/dev artifacts (Vercel doesn't need these inside Python functions)
 frontend/node_modules
 frontend/dist
+web
+frontend
+web/node_modules
 
 # Local data / large caches
 backend/.cache
@@ -20,4 +23,11 @@ backend/app/.cache
 backend/tests
 docs
 agent-transcripts
+
+# Git metadata isn't needed in serverless runtime
+.git
+
+# Local virtualenv always too large
+.venv/**
+
 
