@@ -222,10 +222,13 @@ def _scope_feedback_query(db, q, *, user: User, perms: set[str]):
         )
         team_value = (team[0] if team else None) or None
         if team_value:
-            return q.filter(FeedbackWorkflow.assigned_team == team_value)
+            # Show team queue plus unassigned items so new feedback is visible by default.
+            return q.filter(or_(FeedbackWorkflow.assigned_team == team_value, FeedbackWorkflow.assigned_team.is_(None)))
 
     # Default: assigned only.
-    return q.filter(FeedbackWorkflow.assigned_user_id == user.id)
+    # Also include unassigned items; otherwise new feedback without a workflow assignment
+    # can disappear entirely for agents on fresh deployments.
+    return q.filter(or_(FeedbackWorkflow.assigned_user_id == user.id, FeedbackWorkflow.assigned_user_id.is_(None)))
 
 
 def _current_user(db: SessionLocal) -> Optional[User]:
