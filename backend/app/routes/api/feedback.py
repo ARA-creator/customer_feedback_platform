@@ -56,7 +56,8 @@ logger = logging.getLogger(__name__)
 
 def _exclude_removed_sources(q):
     # Hide legacy channels that were removed from product surfaces.
-    return q.filter(~func.lower(Feedback.source).in_(["api", "web"]))
+    # NOTE: Do not hide "api" in production; many deployments ingest via API.
+    return q.filter(~func.lower(Feedback.source).in_(["web"]))
 
 
 def _serialize_notification(row: Notification) -> dict:

@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 from datetime import datetime, timedelta
@@ -12,7 +13,6 @@ from ..security import decrypt_text, encrypt_text, hash_email
 from ..services.policy_detection import detect_policies
 from ..services.insurance_tags import categorize_insurance_tags
 from ..sentiment_analyzer import analyze_sentiment
-from ..utils.wordcloud_gen import generate_wordcloud
 from ..utils.wordcloud_gen import generate_wordcloud
 
 logger = logging.getLogger(__name__)
@@ -168,16 +168,18 @@ def wordcloud_image():
                 messages.append(msg)
 
         if not messages:
-            # Return a simple "No data" image
-            from PIL import Image, ImageDraw, ImageFont
-            img = Image.new('RGB', (800, 400), color='white')
+            # If Pillow isn't installed (serverless slim deploy), just return 204.
+            try:
+                from PIL import Image, ImageDraw
+            except Exception:
+                return Response(b"", status=204, mimetype="image/png")
+            img = Image.new("RGB", (800, 400), color="white")
             draw = ImageDraw.Draw(img)
-            # Simple text if no font available
-            draw.text((400, 200), "No feedback data available", fill='gray', anchor='mm')
+            draw.text((400, 200), "No feedback data available", fill="gray", anchor="mm")
             img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
+            img.save(img_buffer, format="PNG")
             img_buffer.seek(0)
-            return Response(img_buffer.getvalue(), mimetype='image/png')
+            return Response(img_buffer.getvalue(), mimetype="image/png")
 
         # Generate word cloud
         wordcloud_bytes = generate_wordcloud(messages, width=1000, height=500)
@@ -186,29 +188,32 @@ def wordcloud_image():
             return Response(wordcloud_bytes, mimetype='image/png')
         else:
             # Fallback if generation fails
-            from PIL import Image, ImageDraw
-            img = Image.new('RGB', (800, 400), color='white')
+            try:
+                from PIL import Image, ImageDraw
+            except Exception:
+                return Response(b"", status=204, mimetype="image/png")
+            img = Image.new("RGB", (800, 400), color="white")
             draw = ImageDraw.Draw(img)
-            draw.text((400, 200), "Unable to generate word cloud", fill='gray', anchor='mm')
+            draw.text((400, 200), "Unable to generate word cloud", fill="gray", anchor="mm")
             img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
+            img.save(img_buffer, format="PNG")
             img_buffer.seek(0)
-            return Response(img_buffer.getvalue(), mimetype='image/png')
+            return Response(img_buffer.getvalue(), mimetype="image/png")
 
     except Exception as e:
         logger.exception("Error generating word cloud")
         # Return error image
         try:
             from PIL import Image, ImageDraw
-            img = Image.new('RGB', (800, 400), color='white')
-            draw = ImageDraw.Draw(img)
-            draw.text((400, 200), "Error generating word cloud", fill='red', anchor='mm')
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            return Response(img_buffer.getvalue(), mimetype='image/png')
-        except:
-            return Response(b'', mimetype='image/png'), 500
+        except Exception:
+            return Response(b"", status=204, mimetype="image/png")
+        img = Image.new("RGB", (800, 400), color="white")
+        draw = ImageDraw.Draw(img)
+        draw.text((400, 200), "Error generating word cloud", fill="red", anchor="mm")
+        img_buffer = io.BytesIO()
+        img.save(img_buffer, format="PNG")
+        img_buffer.seek(0)
+        return Response(img_buffer.getvalue(), mimetype="image/png")
     finally:
         db.close()
 
