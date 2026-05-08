@@ -27,7 +27,6 @@ source ../.venv/bin/activate
 
 # Install deps (first time / after changes)
 pip install -r requirements.txt
-pip install -r ../requirements-dev.txt  # optional: tests only
 
 # Run
 python run.py

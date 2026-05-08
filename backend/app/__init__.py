@@ -21,24 +21,35 @@ from .extensions import limiter
 
 def create_app() -> Flask:
     """Application factory to create and configure the Flask app."""
-    # Heavy integrations (email/social ingestion, Gemini, BS4 stacks) imported here—not at
-    # module load—so serverless cold starts (/api/auth/*) avoid OOM/timeouts before Flask runs.
-    from .integrations.web_monitor import (
-        build_web_mentions,
-        build_web_mentions_from_serpapi,
-        mention_to_feedback_payload,
-        normalize_feed_list,
-        normalize_keywords,
-        url_hash as web_url_hash,
-    )
-    from .routes.integrations import (
-        _submit_to_feedback_api,
-        integrations_bp,
-        poll_email_and_ingest,
-        poll_twilio_whatsapp_and_ingest,
-        poll_tiktok_and_ingest,
-        poll_x_and_ingest,
-    )
+    # Optional integrations are heavy (RSS parsing, HTML parsing, LLM clients, etc).
+    # Keep the core API (auth/dashboard) usable even when those extras aren't installed
+    # (e.g., Vercel serverless bundle size constraints).
+    integrations_available = False
+    integrations_bp = None
+    try:
+        from .integrations.web_monitor import (  # type: ignore
+            build_web_mentions,
+            build_web_mentions_from_serpapi,
+            mention_to_feedback_payload,
+            normalize_feed_list,
+            normalize_keywords,
+            url_hash as web_url_hash,
+        )
+        from .routes.integrations import (  # type: ignore
+            _submit_to_feedback_api,
+            integrations_bp as _integrations_bp,
+            poll_email_and_ingest,
+            poll_twilio_whatsapp_and_ingest,
+            poll_tiktok_and_ingest,
+            poll_x_and_ingest,
+        )
+
+        integrations_bp = _integrations_bp
+        integrations_available = True
+    except Exception:
+        logging.getLogger(__name__).info(
+            "Integrations disabled (optional dependencies not available)."
+        )
 
     app = Flask(__name__)
     config = get_config()
@@ -87,7 +98,8 @@ def create_app() -> Flask:
     # Register blueprints
     app.register_blueprint(api_bp)
     app.register_blueprint(views_bp)
-    app.register_blueprint(integrations_bp)
+    if integrations_available and integrations_bp is not None:
+        app.register_blueprint(integrations_bp)
 
     @app.errorhandler(Exception)
     def _handle_unexpected_error(err):  # type: ignore[no-redef]
@@ -251,6 +263,8 @@ def create_app() -> Flask:
         # Avoid duplicate threads in debug reloader
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
+        if not integrations_available:
+            return False
 
         # Enable if explicitly requested, or implicitly for dev when credentials exist
         creds_present = bool(getattr(config, "EMAIL_IMAP_SERVER", None) and getattr(config, "EMAIL_USERNAME", None) and getattr(config, "EMAIL_PASSWORD", None))
@@ -306,12 +320,16 @@ def create_app() -> Flask:
     def _should_start_web_monitor() -> bool:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
+        if not integrations_available:
+            return False
         feeds = normalize_feed_list(getattr(config, "WEB_MONITOR_RSS_FEEDS", ""))
         enabled = bool(getattr(config, "WEB_MONITOR_ENABLED", False) or (getattr(config, "ENV", "development") == "development" and bool(feeds)))
         return enabled and bool(feeds)
 
     def _should_start_x_poller() -> bool:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            return False
+        if not integrations_available:
             return False
         bearer = (getattr(config, "X_BEARER_TOKEN", "") or "").strip()
         query = (getattr(config, "X_QUERY", "") or "").strip()
@@ -351,6 +369,8 @@ def create_app() -> Flask:
 
     def _should_start_tiktok_poller() -> bool:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            return False
+        if not integrations_available:
             return False
         access_token = (getattr(config, "TIKTOK_ACCESS_TOKEN", "") or "").strip()
         base_url = (getattr(config, "TIKTOK_API_BASE_URL", "") or "").strip()
@@ -394,6 +414,8 @@ def create_app() -> Flask:
 
     def _should_start_whatsapp_poller() -> bool:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+            return False
+        if not integrations_available:
             return False
         account_sid = (getattr(config, "TWILIO_ACCOUNT_SID", "") or "").strip()
         auth_token = (getattr(config, "TWILIO_AUTH_TOKEN", "") or "").strip()
@@ -476,6 +498,8 @@ def create_app() -> Flask:
 
     def _start_web_monitor_once() -> None:
         if app.extensions.get("web_monitor_started"):
+            return
+        if not integrations_available:
             return
         if not _should_start_web_monitor():
             return
@@ -563,11 +587,12 @@ def create_app() -> Flask:
     @app.before_request
     def _kickoff_background_workers():
         # Start lazily on first request so it also works under some WSGI servers.
-        _start_email_poller_once()
-        _start_web_monitor_once()
-        _start_x_poller_once()
-        _start_tiktok_poller_once()
-        _start_whatsapp_poller_once()
+        if integrations_available:
+            _start_email_poller_once()
+            _start_web_monitor_once()
+            _start_x_poller_once()
+            _start_tiktok_poller_once()
+            _start_whatsapp_poller_once()
         _start_anomaly_detection_once()
 
     return app
