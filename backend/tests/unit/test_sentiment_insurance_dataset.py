@@ -27,6 +27,7 @@ CASES = [
     ("The premium increase is too high this year.", "negative"),
     ("My policy was cancelled without proper notice.", "negative"),
     ("The payout process has been frustrating and slow.", "negative"),
+    ("The claims processing was so slow.", "negative"),
     ("I have called several times and still have no resolution.", "negative"),
     ("The claim was declined without a clear explanation.", "negative"),
     ("The waiting period was not explained to me properly.", "negative"),

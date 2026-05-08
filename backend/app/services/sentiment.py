@@ -36,6 +36,9 @@ _PHRASE_WEIGHTS: list[tuple[re.Pattern[str], float]] = [
     # Strong negatives
     (re.compile(r"\b(claim (?:was )?(?:declined|denied|rejected)|declined without|denied without)\b", re.I), -0.65),
     (re.compile(r"\b(delayed payout|delay in settlement|settlement has caused|waiting weeks|over a month)\b", re.I), -0.55),
+    # Slowness / backlog (VADER often misreads "claims" + "processing" as mild positive alone)
+    (re.compile(r"\b(?:was|were|is|been)\s+(?:(?:so|too|very|quite|pretty)\s+)?slow\b", re.I), -0.58),
+    (re.compile(r"\btook\s+(?:too\s+)?(?:long|forever|ages)\b", re.I), -0.48),
     (re.compile(r"\b(no response|nobody is responding|stopped responding|still have no resolution)\b", re.I), -0.60),
     (re.compile(r"\b(cancelled without|policy (?:lapsed|cancelled)|misleading terms)\b", re.I), -0.55),
     (re.compile(r"\b(refund (?:has )?still not been processed|premium increase is too high)\b", re.I), -0.50),
@@ -140,7 +143,7 @@ _VADER_LEXICON_UPDATES = {
     "annoyed": -2.4,
     "annoying": -2.2,
     "frustrated": -2.8,
-    "frusrating": -2.8,
+    "frutsrating": -2.8,
     "frustration": -2.4,
     "unpaid": -2.6,
     "nonpayment": -2.6,
