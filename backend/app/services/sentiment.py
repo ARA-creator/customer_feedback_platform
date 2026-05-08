@@ -140,7 +140,7 @@ _VADER_LEXICON_UPDATES = {
     "annoyed": -2.4,
     "annoying": -2.2,
     "frustrated": -2.8,
-    "frustrating": -2.8,
+    "frusrating": -2.8,
     "frustration": -2.4,
     "unpaid": -2.6,
     "nonpayment": -2.6,
