@@ -74,7 +74,9 @@ def create_app() -> Flask:
         app,
         supports_credentials=True,
         resources={
-            r"/api/*": {
+            # When deployed on Vercel, the platform mounts this service at `/api` and
+            # forwards requests into Flask without the `/api` prefix.
+            r"/*": {
                 "origins": cors_origins,
             },
             r"/wordcloud.png": {
@@ -118,7 +120,9 @@ def create_app() -> Flask:
             return None
 
         path = request.path or ""
-        if not path.startswith("/api/"):
+        # Vercel strips the `/api` routePrefix before Flask sees it.
+        # In local/dev, routes may still include `/api` depending on how you run it.
+        if not (path.startswith("/api/") or path.startswith("/auth/") or path.startswith("/feedback/") or path.startswith("/notifications/") or path.startswith("/events") or path.startswith("/customers/") or path.startswith("/policies/") or path.startswith("/analytics/") or path.startswith("/releases/") or path.startswith("/admin/")):
             return None
 
         # No session: nothing to protect (and we don't want to block login/signup).
@@ -126,7 +130,7 @@ def create_app() -> Flask:
             return None
 
         # Exempt auth endpoints involved in initial auth / email flows.
-        if path.startswith("/api/auth/") and any(
+        if (path.startswith("/api/auth/") or path.startswith("/auth/")) and any(
             path.endswith(s)
             for s in (
                 "/login",

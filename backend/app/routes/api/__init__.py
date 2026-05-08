@@ -4,10 +4,9 @@ from flask import Blueprint
 
 logger = logging.getLogger(__name__)
 
-# The frontend and tests expect API routes under `/api/...`.
-# If you deploy behind a platform-level route prefix, keep that prefix aligned
-# with this blueprint (i.e., do not double-prefix).
-api_bp = Blueprint("api", __name__, url_prefix="/api")
+# Vercel mounts this service at `/api` (routePrefix). Keep Flask routes unprefixed
+# so `GET /api/auth/me` maps to Flask `GET /auth/me`.
+api_bp = Blueprint("api", __name__, url_prefix="")
 
 # Import route modules so decorators register on api_bp.
 # These modules may be populated incrementally during the refactor.
