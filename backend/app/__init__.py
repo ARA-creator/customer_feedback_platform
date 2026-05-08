@@ -13,22 +13,6 @@ from .core.config import get_config
 from .core.database import engine, Base
 from .routes.api import api_bp
 from .routes.pages import views_bp
-from .routes.integrations import (
-    integrations_bp,
-    poll_email_and_ingest,
-    poll_twilio_whatsapp_and_ingest,
-    poll_x_and_ingest,
-    poll_tiktok_and_ingest,
-)
-from .integrations.web_monitor import (
-    build_web_mentions,
-    build_web_mentions_from_serpapi,
-    mention_to_feedback_payload,
-    normalize_feed_list,
-    normalize_keywords,
-    url_hash as web_url_hash,
-)
-from .routes.integrations import _submit_to_feedback_api
 from .core.database import SessionLocal
 from .models import ExternalIngestedItem
 from .services.rbac import seed_rbac
@@ -37,6 +21,25 @@ from .extensions import limiter
 
 def create_app() -> Flask:
     """Application factory to create and configure the Flask app."""
+    # Heavy integrations (email/social ingestion, Gemini, BS4 stacks) imported here—not at
+    # module load—so serverless cold starts (/api/auth/*) avoid OOM/timeouts before Flask runs.
+    from .integrations.web_monitor import (
+        build_web_mentions,
+        build_web_mentions_from_serpapi,
+        mention_to_feedback_payload,
+        normalize_feed_list,
+        normalize_keywords,
+        url_hash as web_url_hash,
+    )
+    from .routes.integrations import (
+        _submit_to_feedback_api,
+        integrations_bp,
+        poll_email_and_ingest,
+        poll_twilio_whatsapp_and_ingest,
+        poll_tiktok_and_ingest,
+        poll_x_and_ingest,
+    )
+
     app = Flask(__name__)
     config = get_config()
     app.config.from_object(config)
@@ -50,24 +53,32 @@ def create_app() -> Flask:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
 
+    cors_origins = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+    ]
+    _fe = (os.getenv("FRONTEND_BASE_URL") or "").strip().rstrip("/")
+    if _fe:
+        cors_origins.append(_fe)
+    _vu = (os.getenv("VERCEL_URL") or "").strip()
+    if _vu:
+        host = _vu.split("://", 1)[-1].strip().rstrip("/")
+        if host:
+            cors_origins.append(f"https://{host}")
+            cors_origins.append(f"http://{host}")
+    cors_origins = list(dict.fromkeys([o for o in cors_origins if o]))
+
     # Enable CORS for React frontend
     CORS(
         app,
         supports_credentials=True,
         resources={
             r"/api/*": {
-                "origins": [
-                    "http://localhost:5173",
-                    "http://localhost:3000",
-                    "http://127.0.0.1:5173",
-                ]
+                "origins": cors_origins,
             },
             r"/wordcloud.png": {
-                "origins": [
-                    "http://localhost:5173",
-                    "http://localhost:3000",
-                    "http://127.0.0.1:5173",
-                ]
+                "origins": cors_origins,
             },
             r"/integrations/*": {"origins": "*"},  # Webhooks need to accept from anywhere
         },

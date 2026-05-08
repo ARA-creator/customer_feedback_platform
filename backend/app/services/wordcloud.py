@@ -3,8 +3,6 @@ import logging
 import re
 from typing import List, Optional
 
-from wordcloud import WordCloud
-
 logger = logging.getLogger(__name__)
 
 # Common stopwords to exclude (basic list, can be expanded)
@@ -65,6 +63,10 @@ def generate_wordcloud(texts: List[str], width: int = 800, height: int = 400) ->
         return None
     
     try:
+        # Import lazily — wordcloud pulls numpy/matplotlib-heavy deps; importing at module
+        # load can blow Vercel serverless cold-start memory/time limits.
+        from wordcloud import WordCloud
+
         # Generate word cloud with colorful palette
         wordcloud = WordCloud(
             width=width,

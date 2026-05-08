@@ -1,13 +1,17 @@
 import logging
 import os
 import re
+import threading
 from pathlib import Path
-from typing import List, Literal, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict, Any
 
 import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
 
 logger = logging.getLogger(__name__)
+
+_vader_lock = threading.Lock()
+# Placeholder so import never builds VADER (expensive NLTK + disk on serverless cold start).
+_vader_obj: list[Any] = []
 
 
 class SentimentResult(TypedDict):
@@ -47,52 +51,59 @@ def _ensure_vader_lexicon() -> None:
         logger.exception("NLTK: failed to download VADER lexicon")
 
 
-_ensure_vader_lexicon()
-try:
-    _vader = SentimentIntensityAnalyzer()
-except Exception:
-    logger.exception("NLTK: failed to initialize VADER analyzer (lexicon missing?)")
-    _vader = None
+_VADER_LEXICON_UPDATES = {
+    "annoyed": -2.4,
+    "annoying": -2.2,
+    "frustrated": -2.8,
+    "frustrating": -2.8,
+    "frustration": -2.4,
+    "unpaid": -2.6,
+    "nonpayment": -2.6,
+    "delayed": -1.8,
+    "delay": -1.4,
+    "overdue": -2.2,
+    "denied": -2.8,
+    "denial": -2.4,
+    "rejected": -2.2,
+    "dispute": -2.0,
+    "lapse": -2.0,
+    "lapsed": -2.0,
+    "underinsured": -1.8,
+    "underpaid": -2.2,
+    "exclusion": -1.8,
+    "excluded": -1.8,
+    "rescission": -2.2,
+    "nonrenewal": -1.8,
+    "cancellation": -1.4,
+    "complaint": -1.8,
+    "escalation": -1.6,
+    "breach": -2.0,
+    "badfaith": -2.6,
+    "bad-faith": -2.6,
+    "benefit": 0.0,
+    "benefits": 0.0,
+}
 
-# Domain tuning: VADER's default lexicon can underweight complaint language
-# common in benefit/payment escalation emails.
-if _vader is not None:
-    _vader.lexicon.update(
-        {
-            "annoyed": -2.4,
-            "annoying": -2.2,
-            "frustrated": -2.8,
-            "frustrating": -2.8,
-            "frustration": -2.4,
-            "unpaid": -2.6,
-            "nonpayment": -2.6,
-            "delayed": -1.8,
-            "delay": -1.4,
-            "overdue": -2.2,
-            # Insurance / claims context (lean toward capturing customer distress)
-            "denied": -2.8,
-            "denial": -2.4,
-            "rejected": -2.2,
-            "dispute": -2.0,
-            "lapse": -2.0,
-            "lapsed": -2.0,
-            "underinsured": -1.8,
-            "underpaid": -2.2,
-            "exclusion": -1.8,
-            "excluded": -1.8,
-            "rescission": -2.2,
-            "nonrenewal": -1.8,
-            "cancellation": -1.4,
-            "complaint": -1.8,
-            "escalation": -1.6,
-            "breach": -2.0,
-            "badfaith": -2.6,
-            "bad-faith": -2.6,
-            # Insurance domain: "benefits" = covered services (not generic positive affect)
-            "benefit": 0.0,
-            "benefits": 0.0,
-        }
-    )
+
+def _get_vader():
+    """Lazy singleton — first call initializes VADER."""
+    if _vader_obj:
+        return _vader_obj[0]
+    with _vader_lock:
+        if _vader_obj:
+            return _vader_obj[0]
+        _ensure_vader_lexicon()
+        try:
+            from nltk.sentiment import SentimentIntensityAnalyzer
+
+            vader = SentimentIntensityAnalyzer()
+            vader.lexicon.update(_VADER_LEXICON_UPDATES)
+            _vader_obj.append(vader)
+            return vader
+        except Exception:
+            logger.exception("NLTK: failed to initialize VADER analyzer (lexicon missing?)")
+            _vader_obj.append(None)
+            return None
 
 # When any of these insurance topic tags apply, allow a small compound nudge for ambiguous VADER scores.
 _INSURANCE_TOPIC_TAGS_FOR_SENTIMENT_GATE = frozenset(
@@ -311,17 +322,18 @@ def analyze_sentiment(
     if not prepared:
         return {"label": "neutral", "score": 0.0}
 
-    if _vader is None:
+    vader = _get_vader()
+    if vader is None:
         # Fail safe: if VADER can't initialize (missing lexicon on serverless),
         # do not crash ingestion/auth endpoints that import this module.
         return {"label": "neutral", "score": 0.0}
 
-    scores = _vader.polarity_scores(prepared)
+    scores = vader.polarity_scores(prepared)
     compound = float(scores.get("compound", 0.0))
 
     parts = [p.strip() for p in re.split(r"[.!?\n]+", prepared) if p and p.strip()]
     if parts:
-        worst = min(float(_vader.polarity_scores(p).get("compound", 0.0)) for p in parts)
+        worst = min(float(vader.polarity_scores(p).get("compound", 0.0)) for p in parts)
         if worst <= -0.20:
             compound = min(compound, worst)
 
