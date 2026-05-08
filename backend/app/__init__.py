@@ -303,6 +303,10 @@ def create_app() -> Flask:
     def _should_start_web_monitor() -> bool:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
+        try:
+            from .integrations.web_monitor import normalize_feed_list  # noqa: WPS433
+        except Exception:
+            return False
         feeds = normalize_feed_list(getattr(config, "WEB_MONITOR_RSS_FEEDS", ""))
         enabled = bool(getattr(config, "WEB_MONITOR_ENABLED", False) or (getattr(config, "ENV", "development") == "development" and bool(feeds)))
         return enabled and bool(feeds)
@@ -484,6 +488,16 @@ def create_app() -> Flask:
             return
         if not _should_start_web_monitor():
             return
+
+        # Import lazily to avoid breaking cold starts when optional deps are missing.
+        from .integrations.web_monitor import (
+            build_web_mentions,
+            build_web_mentions_from_serpapi,
+            mention_to_feedback_payload,
+            normalize_feed_list,
+            normalize_keywords,
+            url_hash as web_url_hash,
+        )
 
         interval = int(getattr(config, "WEB_MONITOR_INTERVAL_SECONDS", 300))
         max_items = int(getattr(config, "WEB_MONITOR_MAX_ITEMS_PER_RUN", 20))
