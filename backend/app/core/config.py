@@ -18,11 +18,15 @@ class BaseConfig:
     """Base configuration shared by all environments."""
 
     # Database: prefer external DB via DATABASE_URL (e.g. Neon Postgres).
-    # When DATABASE_URL is not set, fall back to in-memory SQLite to avoid
-    # creating local stateful DB files in the repo.
+    # When DATABASE_URL is not set, fall back to a SQLite DB in /tmp.
+    #
+    # IMPORTANT: Avoid sqlite:///:memory: here. In-memory SQLite databases are
+    # per-connection; in serverless environments (and even within a single Flask
+    # process), different connections/sessions can observe different empty DBs,
+    # causing "no such table" 500s on basic routes (e.g. /api/auth/me).
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "sqlite:///:memory:",
+        "sqlite:////tmp/customer_feedback_platform.db",
     )
 
     SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true"
