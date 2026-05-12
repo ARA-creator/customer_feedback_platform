@@ -61,3 +61,22 @@ def test_insurance_sentiment_dataset_labels():
         r = analyze_sentiment(msg, source="api", insurance_tags=None)
         assert r["label"] == expected, (msg, r)
 
+
+def test_email_overdue_subject_polite_body_neutral():
+    """Ops follow-up: 'overdue' in subject line should not alone force negative sentiment."""
+    text = (
+        "Overdue Beneift Process\n\nHello Enterprise. Please process the cash bonus "
+        "on my Bubble policy EB3V000023"
+    )
+    r = analyze_sentiment(text, source="email", insurance_tags=["policy"])
+    assert r["label"] == "neutral", r
+
+
+def test_claims_processing_slow_negative_as_email():
+    r = analyze_sentiment(
+        "The claims processing was so slow",
+        source="email",
+        insurance_tags=["claims", "speed_delays", "digital"],
+    )
+    assert r["label"] == "negative", r
+

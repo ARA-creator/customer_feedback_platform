@@ -3,7 +3,7 @@ import os
 import re
 import threading
 from pathlib import Path
-from typing import List, Literal, Optional, TypedDict, Any
+from typing import Any, List, Literal, NotRequired, Optional, TypedDict
 
 try:
     import nltk  # type: ignore
@@ -38,6 +38,8 @@ _PHRASE_WEIGHTS: list[tuple[re.Pattern[str], float]] = [
     (re.compile(r"\b(delayed payout|delay in settlement|settlement has caused|waiting weeks|over a month)\b", re.I), -0.55),
     # Slowness / backlog (VADER often misreads "claims" + "processing" as mild positive alone)
     (re.compile(r"\b(?:was|were|is|been)\s+(?:(?:so|too|very|quite|pretty)\s+)?slow\b", re.I), -0.58),
+    (re.compile(r"\b(?:so|too|very|quite|pretty)\s+slow\b", re.I), -0.55),
+    (re.compile(r"\bclaims?\b.*\bprocessing\b.*\bslow\b", re.I | re.DOTALL), -0.58),
     (re.compile(r"\btook\s+(?:too\s+)?(?:long|forever|ages)\b", re.I), -0.48),
     (re.compile(r"\b(no response|nobody is responding|stopped responding|still have no resolution)\b", re.I), -0.60),
     (re.compile(r"\b(cancelled without|policy (?:lapsed|cancelled)|misleading terms)\b", re.I), -0.55),
@@ -68,11 +70,36 @@ _FORCE_NEUTRAL_PHRASES: list[re.Pattern[str]] = [
 _NEGATION_CUES = re.compile(r"\b(no|not|never|nothing|none|without)\b", re.I)
 _NEGATION_POSITIVE_EXCEPTIONS = re.compile(r"\b(without (?:any )?issues?|no issues?)\b", re.I)
 
+# Polite ops / follow-up language: offset VADER treating "overdue" in a subject line as fury.
+_PROCEDURAL_POLITE = re.compile(
+    r"\b(?:please|kindly)\s+(?:process|complete|arrange|expedite|credit|pay|transfer|send)\b",
+    re.I,
+)
+_SERVICE_COMPLAINT_SHADE = re.compile(
+    r"\b(frustrat|angry|furious|unacceptable|outraged?|disgusted?|terrible\s+service|awful\s+service|"
+    r"worst\s+(?:service|experience)|pathetic|useless\s+service|"
+    r"complain(?:t|ing)?\s+about\s+(?:your|the)\s+service)\b",
+    re.I,
+)
 
-def _insurance_rule_score(text: str) -> float:
+
+def _procedural_request_compensation(text: str) -> float:
+    """Positive nudge for neutral service requests; not counted toward domain anchor (phrase score)."""
+    t = (text or "").strip()
+    if not t or not _PROCEDURAL_POLITE.search(t):
+        return 0.0
+    if _SERVICE_COMPLAINT_SHADE.search(t):
+        return 0.0
+    return 0.48
+
+
+def _insurance_phrase_rule_score(text: str) -> float:
     """
-    Lightweight domain scorer that works even if NLTK is unavailable.
-    Returns a delta in [-1, 1] to combine with VADER compound, or as a fallback score.
+    Sum of insurance-domain phrase weights and negation tweak, in about [-1, 1].
+
+    Used as ``domain_score`` and for label anchoring. Procedural request compensation
+    (``_procedural_request_compensation``) is applied separately so ops-style emails are
+    not mislabeled using the same "strong positive" anchor as real praise.
     """
     t = (text or "").strip()
     if not t:
@@ -100,9 +127,19 @@ def _insurance_rule_score(text: str) -> float:
     return float(score)
 
 
+# Domain phrase weights stack into ``domain_score`` (phrase-only); past these thresholds
+# the discrete label follows domain points first; VADER+domain ``score`` fills ambiguous cases.
+_STRONG_DOMAIN_NEG = -0.30
+_STRONG_DOMAIN_POS = 0.36
+# Require clear overall praise before overriding a strong negative phrase signal.
+_CONTRAST_OVERRIDE_POS = 0.42
+_CONTRAST_OVERRIDE_NEG = -0.28
+
+
 class SentimentResult(TypedDict):
     label: Literal["positive", "neutral", "negative"]
     score: float
+    domain_score: NotRequired[float]
 
 
 def _nltk_data_dir() -> str:
@@ -149,7 +186,7 @@ _VADER_LEXICON_UPDATES = {
     "nonpayment": -2.6,
     "delayed": -1.8,
     "delay": -1.4,
-    "overdue": -2.2,
+    "overdue": -1.5,
     "denied": -2.8,
     "denial": -2.4,
     "rejected": -2.2,
@@ -387,6 +424,21 @@ def _compound_to_label(compound: float) -> Literal["positive", "neutral", "negat
     return "positive"
 
 
+def _derive_sentiment_label(combined: float, domain_score: float) -> Literal["positive", "neutral", "negative"]:
+    """
+    Map numeric sentiment to a discrete label.
+
+    ``domain_score`` is the sum of insurance phrase weights (plus negation tweak), about
+    [-1, 1]. Strong domain totals pick negative/positive so phrase "points" match the
+    label; otherwise the combined score uses the usual VADER bands.
+    """
+    if domain_score <= _STRONG_DOMAIN_NEG and combined < _CONTRAST_OVERRIDE_POS:
+        return "negative"
+    if domain_score >= _STRONG_DOMAIN_POS and combined > _CONTRAST_OVERRIDE_NEG:
+        return "positive"
+    return _compound_to_label(combined)
+
+
 def analyze_sentiment(
     text: str,
     source: Optional[str] = None,
@@ -405,21 +457,25 @@ def analyze_sentiment(
 
     Returns:
         dict with:
-            - label: "positive" | "neutral" | "negative" (bands on normalized compound)
-            - score: adjusted VADER compound in [-1, 1] (after insurance-context nudge)
+            - label: "positive" | "neutral" | "negative" (from domain points when strong,
+              else from combined score bands)
+            - score: VADER compound plus domain adjustment, clipped to [-1, 1]
+            - domain_score: optional; phrase-rule total only (excludes procedural nudge)
     """
     prepared = _prepare_text_for_analysis(text, source)
     if not prepared:
         return {"label": "neutral", "score": 0.0}
 
-    rule_delta = _insurance_rule_score(prepared)
+    phrase_domain = _insurance_phrase_rule_score(prepared)
+    procedural = _procedural_request_compensation(prepared)
+    rule_delta = phrase_domain + procedural
 
     vader = _get_vader()
     if vader is None:
         # Fallback: still apply domain phrase tuning even when NLTK/VADER isn't available.
         compound = float(rule_delta)
-        label = _compound_to_label(compound)
-        return {"label": label, "score": compound}
+        label = _derive_sentiment_label(compound, phrase_domain)
+        return {"label": label, "score": compound, "domain_score": phrase_domain}
 
     scores = vader.polarity_scores(prepared)
     compound = float(scores.get("compound", 0.0))
@@ -433,14 +489,14 @@ def analyze_sentiment(
     compound = _adjust_compound_for_insurance_context(compound, insurance_tags, source, prepared)
 
     # If the text is primarily a workflow/status update, keep neutral unless there are
-    # strong positive/negative signals from rules.
-    if any(rx.search(prepared) for rx in _FORCE_NEUTRAL_PHRASES) and abs(rule_delta) < 0.15:
+    # strong positive/negative signals from rules (phrase-only; procedural is not domain signal).
+    if any(rx.search(prepared) for rx in _FORCE_NEUTRAL_PHRASES) and abs(phrase_domain) < 0.15:
         compound = 0.0
     if any(rx.search(prepared) for rx in _NEUTRAL_WORKFLOW_PHRASES):
-        if abs(compound) < 0.35 and abs(rule_delta) < 0.15:
+        if abs(compound) < 0.35 and abs(phrase_domain) < 0.15:
             compound = 0.0
 
-    # Combine VADER with domain rules (small bounded delta).
+    # Combine VADER with phrase rules plus procedural compensation.
     compound = max(-1.0, min(1.0, float(compound) + float(rule_delta)))
-    label = _compound_to_label(compound)
-    return {"label": label, "score": compound}
+    label = _derive_sentiment_label(compound, phrase_domain)
+    return {"label": label, "score": compound, "domain_score": phrase_domain}
