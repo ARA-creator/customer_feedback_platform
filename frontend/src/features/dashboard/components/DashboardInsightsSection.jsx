@@ -157,12 +157,22 @@ export default function DashboardInsightsSection({
     .sort((a, b) => b.total - a.total)
     .slice(0, 8)
 
-  const topIssues = Array.isArray(categoryData)
+  const topIssuesFromCategories = Array.isArray(categoryData)
     ? categoryData
         .map((r) => ({ name: r?.name, value: Number(r?.value ?? 0) || 0 }))
         .filter((r) => r.value > 0)
         .slice(0, 8)
     : []
+
+  const topIssuesChartRows =
+    topIssuesFromCategories.length > 0
+      ? { rows: topIssuesFromCategories, source: 'category' }
+      : {
+          rows: topThemes.map((t) => ({ name: t.label || t.key || 'Theme', value: t.total })).filter((r) => r.value > 0),
+          source: 'themes',
+        }
+
+  const topIssuesEmpty = !topIssuesChartRows.rows.length
 
   // Heatmap matrix + totals
   const peakByKey = new Map()
@@ -210,7 +220,7 @@ export default function DashboardInsightsSection({
         source_totals: sourceTotals,
         sentiment_trend: sentimentSeries,
         top_themes: topThemes,
-        top_issues: topIssues,
+        top_issues: topIssuesChartRows.rows,
       }
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -224,8 +234,16 @@ export default function DashboardInsightsSection({
     }
   }
 
-  // spike annotations (top 2 days by total)
+  // Source trend legend pills: shares among channels with >0 volume (avoids misleading 50/50 on zeros).
+  const sourcePillKeys = (() => {
+    const keys = sources.filter((k) => k && k !== 'date')
+    const nonZero = keys.filter((k) => (Number(sourceTotals.totals?.[k]) || 0) > 0)
+    return nonZero.length > 0 ? nonZero : keys
+  })()
+  const sourcePillTotal = sourcePillKeys.reduce((sum, k) => sum + (Number(sourceTotals.totals?.[k]) || 0), 0)
+
   const spikeDots = (() => {
+    // Top 2 days by total feedback (sentiment trend)
     const rows = sentimentSeries
       .map((r) => ({ date: r.date, total: r.total }))
       .filter((r) => r.date)
@@ -544,22 +562,22 @@ export default function DashboardInsightsSection({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard
           title="Source trend"
-          subtitle="Daily volume by top channels (others grouped). Totals and shares shown above."
+          subtitle="Daily volume by top channels (others grouped). Pills show share among channels with volume in this range."
           right={
             <div className="flex flex-wrap gap-2">
-              {sources.slice(0, 4).map((k, idx) => {
+              {sourcePillKeys.slice(0, 6).map((k, idx) => {
                 const total = Number(sourceTotals.totals?.[k] ?? 0) || 0
-                const share = total / Math.max(1, sourceTotals.totalAll || 0)
+                const share = total / Math.max(1, sourcePillTotal || 0)
                 const color = sourceTrendColors?.[k] || CHART_PALETTE[idx % CHART_PALETTE.length]
                 return (
                   <div
                     key={`src-pill-${k}`}
                     className="rounded-full border border-gray-200 bg-white/90 px-3 py-1 text-[11px] font-semibold text-gray-800 shadow-sm dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100"
-                    title={`${humanizeSource(k)}: ${total} (${fmtPct(share)})`}
+                    title={`${humanizeSource(k)}: ${total} (${fmtPct(share)} of active channels)`}
                   >
                     <span className="inline-flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
-                      {humanizeSource(k)} · {fmtPct(share)}
+                      {humanizeSource(k)} · {total ? fmtPct(share) : '0'}
                     </span>
                   </div>
                 )
@@ -619,17 +637,23 @@ export default function DashboardInsightsSection({
 
         <SectionCard
           title="Top issues"
-          subtitle="Highest-volume categories in this window."
+          subtitle={
+            topIssuesChartRows.source === 'themes'
+              ? 'Manual categories are unset on most items; showing top insurance auto-tags in this window instead.'
+              : 'Highest-volume feedback categories in this window.'
+          }
         >
           {loadingState ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
-          ) : topIssues.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">No category data yet.</p>
+          ) : topIssuesEmpty ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              No category or theme volume in this range yet.
+            </p>
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={topIssues
+                  data={topIssuesChartRows.rows
                     .slice()
                     .sort((a, b) => b.value - a.value)
                     .map((row, idx) => ({ ...row, fill: CHART_PALETTE[idx % CHART_PALETTE.length] }))}
@@ -660,8 +684,8 @@ export default function DashboardInsightsSection({
                     labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#0f172a', fontWeight: 700 }}
                   />
                   <Bar dataKey="value" name="Count" radius={[10, 10, 10, 10]}>
-                    {topIssues.map((row, idx) => (
-                      <Cell key={`issue-${row.name}`} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
+                    {topIssuesChartRows.rows.map((row, idx) => (
+                      <Cell key={`issue-${row.name}-${idx}`} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
                     ))}
                   </Bar>
                 </BarChart>

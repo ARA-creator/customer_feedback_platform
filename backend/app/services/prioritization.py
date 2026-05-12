@@ -16,12 +16,16 @@ def normalize_source_group(value: Optional[str]) -> Optional[str]:
     s = (value or "").strip().lower()
     if not s:
         return None
-    if s == "email" or "mail" in s:
+    # WhatsApp before broad "mail" heuristics so mixed strings stay WhatsApp.
+    if "whatsapp" in s:
+        return "whatsapp"
+    # Avoid classifying "voicemail" as email: substring "mail" appears inside it.
+    if s == "email" or s in ("e-mail", "imap") or s.startswith("email"):
+        return "email"
+    if "mail" in s and "voice" not in s:
         return "email"
     if s == "web" or s.startswith("web_") or s.startswith("web-") or "web_form" in s or "webform" in s:
         return "web"
-    if "whatsapp" in s:
-        return "whatsapp"
     if s == "x" or "x_" in s or "x-" in s or "x " in s:
         return "x"
     if "twitter" in s:

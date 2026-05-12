@@ -122,7 +122,7 @@ export function useDashboardDataLoader({
             ...row,
             fill: CHART_PALETTE[i % CHART_PALETTE.length],
           }))
-        setCategoryData(categoryChartData.length > 0 ? categoryChartData : [{ name: 'No data', value: 0, fill: '#eef8f4' }])
+        setCategoryData(categoryChartData)
 
         setTrendData(analyticsData.trends || [])
         setComparison(analyticsData.period_comparison || { this_week: null, last_week: null })
