@@ -11,9 +11,8 @@ import {
   BarChart,
   Bar,
   Cell,
-  ReferenceDot,
 } from 'recharts'
-import { VIRIDIS, SENTIMENT_COLORS, CHART_PALETTE } from '../constants/palette'
+import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
 
 function clamp(n, min, max) {
@@ -242,16 +241,6 @@ export default function DashboardInsightsSection({
   })()
   const sourcePillTotal = sourcePillKeys.reduce((sum, k) => sum + (Number(sourceTotals.totals?.[k]) || 0), 0)
 
-  const spikeDots = (() => {
-    // Top 2 days by total feedback (sentiment trend)
-    const rows = sentimentSeries
-      .map((r) => ({ date: r.date, total: r.total }))
-      .filter((r) => r.date)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 2)
-    return new Set(rows.map((r) => r.date))
-  })()
-
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Header */}
@@ -358,110 +347,7 @@ export default function DashboardInsightsSection({
       </div>
 
       {/* Executive overview row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard
-          title="Sentiment trend"
-          subtitle="Daily sentiment breakdown and a simple sentiment index (0–100). Spikes are highlighted."
-        >
-          {loadingState ? (
-            <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
-          ) : sentimentSeries.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">No trend data yet.</p>
-          ) : (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sentimentSeries} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#1f2937' : '#e5e7eb'} vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: isDarkMode ? '#cbd5e1' : '#64748b', fontSize: 11 }}
-                    axisLine={{ stroke: isDarkMode ? '#334155' : '#e2e8f0' }}
-                    tickFormatter={fmtDayLabel}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fill: isDarkMode ? '#cbd5e1' : '#64748b', fontSize: 11 }}
-                    axisLine={{ stroke: isDarkMode ? '#334155' : '#e2e8f0' }}
-                    allowDecimals={false}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fill: isDarkMode ? '#cbd5e1' : '#64748b', fontSize: 11 }}
-                    axisLine={{ stroke: isDarkMode ? '#334155' : '#e2e8f0' }}
-                    domain={[0, 100]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: isDarkMode ? '#0b1220' : '#ffffff',
-                      border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-                      borderRadius: 14,
-                      boxShadow: '0 18px 48px rgba(2,6,23,0.12)',
-                    }}
-                    labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#0f172a', fontWeight: 700 }}
-                  />
-                  <Legend />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="positive"
-                    name="Positive"
-                    stroke={SENTIMENT_COLORS.Positive}
-                    strokeWidth={2.25}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="neutral"
-                    name="Neutral"
-                    stroke={SENTIMENT_COLORS.Neutral}
-                    strokeWidth={2.25}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="negative"
-                    name="Negative"
-                    stroke={SENTIMENT_COLORS.Negative}
-                    strokeWidth={2.25}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="sentiment_index"
-                    name="Sentiment index"
-                    stroke={VIRIDIS.green}
-                    strokeWidth={2}
-                    dot={false}
-                    strokeDasharray="6 6"
-                  />
-
-                  {sentimentSeries
-                    .filter((r) => spikeDots.has(r.date))
-                    .map((r) => (
-                      <ReferenceDot
-                        key={`spike-${r.date}`}
-                        x={r.date}
-                        y={r.total}
-                        yAxisId="left"
-                        r={5}
-                        fill="#0ea5a4"
-                        stroke="#0f766e"
-                        isFront
-                      />
-                    ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </SectionCard>
-
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard
           title="Top themes"
           subtitle="Most common themes in this window. Click peak-time cells below to jump into the inbox."
