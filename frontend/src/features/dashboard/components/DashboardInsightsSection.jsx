@@ -392,13 +392,13 @@ export default function DashboardInsightsSection({
         </SectionCard>
 
         <SectionCard
-          title="Channel performance"
-          subtitle="Volume and average sentiment by channel."
+          title="Source performance"
+          subtitle="Volume and average sentiment by source."
         >
           {loadingState ? (
             <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
           ) : !Array.isArray(sourcePerformance) || sourcePerformance.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">No channel performance yet.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-300">No source performance yet.</p>
           ) : (
             <div className="space-y-3">
               {sourcePerformance

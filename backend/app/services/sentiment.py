@@ -120,7 +120,7 @@ def _insurance_phrase_rule_score(text: str) -> float:
         score -= 0.20
 
     # Clip to [-1, 1]
-    if score < -1.0:
+    if score < -1:
         return -1.0
     if score > 1.0:
         return 1.0
