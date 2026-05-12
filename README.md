@@ -59,6 +59,34 @@ CRON_SECRET=your_secret python scripts/workers/email_poll.py --once \\
   --url https://YOUR_DEPLOYMENT.vercel.app --vercel
 ```
 
+### Recompute sentiment in the database
+
+Deploying new sentiment logic does **not** change existing rows. To rewrite **`sentiment_label`** and **`sentiment_score`** for stored feedback (same rules as the app), use either:
+
+**A) CLI (recommended for large backfills)** — uses **`DATABASE_URL`** and **`SECRET_KEY`** from the repo-root **`.env`** (same as the backend):
+
+```bash
+cd customer_feedback_platform
+
+# Preview counts (no writes)
+python scripts/data/reprocess_sentiment.py --force --dry-run
+
+# Rewrite all rows that already have sentiment (typical after tuning the model)
+python scripts/data/reprocess_sentiment.py --force --until-done --order oldest
+
+# One batch only (500 rows); repeat with --cursor-id from printed next_cursor_id if needed
+python scripts/data/reprocess_sentiment.py --force --limit 500 --order oldest
+```
+
+Omit **`--force`** to only fill rows where sentiment is still empty.
+
+**Neon:** Your app’s feedback rows live in **Postgres** (often **Neon**). Both the script and Vercel use **`DATABASE_URL`**: when that variable is your Neon connection string, **`UPDATE feedback … sentiment_label / sentiment_score`** runs **on Neon**—there is no separate “local” sentiment store for production.
+
+- Put the same **`DATABASE_URL`** as production in repo-root **`.env`** (Neon dashboard → **Connection string**; usually includes **`sslmode=require`**). The script prints a **`database_target`** line (host + database name, no password) so you can confirm it says **Neon** before it commits.
+- On **Vercel**, **`DATABASE_URL`** should already point at Neon; calling **`/api/admin/reprocess-sentiment`** from production updates the **same** Neon database your dashboard reads.
+
+**B) HTTP** — `POST` **`/api/admin/reprocess-sentiment?force=true&limit=5000`** with an admin session or **`token=`** matching **`ADMIN_ACTION_TOKEN`**. See the route’s **GET** handler for the full parameter list.
+
 ## Environment variables
 
 - **Backend**: values are loaded from the repo root `.env` (see `.env.example`).
