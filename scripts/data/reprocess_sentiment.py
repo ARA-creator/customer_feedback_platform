@@ -30,6 +30,9 @@ Examples::
 
     # Recent window + cap
     python scripts/data/reprocess_sentiment.py --force --range-days 90 --limit 2000
+
+    # Why rows were skipped (per-row lines capped; summary includes counts)
+    python scripts/data/reprocess_sentiment.py --force --verbose
 """
 
 from __future__ import annotations
@@ -83,12 +86,34 @@ def _describe_database_target() -> str:
 
 
 @dataclass
+class SkipStats:
+    """Rows skipped before a successful sentiment write."""
+
+    no_ciphertext: int = 0
+    decrypt_failed: int = 0  # ciphertext present but Fernet returned None (wrong SECRET_KEY, corrupt token)
+    empty_plaintext: int = 0
+    invalid_label: int = 0
+
+    def as_dict(self) -> dict:
+        return {
+            "skip_no_ciphertext": self.no_ciphertext,
+            "skip_decrypt_failed": self.decrypt_failed,
+            "skip_empty_plaintext": self.empty_plaintext,
+            "skip_invalid_label": self.invalid_label,
+        }
+
+    def total(self) -> int:
+        return self.no_ciphertext + self.decrypt_failed + self.empty_plaintext + self.invalid_label
+
+
+@dataclass
 class BatchResult:
     scanned: int
     updated: int
     skipped: int
     next_cursor_id: Optional[int]
     batch_rows: int
+    skips: SkipStats
 
 
 def _parse_args() -> argparse.Namespace:
@@ -146,7 +171,29 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not print the database target line before running.",
     )
+    p.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Print per-row skip/update lines (to stderr) and skip-reason counts in batch summaries.",
+    )
+    p.add_argument(
+        "--verbose-limit",
+        type=int,
+        default=40,
+        metavar="N",
+        help="Max per-row verbose lines per batch (default 40). Summary counts are always full.",
+    )
     return p.parse_args()
+
+
+def _vprint(verbose: bool, msg: str, *, limit: int, used: list[int]) -> None:
+    if not verbose:
+        return
+    if used[0] >= limit:
+        return
+    used[0] += 1
+    print(msg, file=sys.stderr, flush=True)
 
 
 def _process_batch(
@@ -160,6 +207,8 @@ def _process_batch(
     now: datetime,
     cursor_id: Optional[int],
     commit_every: int,
+    verbose: bool,
+    verbose_limit: int,
 ) -> BatchResult:
     q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
     if range_days in (7, 30, 90):
@@ -180,17 +229,52 @@ def _process_batch(
     updated = 0
     skipped = 0
     pending_commit = 0
+    skips = SkipStats()
+    v_used = [0]
 
     for fb in rows:
         scanned += 1
-        try:
-            msg = decrypt_text(fb.message_encrypted) or ""
-        except Exception:
+        raw_cipher = getattr(fb, "message_encrypted", None)
+        if raw_cipher is None or (isinstance(raw_cipher, str) and not str(raw_cipher).strip()):
+            skips.no_ciphertext += 1
             skipped += 1
+            _vprint(
+                verbose,
+                f"[skip] id={fb.id} reason=no_ciphertext (message_encrypted empty or null)",
+                limit=verbose_limit,
+                used=v_used,
+            )
             continue
-        msg = str(msg).strip()
-        if not msg:
+
+        try:
+            plain = decrypt_text(raw_cipher)
+        except Exception as exc:
             skipped += 1
+            skips.decrypt_failed += 1
+            _vprint(
+                verbose,
+                f"[skip] id={fb.id} reason=decrypt_exception {type(exc).__name__}: {str(exc)[:400]}",
+                limit=verbose_limit,
+                used=v_used,
+            )
+            continue
+
+        if plain is None:
+            skips.decrypt_failed += 1
+            skipped += 1
+            _vprint(
+                verbose,
+                f"[skip] id={fb.id} reason=decrypt_failed (invalid token / wrong SECRET_KEY or corrupt ciphertext)",
+                limit=verbose_limit,
+                used=v_used,
+            )
+            continue
+
+        msg = str(plain).strip()
+        if not msg:
+            skips.empty_plaintext += 1
+            skipped += 1
+            _vprint(verbose, f"[skip] id={fb.id} reason=empty_plaintext after decrypt", limit=verbose_limit, used=v_used)
             continue
 
         meta_fb = normalize_channel_metadata(getattr(fb, "source", None), fb.channel_metadata) or {}
@@ -213,16 +297,30 @@ def _process_batch(
         label = sentiment.get("label")
         score = sentiment.get("score")
         if label not in {"positive", "neutral", "negative"}:
+            skips.invalid_label += 1
             skipped += 1
+            _vprint(
+                verbose,
+                f"[skip] id={fb.id} reason=invalid_label value={label!r}",
+                limit=verbose_limit,
+                used=v_used,
+            )
             continue
 
         if dry_run:
             updated += 1
+            _vprint(
+                verbose,
+                f"[dry-run] id={fb.id} label={label} score={score}",
+                limit=verbose_limit,
+                used=v_used,
+            )
             continue
 
         fb.sentiment_label = label
         fb.sentiment_score = float(score) if score is not None else None
         updated += 1
+        _vprint(verbose, f"[update] id={fb.id} label={label} score={score}", limit=verbose_limit, used=v_used)
         pending_commit += 1
         if pending_commit >= commit_every:
             db.commit()
@@ -244,12 +342,21 @@ def _process_batch(
         if more_q.first() is not None:
             next_hint = last.id
 
+    if verbose and v_used[0] >= verbose_limit:
+        print(
+            f"[verbose] reached per-row line limit ({verbose_limit}); further rows in this batch omitted. "
+            "Skip counts in stdout summary are complete.",
+            file=sys.stderr,
+            flush=True,
+        )
+
     return BatchResult(
         scanned=scanned,
         updated=updated,
         skipped=skipped,
         next_cursor_id=next_hint,
         batch_rows=len(rows),
+        skips=skips,
     )
 
 
@@ -270,6 +377,7 @@ def main() -> int:
     grand_scanned = 0
     grand_updated = 0
     grand_skipped = 0
+    grand_skips = SkipStats()
     batches = 0
 
     db = SessionLocal()
@@ -290,41 +398,47 @@ def main() -> int:
                 now=now,
                 cursor_id=cursor_id,
                 commit_every=args.commit_every,
+                verbose=args.verbose,
+                verbose_limit=max(1, int(args.verbose_limit)),
             )
             grand_scanned += br.scanned
             grand_updated += br.updated
             grand_skipped += br.skipped
+            grand_skips.no_ciphertext += br.skips.no_ciphertext
+            grand_skips.decrypt_failed += br.skips.decrypt_failed
+            grand_skips.empty_plaintext += br.skips.empty_plaintext
+            grand_skips.invalid_label += br.skips.invalid_label
 
             if args.until_done:
-                print(
-                    {
-                        "batch": batches,
-                        "scanned": br.scanned,
-                        "updated": br.updated,
-                        "skipped": br.skipped,
-                        "next_cursor_id": br.next_cursor_id,
-                        "batch_rows": br.batch_rows,
-                    },
-                    flush=True,
-                )
+                row = {
+                    "batch": batches,
+                    "scanned": br.scanned,
+                    "updated": br.updated,
+                    "skipped": br.skipped,
+                    "next_cursor_id": br.next_cursor_id,
+                    "batch_rows": br.batch_rows,
+                }
+                if args.verbose:
+                    row["skip_reasons"] = br.skips.as_dict()
+                print(row, flush=True)
 
             if not args.until_done:
-                print(
-                    {
-                        "ok": True,
-                        "total_scanned": grand_scanned,
-                        "total_updated": grand_updated,
-                        "total_skipped": grand_skipped,
-                        "dry_run": args.dry_run,
-                        "force": args.force,
-                        "range_days": args.range_days,
-                        "limit": limit,
-                        "order": args.order,
-                        "next_cursor_id": br.next_cursor_id,
-                        "done": br.next_cursor_id is None,
-                    },
-                    flush=True,
-                )
+                out = {
+                    "ok": True,
+                    "total_scanned": grand_scanned,
+                    "total_updated": grand_updated,
+                    "total_skipped": grand_skipped,
+                    "dry_run": args.dry_run,
+                    "force": args.force,
+                    "range_days": args.range_days,
+                    "limit": limit,
+                    "order": args.order,
+                    "next_cursor_id": br.next_cursor_id,
+                    "done": br.next_cursor_id is None,
+                }
+                if args.verbose:
+                    out["skip_reasons"] = br.skips.as_dict()
+                print(out, flush=True)
                 if br.next_cursor_id is not None:
                     print(
                         f"\nMore rows remain. Re-run with: --cursor-id {br.next_cursor_id} --order {args.order} "
@@ -336,17 +450,17 @@ def main() -> int:
                 return 0
 
             if br.next_cursor_id is None or br.batch_rows == 0:
-                print(
-                    {
-                        "ok": True,
-                        "total_scanned": grand_scanned,
-                        "total_updated": grand_updated,
-                        "total_skipped": grand_skipped,
-                        "batches": batches,
-                        "done": True,
-                    },
-                    flush=True,
-                )
+                out = {
+                    "ok": True,
+                    "total_scanned": grand_scanned,
+                    "total_updated": grand_updated,
+                    "total_skipped": grand_skipped,
+                    "batches": batches,
+                    "done": True,
+                }
+                if args.verbose:
+                    out["skip_reasons_totals"] = grand_skips.as_dict()
+                print(out, flush=True)
                 return 0
 
             cursor_id = br.next_cursor_id

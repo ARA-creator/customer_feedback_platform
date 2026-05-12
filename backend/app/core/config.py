@@ -14,15 +14,29 @@ if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
 
 
+def _strip_env_assignment_prefix(raw: str, *, var_name: str) -> str:
+    """
+    If someone pastes a full ``.env`` line into a host's value field (e.g. Vercel),
+    the value may wrongly include ``VAR_NAME=``. Strip that so SQLAlchemy URLs parse.
+    """
+    v = (raw or "").strip()
+    if not v:
+        return v
+    prefix = f"{var_name}="
+    if v.lower().startswith(prefix.lower()):
+        return v[len(prefix) :].strip()
+    return v
+
+
 class BaseConfig:
     """Base configuration shared by all environments."""
 
     # Database: prefer external DB via DATABASE_URL (e.g. Neon Postgres).
     # When DATABASE_URL is not set, fall back to in-memory SQLite to avoid
     # creating local stateful DB files in the repo.
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "sqlite:///:memory:",
+    SQLALCHEMY_DATABASE_URI = _strip_env_assignment_prefix(
+        os.getenv("DATABASE_URL", "sqlite:///:memory:"),
+        var_name="DATABASE_URL",
     )
 
     SQLALCHEMY_ECHO = os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true"

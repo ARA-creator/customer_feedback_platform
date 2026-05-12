@@ -68,8 +68,8 @@ Deploying new sentiment logic does **not** change existing rows. To rewrite **`s
 ```bash
 cd customer_feedback_platform
 
-# Preview counts (no writes)
-python scripts/data/reprocess_sentiment.py --force --dry-run
+# See skip reasons (wrong SECRET_KEY shows as skip_decrypt_failed)
+python scripts/data/reprocess_sentiment.py --force --verbose
 
 # Rewrite all rows that already have sentiment (typical after tuning the model)
 python scripts/data/reprocess_sentiment.py --force --until-done --order oldest
@@ -83,9 +83,36 @@ Omit **`--force`** to only fill rows where sentiment is still empty.
 **Neon:** Your app’s feedback rows live in **Postgres** (often **Neon**). Both the script and Vercel use **`DATABASE_URL`**: when that variable is your Neon connection string, **`UPDATE feedback … sentiment_label / sentiment_score`** runs **on Neon**—there is no separate “local” sentiment store for production.
 
 - Put the same **`DATABASE_URL`** as production in repo-root **`.env`** (Neon dashboard → **Connection string**; usually includes **`sslmode=require`**). The script prints a **`database_target`** line (host + database name, no password) so you can confirm it says **Neon** before it commits.
-- On **Vercel**, **`DATABASE_URL`** should already point at Neon; calling **`/api/admin/reprocess-sentiment`** from production updates the **same** Neon database your dashboard reads.
+- On **Vercel**, set the variable **name** to `DATABASE_URL` and the **value** to the URL **only** (starting with `postgresql://` or `postgres://`). Do **not** paste a full `.env` line like `DATABASE_URL=postgresql://...` into the value field — that breaks SQLAlchemy until fixed (the backend also strips this mistake if deployed).
 
 **B) HTTP** — `POST` **`/api/admin/reprocess-sentiment?force=true&limit=5000`** with an admin session or **`token=`** matching **`ADMIN_ACTION_TOKEN`**. See the route’s **GET** handler for the full parameter list.
+
+### Permanently delete feedback (hard delete)
+
+Soft delete (`deleted_at`) still keeps rows. To **remove** feedback and related rows (search docs, workflows, drafts, in-app **notifications** that reference those feedback ids in JSON `meta`, etc.) from Postgres:
+
+```bash
+cd customer_feedback_platform
+
+# Hard delete feedback (always pass --dry-run or --execute)
+python scripts/data/hard_delete_feedback.py --scope active --dry-run
+python scripts/data/hard_delete_feedback.py --scope active --execute --confirm ACTIVE
+
+# Notifications only — orphans (meta.feedback_id points at a missing feedback row)
+# Preview: you may omit --dry-run; the script defaults to dry-run and prints a short note on stderr.
+python scripts/data/hard_delete_feedback.py --orphan-feedback-notifications
+python scripts/data/hard_delete_feedback.py --orphan-feedback-notifications --dry-run
+python scripts/data/hard_delete_feedback.py --orphan-feedback-notifications --execute --confirm ORPHAN-NOTIFS
+
+# Notifications only — rows linked to soft-deleted feedback (same default preview without --dry-run)
+python scripts/data/hard_delete_feedback.py --notifications-for-soft-deleted-feedback
+python scripts/data/hard_delete_feedback.py --notifications-for-soft-deleted-feedback --dry-run
+python scripts/data/hard_delete_feedback.py --notifications-for-soft-deleted-feedback --execute --confirm PURGE-NOTIFS-SOFT-DELETED
+```
+
+**Preview output (stdout):** the script prints JSON-style lines so you can confirm the DB target before any write. For **`--orphan-feedback-notifications`**, expect `database_target`, then `orphan_notification_ids` / `first_ids`, then `dry_run` and `counts` (e.g. `notifications_orphan_matched`). For **`--notifications-for-soft-deleted-feedback`**, expect `soft_deleted_feedback_ids`, `matching_notification_ids`, and `first_notification_ids`, then `dry_run` / `counts`.
+
+Use **`--scope soft-deleted`** + **`--confirm SOFT-DELETED`** to remove only already-soft-deleted feedback rows (and their matching notifications), or **`--scope all`** + **`--confirm ALL-FEEDBACK`** to remove every feedback row. **`--ids 1,2,3`** + **`--confirm IDS`** targets specific ids. **Back up Neon first** — this cannot be undone from the app.
 
 ## Environment variables
 
@@ -160,3 +187,5 @@ git push -u origin main
 - Production uses an external database via `DATABASE_URL` (for example Neon Postgres).
 - Backend `.env` values are loaded from the repo root `.env`.
 - The first reorganization pass preserves behavior while making the codebase easier to scale and split further by domain.
+
+python scripts/data/reprocess_sentiment.py --force --until-done --order oldest

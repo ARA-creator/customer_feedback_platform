@@ -44,3 +44,7 @@ Backend settings are loaded from the repository root `.env`.
 Future improvement:
 
 - add `migrations/` with Alembic once schema changes become more frequent
+
+## Data maintenance (Postgres)
+
+Repo-root scripts such as **`scripts/data/hard_delete_feedback.py`** load **`DATABASE_URL`** from the root **`.env`** (same as the API). Usage, notification-only modes, and **`--confirm`** values are documented under **Permanently delete feedback (hard delete)** in the [root README](../README.md#permanently-delete-feedback-hard-delete).
