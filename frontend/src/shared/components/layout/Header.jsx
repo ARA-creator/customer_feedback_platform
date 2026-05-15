@@ -10,6 +10,8 @@ function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
         ? 'Insights'
       : currentView === 'customer'
         ? 'Customer 360'
+        : currentView === 'settings'
+        ? 'Settings'
         : currentView === 'channels'
           ? 'Channels'
           : currentView === 'schedule_report'

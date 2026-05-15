@@ -1,6 +1,6 @@
 /** Must match backend `timedelta` in `backend/app/routes/api/auth.py`. */
 export const OTP_EXPIRY_SECONDS = {
-  reset: 30 * 60,
+  reset: 15 * 60,
   verify: 24 * 60 * 60,
 }
 

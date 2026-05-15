@@ -274,6 +274,37 @@ def auth_logout():
     return jsonify({"ok": True})
 
 
+@api_bp.route("/auth/change-password", methods=["POST"])
+@limiter.limit("10 per minute")
+def auth_change_password():
+    payload = request.get_json(silent=True) or {}
+    current_password = str(payload.get("current_password") or "")
+    new_password = str(payload.get("new_password") or "")
+    confirm_password = str(payload.get("confirm_password") or "")
+
+    if not current_password or not new_password:
+        return jsonify({"error": "Current and new password are required"}), 400
+    if new_password != confirm_password:
+        return jsonify({"error": "New passwords do not match"}), 400
+    pw_err = _validate_password(new_password)
+    if pw_err:
+        return jsonify({"error": pw_err}), 400
+
+    db = SessionLocal()
+    try:
+        try:
+            user = _require_user(db)
+        except PermissionError:
+            return jsonify({"error": "Not authenticated"}), 401
+        if not argon2.verify(current_password, user.password_hash):
+            return jsonify({"error": "Current password is incorrect"}), 401
+        user.password_hash = argon2.hash(new_password)
+        db.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        db.close()
+
+
 @api_bp.route("/auth/verify-email", methods=["POST"])
 @limiter.limit("10 per minute")
 def auth_verify_email():
@@ -336,7 +367,7 @@ def auth_forgot_password():
         user.password_reset_nonce = nonce
         code = _generate_6_digit_code()
         user.password_reset_code_hash = _hash_code(purpose="reset", email=user.email, code=code, nonce=nonce)
-        user.password_reset_code_expires_at = datetime.now(tz=timezone.utc) + timedelta(minutes=30)
+        user.password_reset_code_expires_at = datetime.now(tz=timezone.utc) + timedelta(minutes=15)
         db.commit()
 
         tpl = reset_password_email(name=user.full_name or "", code=code)

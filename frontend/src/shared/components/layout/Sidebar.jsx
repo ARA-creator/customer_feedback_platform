@@ -11,6 +11,7 @@ import {
   FiLink2,
   FiLogOut,
   FiServer,
+  FiSettings,
   FiUsers,
 } from 'react-icons/fi'
 import { connectNotificationsStream, getUnreadCount } from '../../../features/notifications/services/notifications.api'
@@ -329,6 +330,14 @@ function Sidebar({
         >
           Account
         </p>
+        <NavButton
+          active={currentView === 'settings'}
+          collapsed={c}
+          icon={FiSettings}
+          label="Settings"
+          onClick={() => setCurrentView('settings')}
+          testId="nav-settings"
+        />
         <button
           type="button"
           onClick={() => setCurrentView('notifications')}

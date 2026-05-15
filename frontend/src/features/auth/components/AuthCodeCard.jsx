@@ -20,6 +20,8 @@ export default function AuthCodeCard({
   loading = false,
   error,
   timer,
+  helperLinkLabel,
+  onHelperLink,
 }) {
   const codeComplete = String(code || '').replace(/\D/g, '').length === 6
   const isResend = primaryVariant === 'resend'
@@ -77,6 +79,19 @@ export default function AuthCodeCard({
       </div>
 
       {timer && <OtpCodeTimer {...timer} />}
+
+      {helperLinkLabel && onHelperLink && (
+        <p className="mt-3 text-center">
+          <button
+            type="button"
+            onClick={onHelperLink}
+            disabled={loading}
+            className="text-xs font-semibold text-[#009750] hover:text-[#007a42] disabled:opacity-60"
+          >
+            {helperLinkLabel}
+          </button>
+        </p>
+      )}
 
       {error && (
         <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 text-left">

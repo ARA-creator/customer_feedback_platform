@@ -424,10 +424,10 @@ export default function AuthShell({ onAuthenticated }) {
               )}
 
               {!isCodeFlow && !isSignup && (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="mt-3">
                   <button
                     type="button"
-                    className="text-xs font-semibold text-gray-600 hover:text-gray-900 text-left"
+                    className="text-xs font-semibold text-gray-600 hover:text-gray-900"
                     onClick={async () => {
                       setError(null)
                       setInfo(null)
@@ -458,18 +458,6 @@ export default function AuthShell({ onAuthenticated }) {
                     }}
                   >
                     Forgot password?
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-[#009750] hover:text-[#007a42] text-left sm:text-right"
-                    onClick={() => {
-                      setError(null)
-                      setInfo(null)
-                      setResetCodeSent(false)
-                      setMode('reset')
-                    }}
-                  >
-                    Have a reset code?
                   </button>
                 </div>
               )}

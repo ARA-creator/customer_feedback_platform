@@ -139,6 +139,15 @@ export default function AuthResetInline({
         onPrimary={codeComplete ? verifyCode : resend}
         secondaryLabel="Back to sign in"
         onSecondary={onBack}
+        helperLinkLabel="Have a reset code?"
+        onHelperLink={() => {
+          if (!normalizedEmail) {
+            setError('Enter your email address first.')
+            return
+          }
+          setError(null)
+          markSent()
+        }}
       />
 
       <ResetPasswordDialog

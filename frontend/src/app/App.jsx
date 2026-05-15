@@ -20,6 +20,7 @@ import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
 import VerifyEmailPage from '../pages/auth/VerifyEmail'
 import ResetPasswordPage from '../pages/auth/ResetPassword'
+import SettingsPage from '../pages/settings/SettingsPage'
 
 function playNotificationBeep() {
   try {
@@ -239,6 +240,7 @@ function App() {
               />
             )}
             {!isAdminUI && currentView === 'inbox' && <InboxPage onNavigate={setCurrentView} />}
+            {currentView === 'settings' && <SettingsPage />}
             {currentView === 'notifications' && (
               <Notifications isAdminUI={isAdminUI} onNavigate={setCurrentView} />
             )}
