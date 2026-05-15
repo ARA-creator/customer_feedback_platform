@@ -33,6 +33,11 @@ export const authForgotPassword = async ({ email }) => {
   return response.data
 }
 
+export const authVerifyResetCode = async ({ email, code }) => {
+  const response = await api.post('/auth/verify-reset-code', { email, code })
+  return response.data
+}
+
 export const authResetPassword = async ({ email, code, password }) => {
   const response = await api.post('/auth/reset-password', { email, code, password })
   return response.data

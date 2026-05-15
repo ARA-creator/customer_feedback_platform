@@ -60,6 +60,23 @@ def _validate_password(pw: str) -> str | None:
     return None
 
 
+def _check_password_reset_code(user: User | None, code: str) -> str | None:
+    """Return an error message if the reset code is invalid, else None."""
+    if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
+        return "Invalid reset code"
+    expires = getattr(user, "password_reset_code_expires_at", None)
+    if not expires or expires < datetime.now(tz=timezone.utc):
+        return "Reset code expired"
+    nonce = str(getattr(user, "password_reset_nonce", "") or "")
+    expected = str(getattr(user, "password_reset_code_hash", "") or "")
+    if not nonce or not expected:
+        return "Reset code expired"
+    provided = _hash_code(purpose="reset", email=user.email, code=code, nonce=nonce)
+    if not hmac.compare_digest(provided, expected):
+        return "Invalid reset code"
+    return None
+
+
 def _ensure_csrf() -> str:
     token = session.get("csrf_token")
     if not token:
@@ -329,6 +346,30 @@ def auth_forgot_password():
         db.close()
 
 
+@api_bp.route("/auth/verify-reset-code", methods=["POST"])
+@limiter.limit("10 per minute")
+def auth_verify_reset_code():
+    payload = request.get_json(silent=True) or {}
+    email_raw = str(payload.get("email") or "").strip()
+    code = str(payload.get("code") or "").strip()
+    if not email_raw or not _validate_code(code):
+        return jsonify({"error": "Email and 6-digit code are required"}), 400
+    try:
+        email = validate_email(email_raw, check_deliverability=False).normalized
+    except EmailNotValidError:
+        return jsonify({"error": "Email and 6-digit code are required"}), 400
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        code_err = _check_password_reset_code(user, code)
+        if code_err:
+            return jsonify({"error": code_err}), 400
+        return jsonify({"ok": True}), 200
+    finally:
+        db.close()
+
+
 @api_bp.route("/auth/reset-password", methods=["POST"])
 @limiter.limit("5 per minute")
 def auth_reset_password():
@@ -349,18 +390,9 @@ def auth_reset_password():
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == email).first()
-        if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
-            return jsonify({"error": "Invalid reset code"}), 400
-        expires = getattr(user, "password_reset_code_expires_at", None)
-        if not expires or expires < datetime.now(tz=timezone.utc):
-            return jsonify({"error": "Reset code expired"}), 400
-        nonce = str(getattr(user, "password_reset_nonce", "") or "")
-        expected = str(getattr(user, "password_reset_code_hash", "") or "")
-        if not nonce or not expected:
-            return jsonify({"error": "Reset code expired"}), 400
-        provided = _hash_code(purpose="reset", email=user.email, code=code, nonce=nonce)
-        if not hmac.compare_digest(provided, expected):
-            return jsonify({"error": "Invalid reset code"}), 400
+        code_err = _check_password_reset_code(user, code)
+        if code_err:
+            return jsonify({"error": code_err}), 400
         user.password_hash = argon2.hash(password)
         user.password_reset_nonce = secrets.token_hex(16)
         user.password_reset_code_hash = None
