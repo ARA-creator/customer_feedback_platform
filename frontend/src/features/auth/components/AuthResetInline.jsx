@@ -108,8 +108,10 @@ export default function AuthResetInline({
     }
   }
 
-  const resendLabel =
-    canResend || !hasStarted || expired ? 'Resend' : `Resend in ${formatOtpCountdown(resendIn)}`
+  const resendLinkLabel =
+    canResend || !hasStarted || expired
+      ? 'Resend code'
+      : `Resend code in ${formatOtpCountdown(resendIn)}`
 
   return (
     <>
@@ -131,23 +133,17 @@ export default function AuthResetInline({
           expirySeconds,
           resendIn,
           canResend: canResend || expired,
-          showResendHint: true,
+          showResendHint: false,
         }}
-        primaryLabel={codeComplete ? 'Verify Code' : resendLabel}
-        primaryVariant={codeComplete ? 'confirm' : 'resend'}
-        primaryDisabled={codeComplete ? !canVerifyCode : !canRequestResend}
-        onPrimary={codeComplete ? verifyCode : resend}
+        primaryLabel="Verify Code"
+        primaryVariant="confirm"
+        primaryDisabled={!canVerifyCode}
+        onPrimary={verifyCode}
         secondaryLabel="Back to sign in"
         onSecondary={onBack}
-        helperLinkLabel="Have a reset code?"
-        onHelperLink={() => {
-          if (!normalizedEmail) {
-            setError('Enter your email address first.')
-            return
-          }
-          setError(null)
-          markSent()
-        }}
+        helperLinkLabel={resendLinkLabel}
+        onHelperLink={resend}
+        helperLinkDisabled={!canRequestResend}
       />
 
       <ResetPasswordDialog

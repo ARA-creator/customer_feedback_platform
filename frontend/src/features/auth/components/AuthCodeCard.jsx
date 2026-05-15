@@ -22,6 +22,7 @@ export default function AuthCodeCard({
   timer,
   helperLinkLabel,
   onHelperLink,
+  helperLinkDisabled = false,
 }) {
   const codeComplete = String(code || '').replace(/\D/g, '').length === 6
   const isResend = primaryVariant === 'resend'
@@ -85,8 +86,8 @@ export default function AuthCodeCard({
           <button
             type="button"
             onClick={onHelperLink}
-            disabled={loading}
-            className="text-xs font-semibold text-[#009750] hover:text-[#007a42] disabled:opacity-60"
+            disabled={loading || helperLinkDisabled}
+            className="text-sm font-semibold text-[#009750] hover:text-[#007a42] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {helperLinkLabel}
           </button>

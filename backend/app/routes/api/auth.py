@@ -85,6 +85,22 @@ def _ensure_csrf() -> str:
     return str(token)
 
 
+def _issue_email_verification_code(db, user: User) -> None:
+    """Generate a fresh 6-digit verification code and email it to the user."""
+    if getattr(user, "email_verified_at", None):
+        return
+    code = _generate_6_digit_code()
+    nonce = user.email_verification_nonce or secrets.token_hex(16)
+    user.email_verification_nonce = nonce
+    user.email_verification_code_hash = _hash_code(
+        purpose="verify", email=user.email, code=code, nonce=nonce
+    )
+    user.email_verification_code_expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=24)
+    db.commit()
+    tpl = verify_email(name=user.full_name or "", code=code)
+    send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
+
+
 @api_bp.route("/auth/me", methods=["GET"])
 def auth_me():
     db = SessionLocal()
@@ -92,7 +108,7 @@ def auth_me():
         user = _current_user(db)
         if not user:
             return jsonify({"authenticated": False}), 200
-        if current_app.config.get("REQUIRE_EMAIL_VERIFICATION") and not getattr(user, "email_verified_at", None):
+        if not getattr(user, "email_verified_at", None):
             return jsonify({"authenticated": False, "error": "Email not verified"}), 401
         perms = sorted(_user_permission_keys(db, user.id))
         csrf = _ensure_csrf()
@@ -157,12 +173,7 @@ def auth_signup():
                 db.add(UserRole(user_id=user.id, role_id=r.id))
                 db.commit()
 
-        session.clear()
-        session["user_id"] = user.id
-        csrf = _ensure_csrf()
-        session.permanent = True
-
-        # Email: welcome + (optional) verification
+        # Email: welcome + verification (no session until email is verified)
         try:
             tpl = welcome_email(name=user.full_name or "", email=user.email)
             send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
@@ -170,27 +181,12 @@ def auth_signup():
             pass
 
         try:
-            verify_required = bool(current_app.config.get("REQUIRE_EMAIL_VERIFICATION"))
-            # Even when not required, verification is useful; send it unless already verified.
-            if not getattr(user, "email_verified_at", None):
-                code = _generate_6_digit_code()
-                nonce = user.email_verification_nonce or secrets.token_hex(16)
-                user.email_verification_nonce = nonce
-                user.email_verification_code_hash = _hash_code(
-                    purpose="verify", email=user.email, code=code, nonce=nonce
-                )
-                user.email_verification_code_expires_at = datetime.now(tz=timezone.utc) + timedelta(
-                    hours=24
-                )
-                db.commit()
-                tpl = verify_email(name=user.full_name or "", code=code)
-                send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
+            _issue_email_verification_code(db, user)
         except Exception:
             pass
 
-        perms = sorted(_user_permission_keys(db, user.id))
         return (
-            jsonify({"csrf": csrf, "user": {"id": user.id, "email": user.email, "role": user.role, "permissions": perms}}),
+            jsonify({"ok": True, "needs_email_verification": True, "email": user.email}),
             201,
         )
     finally:
@@ -236,8 +232,16 @@ def auth_login():
             return jsonify({"error": "No account found"}), 404
         if getattr(user, "is_active", True) is False:
             return jsonify({"error": "Account is suspended"}), 403
-        if current_app.config.get("REQUIRE_EMAIL_VERIFICATION") and not getattr(user, "email_verified_at", None):
-            return jsonify({"error": "Email not verified"}), 403
+        if not getattr(user, "email_verified_at", None):
+            return (
+                jsonify(
+                    {
+                        "error": "Please verify your email before signing in.",
+                        "needs_email_verification": True,
+                    }
+                ),
+                403,
+            )
         if not argon2.verify(password, user.password_hash):
             return jsonify({"error": "Incorrect password"}), 401
 
@@ -340,6 +344,34 @@ def auth_verify_email():
         user.email_verification_code_hash = None
         user.email_verification_code_expires_at = None
         db.commit()
+        return jsonify({"ok": True}), 200
+    finally:
+        db.close()
+
+
+@api_bp.route("/auth/resend-verification", methods=["POST"])
+@limiter.limit("5 per minute")
+def auth_resend_verification():
+    payload = request.get_json(silent=True) or {}
+    email_raw = str(payload.get("email") or "").strip()
+    if not email_raw:
+        return jsonify({"ok": True}), 200
+    try:
+        email = validate_email(email_raw, check_deliverability=False).normalized
+    except EmailNotValidError:
+        return jsonify({"ok": True}), 200
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
+            return jsonify({"ok": True}), 200
+        if getattr(user, "email_verified_at", None):
+            return jsonify({"ok": True}), 200
+        try:
+            _issue_email_verification_code(db, user)
+        except Exception:
+            pass
         return jsonify({"ok": True}), 200
     finally:
         db.close()

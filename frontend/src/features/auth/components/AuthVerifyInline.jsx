@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import AuthCodeCard from './AuthCodeCard'
-import { authVerifyEmail } from '../services/auth.api'
-import { OTP_EXPIRY_SECONDS } from '../constants/otp'
+import { authResendVerification, authVerifyEmail } from '../services/auth.api'
+import { OTP_EXPIRY_SECONDS, OTP_RESEND_COOLDOWN_SECONDS } from '../constants/otp'
 import useOtpTimer from '../hooks/useOtpTimer'
+import { formatOtpCountdown } from '../utils/formatOtpTime'
 
 export default function AuthVerifyInline({
   email,
@@ -18,11 +19,20 @@ export default function AuthVerifyInline({
 
   const normalizedEmail = email.trim().toLowerCase()
 
-  const { hasStarted, expired, expiresIn, progress, expirySeconds, markSent } = useOtpTimer({
+  const {
+    hasStarted,
+    expired,
+    canResend,
+    resendIn,
+    markSent,
+    expiresIn,
+    progress,
+    expirySeconds,
+  } = useOtpTimer({
     purpose: 'verify',
     email: normalizedEmail,
     expirySeconds: OTP_EXPIRY_SECONDS.verify,
-    resendCooldownSeconds: 0,
+    resendCooldownSeconds: OTP_RESEND_COOLDOWN_SECONDS,
     active: !!normalizedEmail,
     autoStart: !!normalizedEmail,
   })
@@ -36,11 +46,32 @@ export default function AuthVerifyInline({
   useEffect(() => {
     if (!expired) return
     setCode('')
-    setError('This verification code has expired. Sign up again or contact your administrator.')
+    setError('This verification code has expired. Resend a code below.')
   }, [expired])
 
   const codeComplete = code.replace(/\D/g, '').length === 6
-  const canConfirm = normalizedEmail && codeComplete && hasStarted && !expired
+  const canRequestResend = normalizedEmail && (expired || !hasStarted || canResend)
+  const canConfirm = normalizedEmail && codeComplete && hasStarted && !expired && !loading
+
+  const resend = async () => {
+    if (!canRequestResend) return
+    setLoading(true)
+    setError(null)
+    try {
+      await authResendVerification({ email: normalizedEmail })
+      markSent()
+      setCode('')
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Could not resend code.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendLinkLabel =
+    canResend || !hasStarted || expired
+      ? 'Resend code'
+      : `Resend code in ${formatOtpCountdown(resendIn)}`
 
   const submit = async () => {
     if (!canConfirm) return
@@ -58,7 +89,7 @@ export default function AuthVerifyInline({
 
   return (
     <AuthCodeCard
-      title="Verification Code"
+      title="Verify your email"
       description={`Enter the 6-digit code we sent to ${normalizedEmail || 'your email'}.`}
       email={email}
       onEmailChange={onEmailChange}
@@ -73,16 +104,19 @@ export default function AuthVerifyInline({
         expired,
         progress,
         expirySeconds,
-        resendIn: 0,
-        canResend: false,
+        resendIn,
+        canResend: canResend || expired,
         showResendHint: false,
       }}
-      primaryLabel="Confirm Code"
+      primaryLabel="Verify Code"
       primaryVariant="confirm"
       primaryDisabled={!canConfirm}
       onPrimary={submit}
       secondaryLabel="Back to sign in"
       onSecondary={onBack}
+      helperLinkLabel={resendLinkLabel}
+      onHelperLink={resend}
+      helperLinkDisabled={!canRequestResend}
     />
   )
 }

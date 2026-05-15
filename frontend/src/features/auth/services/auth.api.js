@@ -28,6 +28,11 @@ export const authVerifyEmail = async ({ email, code }) => {
   return response.data
 }
 
+export const authResendVerification = async ({ email }) => {
+  const response = await api.post('/auth/resend-verification', { email })
+  return response.data
+}
+
 export const authForgotPassword = async ({ email }) => {
   const response = await api.post('/auth/forgot-password', { email })
   return response.data

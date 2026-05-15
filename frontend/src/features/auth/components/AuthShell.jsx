@@ -144,7 +144,7 @@ export default function AuthShell({ onAuthenticated }) {
       }
 
       try {
-        const data = await authSignup({ email: normalizedEmail, password, role })
+        await authSignup({ email: normalizedEmail, password, role })
         setToasts((t) => [
           {
             id: `${Date.now()}-signup`,
@@ -184,6 +184,13 @@ export default function AuthShell({ onAuthenticated }) {
       }
       if (status === 401) {
         setError('Incorrect password. Please try again.')
+        return
+      }
+      if (status === 403 && err?.response?.data?.needs_email_verification) {
+        setVerifyCodeSent(false)
+        setMode('verify')
+        setError(null)
+        setInfo('Verify your email before signing in. Check your inbox or resend a code below.')
         return
       }
       setError(formatApiErrorMessage(err, 'Unable to sign in. Please try again.'))
@@ -329,19 +336,35 @@ export default function AuthShell({ onAuthenticated }) {
                       setVerifyCodeSent(false)
                       setError(null)
                     }}
-                    onSuccess={() => {
-                      setMode('login')
-                      setInfo('Email verified. You can sign in now.')
-                      setToasts((t) => [
-                        {
-                          id: `${Date.now()}-verify-ok`,
-                          type: 'success',
-                          title: 'Email verified',
-                          message: 'Sign in to continue.',
-                          ttlMs: 4000,
-                        },
-                        ...t,
-                      ])
+                    onSuccess={async () => {
+                      const loginEmail = email.trim().toLowerCase()
+                      try {
+                        const data = await authLogin({ email: loginEmail, password })
+                        setToasts((t) => [
+                          {
+                            id: `${Date.now()}-verify-ok`,
+                            type: 'success',
+                            title: 'Email verified',
+                            message: 'Welcome to Customer Pulse.',
+                            ttlMs: 4000,
+                          },
+                          ...t,
+                        ])
+                        onAuthenticated?.(data?.user || { email: loginEmail })
+                      } catch {
+                        setMode('login')
+                        setInfo('Email verified. Sign in with your password.')
+                        setToasts((t) => [
+                          {
+                            id: `${Date.now()}-verify-ok`,
+                            type: 'success',
+                            title: 'Email verified',
+                            message: 'Sign in to continue.',
+                            ttlMs: 4000,
+                          },
+                          ...t,
+                        ])
+                      }
                     }}
                   />
                 </div>
