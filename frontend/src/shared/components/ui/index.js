@@ -3,6 +3,7 @@ export { default as LastUpdated } from './LastUpdated'
 export { default as PageIntro } from './PageIntro'
 export { default as ErrorBoundary } from './ErrorBoundary'
 export { default as ToastStack } from './ToastStack'
+export { default as OtpCodeInput } from './OtpCodeInput'
 export {
   AuthLoadingScreen,
   InboxListSkeleton,
