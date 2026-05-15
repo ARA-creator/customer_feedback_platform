@@ -12,6 +12,7 @@ export default function AuthVerifyInline({
   onBack,
   onSuccess,
   codeSent = false,
+  secondaryLabel = 'Back to sign in',
 }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
@@ -112,7 +113,7 @@ export default function AuthVerifyInline({
       primaryVariant="confirm"
       primaryDisabled={!canConfirm}
       onPrimary={submit}
-      secondaryLabel="Back to sign in"
+      secondaryLabel={secondaryLabel}
       onSecondary={onBack}
       helperLinkLabel={resendLinkLabel}
       onHelperLink={resend}

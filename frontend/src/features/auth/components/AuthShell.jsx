@@ -3,7 +3,7 @@ import { FiEye, FiEyeOff, FiShield, FiBookOpen } from 'react-icons/fi'
 import { authForgotPassword, authLogin, authSignup } from '../services/auth.api'
 import { ToastStack } from '../../../shared/components/ui'
 import AuthResetInline from './AuthResetInline'
-import AuthVerifyInline from './AuthVerifyInline'
+import AuthVerifyFlow from './AuthVerifyFlow'
 
 const ROLE_OPTIONS = [
   { value: 'management', label: 'Management' },
@@ -156,6 +156,7 @@ export default function AuthShell({ onAuthenticated }) {
           ...t,
         ])
         setVerifyCodeSent(true)
+        setInfo(null)
         setMode('verify')
         return
       } catch (err) {
@@ -187,10 +188,10 @@ export default function AuthShell({ onAuthenticated }) {
         return
       }
       if (status === 403 && err?.response?.data?.needs_email_verification) {
-        setVerifyCodeSent(false)
+        setVerifyCodeSent(true)
         setMode('verify')
         setError(null)
-        setInfo('Verify your email before signing in. Check your inbox or resend a code below.')
+        setInfo(null)
         return
       }
       setError(formatApiErrorMessage(err, 'Unable to sign in. Please try again.'))
@@ -326,7 +327,7 @@ export default function AuthShell({ onAuthenticated }) {
 
               {isVerify && (
                 <div className="mt-6">
-                  <AuthVerifyInline
+                  <AuthVerifyFlow
                     email={email}
                     onEmailChange={setEmail}
                     showEmailField={false}
@@ -335,6 +336,7 @@ export default function AuthShell({ onAuthenticated }) {
                       setMode('login')
                       setVerifyCodeSent(false)
                       setError(null)
+                      setInfo(null)
                     }}
                     onSuccess={async () => {
                       const loginEmail = email.trim().toLowerCase()

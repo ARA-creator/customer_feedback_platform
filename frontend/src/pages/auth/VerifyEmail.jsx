@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FiCheckCircle } from 'react-icons/fi'
-import AuthVerifyInline from '../../features/auth/components/AuthVerifyInline'
+import AuthVerifyFlow from '../../features/auth/components/AuthVerifyFlow'
 import { ToastStack } from '../../shared/components/ui'
 
 function emailFromQuery() {
@@ -38,11 +38,12 @@ export default function VerifyEmailPage({ onDone }) {
     <div className="min-h-screen auth-shell-bg flex items-center justify-center p-4 sm:p-6">
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
       <div className="w-full max-w-md card p-6 lg:p-8 bg-white/95 shadow-lg">
-        <AuthVerifyInline
+        <AuthVerifyFlow
           email={email}
           onEmailChange={setEmail}
           showEmailField={!initialEmail}
           codeSent={Boolean(initialEmail)}
+          initialStep="prompt"
           onBack={() => onDone?.()}
           onSuccess={() => {
             setToasts((t) => [
