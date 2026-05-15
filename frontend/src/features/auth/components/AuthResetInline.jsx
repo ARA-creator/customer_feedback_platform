@@ -59,6 +59,12 @@ export default function AuthResetInline({
   const canVerifyCode =
     normalizedEmail && codeComplete && hasStarted && !expired && !loading
 
+  const openPasswordDialog = (digits) => {
+    setVerifiedCode(digits)
+    setPasswordDialogOpen(true)
+    setError(null)
+  }
+
   const verifyCode = async () => {
     if (!canVerifyCode) return
     const digits = code.replace(/\D/g, '')
@@ -66,10 +72,20 @@ export default function AuthResetInline({
     setError(null)
     try {
       await authVerifyResetCode({ email: normalizedEmail, code: digits })
-      setVerifiedCode(digits)
-      setPasswordDialogOpen(true)
+      openPasswordDialog(digits)
     } catch (err) {
-      setError(err?.response?.data?.error || err?.message || 'Invalid verification code.')
+      const status = err?.response?.status
+      // Production may not have verify-reset-code until latest backend is deployed.
+      if (status === 404 || status === 405) {
+        openPasswordDialog(digits)
+        return
+      }
+      const apiErr = err?.response?.data?.error
+      setError(
+        typeof apiErr === 'string' && apiErr.trim()
+          ? apiErr
+          : 'Invalid verification code. Check the 6 digits and try again.',
+      )
     } finally {
       setLoading(false)
     }
