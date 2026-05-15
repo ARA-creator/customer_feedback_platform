@@ -19,6 +19,11 @@ from .services.rbac import seed_rbac
 from .extensions import limiter
 
 
+def _is_serverless_runtime() -> bool:
+    """Vercel/AWS Lambda: no long-lived background threads; use cron/GitHub Actions instead."""
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+
 def create_app() -> Flask:
     """Application factory to create and configure the Flask app."""
     app = Flask(__name__)
@@ -214,17 +219,48 @@ def create_app() -> Flask:
         # Lightweight dev migration for reply draft approval fields.
         try:
             with engine.connect() as conn:
-                info = conn.execute(text("PRAGMA table_info(feedback_reply_drafts)")).fetchall()
-                if info:
-                    cols = {row[1] for row in info}  # (cid, name, type, notnull, dflt_value, pk)
-                    if "approval_note" not in cols:
-                        conn.execute(text("ALTER TABLE feedback_reply_drafts ADD COLUMN approval_note TEXT"))
-                    if "approval_assigned_to_user_id" not in cols:
-                        conn.execute(
-                            text(
-                                "ALTER TABLE feedback_reply_drafts ADD COLUMN approval_assigned_to_user_id INTEGER"
-                            )
+                dialect = engine.dialect.name
+                cols: set[str] = set()
+                if dialect == "sqlite":
+                    info = conn.execute(text("PRAGMA table_info(feedback_reply_drafts)")).fetchall()
+                    if info:
+                        cols = {row[1] for row in info}
+                elif dialect in {"postgresql", "postgres"}:
+                    rows = conn.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_schema = 'public' AND table_name = 'feedback_reply_drafts'"
                         )
+                    ).fetchall()
+                    cols = {r[0] for r in rows}
+                if cols:
+                    if "approval_note" not in cols:
+                        if dialect in {"postgresql", "postgres"}:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE feedback_reply_drafts "
+                                    "ADD COLUMN IF NOT EXISTS approval_note TEXT"
+                                )
+                            )
+                        else:
+                            conn.execute(
+                                text("ALTER TABLE feedback_reply_drafts ADD COLUMN approval_note TEXT")
+                            )
+                    if "approval_assigned_to_user_id" not in cols:
+                        if dialect in {"postgresql", "postgres"}:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE feedback_reply_drafts "
+                                    "ADD COLUMN IF NOT EXISTS approval_assigned_to_user_id INTEGER"
+                                )
+                            )
+                        else:
+                            conn.execute(
+                                text(
+                                    "ALTER TABLE feedback_reply_drafts "
+                                    "ADD COLUMN approval_assigned_to_user_id INTEGER"
+                                )
+                            )
                     conn.commit()
         except Exception:
             logging.getLogger(__name__).exception("Failed to run feedback_reply_drafts table dev migration")
@@ -247,9 +283,19 @@ def create_app() -> Flask:
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
 
-        # Enable if explicitly requested, or implicitly for dev when credentials exist
-        creds_present = bool(getattr(config, "EMAIL_IMAP_SERVER", None) and getattr(config, "EMAIL_USERNAME", None) and getattr(config, "EMAIL_PASSWORD", None))
-        enabled = bool(getattr(config, "EMAIL_POLL_ENABLED", False) or (getattr(config, "ENV", "development") == "development" and creds_present))
+        if _is_serverless_runtime():
+            return False
+        # Enable if explicitly requested, or implicitly for local dev when credentials exist
+        creds_present = bool(
+            getattr(config, "EMAIL_IMAP_SERVER", None)
+            and getattr(config, "EMAIL_USERNAME", None)
+            and getattr(config, "EMAIL_PASSWORD", None)
+        )
+        app_env = os.getenv("APP_ENV", getattr(config, "ENV", "development") or "development").lower()
+        enabled = bool(
+            getattr(config, "EMAIL_POLL_ENABLED", False)
+            or (app_env != "production" and creds_present)
+        )
         return enabled and creds_present
 
     def _start_email_poller_once() -> None:
@@ -267,6 +313,8 @@ def create_app() -> Flask:
         port = int(getattr(config, "EMAIL_IMAP_PORT", 993))
         username = getattr(config, "EMAIL_USERNAME", None)
         password = getattr(config, "EMAIL_PASSWORD", None)
+
+        from .routes.integrations import poll_email_and_ingest  # noqa: WPS433
 
         logger = logging.getLogger(__name__)
 
@@ -301,6 +349,8 @@ def create_app() -> Flask:
         app.extensions["email_poller_started"] = True
 
     def _should_start_web_monitor() -> bool:
+        if _is_serverless_runtime():
+            return False
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
         try:
@@ -312,6 +362,8 @@ def create_app() -> Flask:
         return enabled and bool(feeds)
 
     def _should_start_x_poller() -> bool:
+        if _is_serverless_runtime():
+            return False
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
         bearer = (getattr(config, "X_BEARER_TOKEN", "") or "").strip()
@@ -331,6 +383,8 @@ def create_app() -> Flask:
         max_results = int(getattr(config, "X_POLL_MAX_RESULTS", 25))
         bearer = (getattr(config, "X_BEARER_TOKEN", "") or "").strip()
         query = (getattr(config, "X_QUERY", "") or "").strip()
+
+        from .routes.integrations import poll_x_and_ingest  # noqa: WPS433
 
         logger = logging.getLogger(__name__)
 
@@ -353,6 +407,8 @@ def create_app() -> Flask:
         app.extensions["x_poller_started"] = True
 
     def _should_start_tiktok_poller() -> bool:
+        if _is_serverless_runtime():
+            return False
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
         access_token = (getattr(config, "TIKTOK_ACCESS_TOKEN", "") or "").strip()
@@ -373,6 +429,8 @@ def create_app() -> Flask:
         query = (getattr(config, "TIKTOK_POLL_QUERY", "enterprise ghana") or "").strip()
         access_token = (getattr(config, "TIKTOK_ACCESS_TOKEN", "") or "").strip()
         base_url = (getattr(config, "TIKTOK_API_BASE_URL", "") or "").strip()
+
+        from .routes.integrations import poll_tiktok_and_ingest  # noqa: WPS433
 
         logger = logging.getLogger(__name__)
 
@@ -398,6 +456,8 @@ def create_app() -> Flask:
         app.extensions["tiktok_poller_started"] = True
 
     def _should_start_whatsapp_poller() -> bool:
+        if _is_serverless_runtime():
+            return False
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
         account_sid = (getattr(config, "TWILIO_ACCOUNT_SID", "") or "").strip()
@@ -421,6 +481,8 @@ def create_app() -> Flask:
         account_sid = (getattr(config, "TWILIO_ACCOUNT_SID", "") or "").strip()
         auth_token = (getattr(config, "TWILIO_AUTH_TOKEN", "") or "").strip()
         to_number = getattr(config, "TWILIO_WHATSAPP_TO_NUMBER", None)
+
+        from .routes.integrations import poll_twilio_whatsapp_and_ingest  # noqa: WPS433
 
         logger = logging.getLogger(__name__)
 
@@ -450,6 +512,8 @@ def create_app() -> Flask:
         app.extensions["whatsapp_poller_started"] = True
 
     def _should_start_anomaly_detection() -> bool:
+        if _is_serverless_runtime():
+            return False
         if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
             return False
         return bool(getattr(config, "ANOMALY_DETECTION_ENABLED", False))
@@ -498,6 +562,7 @@ def create_app() -> Flask:
             normalize_keywords,
             url_hash as web_url_hash,
         )
+        from .routes.integrations import _submit_to_feedback_api  # noqa: WPS433
 
         interval = int(getattr(config, "WEB_MONITOR_INTERVAL_SECONDS", 300))
         max_items = int(getattr(config, "WEB_MONITOR_MAX_ITEMS_PER_RUN", 20))
@@ -581,6 +646,9 @@ def create_app() -> Flask:
 
     @app.before_request
     def _kickoff_background_workers():
+        # On Vercel, use GitHub Actions / cron hitting /integrations/email/poll instead.
+        if _is_serverless_runtime():
+            return None
         # Start lazily on first request so it also works under some WSGI servers.
         _start_email_poller_once()
         _start_web_monitor_once()

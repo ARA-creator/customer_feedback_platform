@@ -95,11 +95,8 @@ def _procedural_request_compensation(text: str) -> float:
 
 def _insurance_phrase_rule_score(text: str) -> float:
     """
-    Sum of insurance-domain phrase weights and negation tweak, in about [-1, 1].
-
-    Used as ``domain_score`` and for label anchoring. Procedural request compensation
-    (``_procedural_request_compensation``) is applied separately so ops-style emails are
-    not mislabeled using the same "strong positive" anchor as real praise.
+    Lightweight domain scorer that works even if NLTK is unavailable.
+    Returns a delta in [-1, 1] to combine with VADER compound, or as a fallback score.
     """
     t = (text or "").strip()
     if not t:
@@ -120,7 +117,7 @@ def _insurance_phrase_rule_score(text: str) -> float:
         score -= 0.20
 
     # Clip to [-1, 1]
-    if score < -1:
+    if score < -1.0:
         return -1.0
     if score > 1.0:
         return 1.0

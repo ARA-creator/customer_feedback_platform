@@ -44,6 +44,7 @@ def send_email(
         try:
             server.login(cfg.SMTP_USERNAME, cfg.SMTP_PASSWORD)
             server.send_message(msg)
+            logger.info("Sent email to=%s subject=%s", to_email, subject)
         finally:
             try:
                 server.quit()
