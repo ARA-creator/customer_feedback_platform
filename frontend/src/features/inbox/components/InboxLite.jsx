@@ -7,6 +7,26 @@ import { EmptyState, InboxListSkeleton, LastUpdated, PageIntro } from '../../../
 
 const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
+const SENTIMENT_FILTER_OPTIONS = ['negative', 'neutral', 'positive']
+
+const INSURANCE_TAG_BASE = [
+  'claims',
+  'benefits',
+  'billing',
+  'premiums',
+  'policy',
+  'underwriting',
+  'support',
+  'digital',
+  'trust_fairness',
+  'speed_delays',
+  'other',
+]
+
+const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
+  a.replace(/_/g, ' ').localeCompare(b.replace(/_/g, ' '), undefined, { sensitivity: 'base' }),
+)
+
 const INBOX_PAGE_SIZE = 5
 
 const SENTIMENT_COLORS = {
@@ -362,9 +382,10 @@ export default function InboxLite({ onNavigate }) {
   const sourceTabs = useMemo(() => {
     const c = counts || {}
     const keys = new Set([...Object.keys(c || {}), ...SOURCE_ORDER])
-    const ordered = SOURCE_ORDER.filter((k) => keys.has(k))
-    const rest = Array.from(keys).filter((k) => !ordered.includes(k)).sort()
-    return [...ordered, ...rest].filter(Boolean)
+    const rest = Array.from(keys)
+      .filter((k) => k && k !== 'all')
+      .sort((a, b) => formatSourceLabel(a).localeCompare(formatSourceLabel(b), undefined, { sensitivity: 'base' }))
+    return keys.has('all') ? ['all', ...rest] : rest
   }, [counts])
 
   const selectedSourceLabel = useMemo(() => formatSourceLabel(source), [source])
@@ -430,20 +451,6 @@ export default function InboxLite({ onNavigate }) {
   useEffect(() => {
     setListDisplayCount(INBOX_PAGE_SIZE)
   }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, folder, peakDow, peakHour, peakRangeDays, items])
-
-  const INSURANCE_TAG_OPTIONS = [
-    'claims',
-    'benefits',
-    'billing',
-    'premiums',
-    'policy',
-    'underwriting',
-    'support',
-    'digital',
-    'trust_fairness',
-    'speed_delays',
-    'other',
-  ]
 
   const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
@@ -624,9 +631,11 @@ export default function InboxLite({ onNavigate }) {
             className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
           >
             <option value="all">All sentiments</option>
-            <option value="positive">Positive</option>
-            <option value="neutral">Neutral</option>
-            <option value="negative">Negative</option>
+            {SENTIMENT_FILTER_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </option>
+            ))}
           </select>
 
           <details className="relative w-full sm:w-auto">
