@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -18,8 +19,8 @@ from ..services.prioritization import normalize_source_group
 
 logger = logging.getLogger(__name__)
 
-MAX_SAMPLES = 30
-MAX_MSG_CHARS = 480
+MAX_SAMPLES = 20
+MAX_MSG_CHARS = 320
 EXCLUDED_SOURCES = ["api", "web"]
 
 
@@ -222,21 +223,28 @@ def _fallback_analysis(context: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _gemini_credentials() -> tuple[str, str]:
+    """Read Gemini settings at call time so .env changes apply without stale class attrs."""
+    cfg = get_config()
+    api_key = (os.getenv("GEMINI_API_KEY") or getattr(cfg, "GEMINI_API_KEY", "") or "").strip()
+    model = (os.getenv("GEMINI_MODEL") or getattr(cfg, "GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash").strip()
+    return api_key, model
+
+
 def _analyze_with_gemini(context: Dict[str, Any]) -> Dict[str, Any]:
     try:
         from ..services.ai_drafts import _genai_generate_json, _normalize_model_name
-    except Exception:
+    except Exception as exc:
         logger.exception("Gemini SDK unavailable; using rule-based analyzer")
         parsed = _fallback_analysis(context)
-        return {**parsed, "ai_generated": False, "model_name": "rule-based"}
+        return {**parsed, "ai_generated": False, "model_name": "rule-based", "gemini_error": str(exc)[:200]}
 
-    cfg = get_config()
-    api_key = (getattr(cfg, "GEMINI_API_KEY", "") or "").strip()
-    model = (getattr(cfg, "GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash").strip()
+    api_key, model = _gemini_credentials()
 
     if not api_key:
+        logger.warning("GEMINI_API_KEY is empty; using rule-based analyzer")
         parsed = _fallback_analysis(context)
-        return {**parsed, "ai_generated": False, "model_name": "rule-based"}
+        return {**parsed, "ai_generated": False, "model_name": "rule-based", "gemini_error": "missing_api_key"}
 
     prompt = f"""
 You are a customer experience analyst for an insurance / financial services feedback platform (Enterprise Life).
@@ -268,10 +276,13 @@ Dataset:
         if not out["summary"]:
             raise ValueError("Empty analyzer summary")
         return {**out, "ai_generated": True, "model_name": _normalize_model_name(model)}
-    except Exception:
+    except Exception as exc:
         logger.exception("Gemini feedback analysis failed")
         parsed = _fallback_analysis(context)
-        return {**parsed, "ai_generated": False, "model_name": "rule-based"}
+        err = str(exc)
+        if len(err) > 240:
+            err = err[:240] + "…"
+        return {**parsed, "ai_generated": False, "model_name": "rule-based", "gemini_error": err}
 
 
 def run_feedback_analyzer(
@@ -292,8 +303,9 @@ def run_feedback_analyzer(
     analysis = _analyze_with_gemini(context)
     ai_generated = bool(analysis.pop("ai_generated", False))
     model_name = analysis.pop("model_name", "unknown")
+    gemini_error = analysis.pop("gemini_error", None)
 
-    return {
+    out: Dict[str, Any] = {
         "time_window": context["time_window"],
         "time_window_label": context["time_window_label"],
         "feedback_count": context["metrics"]["total_feedback"],
@@ -303,3 +315,6 @@ def run_feedback_analyzer(
         "analysis": analysis,
         "generated_at": datetime.now(tz=timezone.utc).isoformat(),
     }
+    if gemini_error and not ai_generated:
+        out["gemini_error"] = gemini_error
+    return out

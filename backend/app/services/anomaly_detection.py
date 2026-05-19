@@ -99,7 +99,7 @@ def _maybe_fire(
         row.last_fired_at = now
     db.flush()
 
-    from ..routes.api import notify_users_anomaly_alert
+    from .notification_alerts import notify_users_anomaly_alert
 
     notify_users_anomaly_alert(
         db,
