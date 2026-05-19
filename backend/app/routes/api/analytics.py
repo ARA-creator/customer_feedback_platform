@@ -70,14 +70,20 @@ def get_analytics():
         now = datetime.now(tz=timezone.utc)
 
         time_window = (request.args.get("time_window") or "all").strip().lower()
-        if time_window not in ("all", "today", "week", "month"):
+        if time_window not in ("all", "today", "week", "last_week", "month"):
             time_window = "all"
 
         filter_from = None
+        filter_to = None
         if time_window == "today":
             filter_from = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
         elif time_window == "week":
             filter_from = now - timedelta(days=7)
+        elif time_window == "last_week":
+            weekday = now.weekday()
+            start_this_week = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) - timedelta(days=weekday)
+            filter_from = start_this_week - timedelta(days=7)
+            filter_to = start_this_week
         elif time_window == "month":
             filter_from = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
 
@@ -88,7 +94,7 @@ def get_analytics():
         else:
             if time_window == "today":
                 range_days = 1
-            elif time_window == "week":
+            elif time_window in ("week", "last_week"):
                 range_days = 7
             else:
                 range_days = min((now.date() - filter_from.date()).days + 1, 62)
@@ -102,9 +108,11 @@ def get_analytics():
             return _apply_primary_product_exists(q, pf_prefix, pf_group)
 
         def _apply_created_filter(q):
-            if filter_from is None:
-                return q
-            return q.filter(Feedback.created_at >= filter_from)
+            if filter_from is not None:
+                q = q.filter(Feedback.created_at >= filter_from)
+            if filter_to is not None:
+                q = q.filter(Feedback.created_at < filter_to)
+            return q
 
         sentiment_counts = (
             _pf(

@@ -13,32 +13,14 @@ export function safeParseJson(value) {
   }
 }
 
+/** One-line KPI hover text: absolute change vs last week only. */
 export function kpiChangeText(abs, pctValue) {
   if (abs == null && pctValue == null) return null
   const absNum = typeof abs === 'number' && Number.isFinite(abs) ? abs : null
-  const pctNum = typeof pctValue === 'number' && Number.isFinite(pctValue) ? pctValue : null
-  if (absNum == null && pctNum == null) return null
-  const direction =
-    absNum != null
-      ? absNum > 0
-        ? 'Up'
-        : absNum < 0
-          ? 'Down'
-          : 'Flat'
-      : pctNum > 0
-        ? 'Up'
-        : pctNum < 0
-          ? 'Down'
-          : 'Flat'
-  const absText = absNum != null ? `${Math.abs(absNum)}` : null
-  const pctText =
-    pctNum != null
-      ? `${pctNum < 0 ? '−' : ''}${Math.abs(pctNum).toFixed(0)}%`
-      : null
-  if (direction === 'Flat') {
-    return `Flat vs last week`
-  }
-  return `${direction} ${absText ?? ''}${pctText ? ` (${pctText})` : ''} vs last week`.trim()
+  if (absNum == null) return null
+  if (absNum === 0) return 'No change vs last week'
+  const sign = absNum > 0 ? '+' : '−'
+  return `${sign}${Math.abs(absNum)} vs last week`
 }
 
 /**

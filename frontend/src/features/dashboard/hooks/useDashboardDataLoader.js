@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { CHART_PALETTE, SENTIMENT_COLORS } from '../constants/palette'
+import { formatCategoryChartLabel } from '../utils/dashboardFormatters'
 
 export function useDashboardDataLoader({
   // identity / flags
@@ -114,7 +115,7 @@ export function useDashboardDataLoader({
         const categories = analyticsData.categories || {}
         const categoryChartData = Object.entries(categories)
           .map(([name, value]) => ({
-            name,
+            name: formatCategoryChartLabel(name),
             value: Number(value),
           }))
           .sort((a, b) => b.value - a.value)
@@ -168,9 +169,11 @@ export function useDashboardDataLoader({
                 ? 1
                 : overviewTimeFilter === 'week'
                   ? 7
-                  : overviewTimeFilter === 'month'
-                    ? 30
-                    : 30
+                  : overviewTimeFilter === 'last_week'
+                    ? 7
+                    : overviewTimeFilter === 'month'
+                      ? 30
+                      : 30
           const pulseParams = mode === 'insights' ? { range_days: rangeDays, ...insightsProductParams } : { range_days: rangeDays }
           const pulse = await getProductPulse(pulseParams).catch(() => ({ items: [] }))
           if (!cancelled) {

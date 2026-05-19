@@ -16,6 +16,11 @@ export function getOverviewThemesCaption(overviewTimeFilter) {
         subtitle: 'Counts from the last 7 days',
         empty: 'No themes for the selected period.',
       }
+    case 'last_week':
+      return {
+        subtitle: 'Counts from the previous calendar week',
+        empty: 'No themes for the selected period.',
+      }
     case 'month':
       return {
         subtitle: 'Counts this calendar month',

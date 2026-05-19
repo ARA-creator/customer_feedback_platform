@@ -3,6 +3,7 @@ import { FiCalendar, FiClock } from 'react-icons/fi'
 const FILTERS = [
   { id: 'today', label: 'Today', Icon: FiClock },
   { id: 'week', label: 'This Week', Icon: FiCalendar },
+  { id: 'last_week', label: 'Last Week', Icon: FiCalendar },
   { id: 'month', label: 'This Month', Icon: FiCalendar },
   { id: 'all', label: 'All Time', Icon: FiCalendar },
 ]

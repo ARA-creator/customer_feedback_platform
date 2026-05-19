@@ -171,7 +171,7 @@ function Dashboard({
   const [insightsProductKey, setInsightsProductKey] = useState('')
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
-  const [overviewTimeFilter, setOverviewTimeFilter] = useState('all') // all | today | week | month
+  const [overviewTimeFilter, setOverviewTimeFilter] = useState('all') // all | today | week | last_week | month
 
   const { selectedFeedback, isDetailOpen, openFeedbackModal, closeFeedbackModal } = useFeedbackDetailModal({
     unreadPriorityIds,
@@ -289,7 +289,7 @@ function Dashboard({
     pushToast,
   })
 
-  const { managementInsights, getRelatedAlerts: kpiRelatedAlerts } = useManagementInsights({
+  const { managementInsights } = useManagementInsights({
     mode,
     overviewTimeFilter,
     comparison,
@@ -517,7 +517,6 @@ function Dashboard({
             onKpiPointerEnter={onKpiPointerEnter}
             onKpiPointerLeave={onKpiPointerLeave}
             managementInsights={managementInsights}
-            getRelatedAlerts={kpiRelatedAlerts}
             navigateToInboxPreset={navigateToInboxPreset}
           />
         </>

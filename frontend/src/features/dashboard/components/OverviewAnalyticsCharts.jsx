@@ -144,13 +144,6 @@ export default function OverviewAnalyticsCharts({
                   {overviewInsuranceTagsCaption.subtitle}
                 </span>
               </div>
-              {!analyticsLoading && analyticsDelayPassed && categoryChartHasRealData && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 max-w-2xl leading-relaxed">
-                  Each item is counted once: the top-matching auto-tag, or &quot;No tag data&quot; if tags are
-                  missing. Bar totals in this time range add up to the number of items shown (up to
-                  20,000) and should match &quot;Total feedback&quot; when the same time filter applies.
-                </p>
-              )}
               {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
                   {overviewInsuranceTagsCaption.empty}
@@ -226,7 +219,7 @@ export default function OverviewAnalyticsCharts({
           {/* Product pulse (volume by product) */}
           <div className="mt-6 card p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Product pulse</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Product breakdown</h2>
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 Volume by product · window matches the Overview filter
               </span>

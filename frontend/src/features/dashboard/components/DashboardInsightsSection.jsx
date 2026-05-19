@@ -14,6 +14,7 @@ import {
 } from 'recharts'
 import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
+import { formatInsuranceTagChartLabel } from '../utils/dashboardFormatters'
 
 function clamp(n, min, max) {
   const x = Number(n)
@@ -146,7 +147,7 @@ export default function DashboardInsightsSection({
   const topThemes = Object.entries(insuranceTagsBreakdown || {})
     .map(([k, v]) => ({
       key: k,
-      label: String(k || '').replace(/_/g, ' '),
+      label: formatInsuranceTagChartLabel(k),
       total: Number(v?.total ?? 0) || 0,
       positive: Number(v?.positive ?? 0) || 0,
       negative: Number(v?.negative ?? 0) || 0,

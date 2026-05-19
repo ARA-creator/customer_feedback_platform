@@ -148,6 +148,13 @@ function App() {
     setCurrentView('inbox')
   }, [setCurrentView])
 
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    window.scrollTo(0, 0)
+    const main = document.querySelector('main')
+    if (main) main.scrollTop = 0
+  }, [currentView])
+
   useEffect(() => {
     if (!currentView.startsWith('admin_')) return
     if (!isAdminUI) setCurrentView('overview')

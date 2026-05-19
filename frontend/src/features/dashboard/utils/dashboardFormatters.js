@@ -1,10 +1,18 @@
 export function formatInsuranceTagChartLabel(key) {
   if (key === 'no_insurance_tag') return 'No tag data'
+  if (String(key || '').toLowerCase() === 'other') return 'Unclassified'
   const s = String(key || '')
     .replace(/_/g, ' ')
     .trim()
   if (!s) return 'Unknown'
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+export function formatCategoryChartLabel(name) {
+  const raw = String(name || '').trim()
+  if (!raw) return 'Unknown'
+  if (raw.toLowerCase() === 'other') return 'Unclassified'
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export function formatRelativeTime(iso) {
