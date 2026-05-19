@@ -449,7 +449,7 @@ export default function DashboardInsightsSection({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard
           title="Source trend"
-          subtitle="Daily volume by top channels (others grouped). Pills show share among channels with volume in this range."
+          subtitle="Daily volume by top channels (others grouped)."
           right={
             <div className="flex flex-wrap gap-2">
               {sourcePillKeys.slice(0, 6).map((k, idx) => {
@@ -526,7 +526,7 @@ export default function DashboardInsightsSection({
           title="Top issues"
           subtitle={
             topIssuesChartRows.source === 'themes'
-              ? 'Manual categories are unset on most items; showing top insurance auto-tags in this window instead.'
+              ? undefined
               : 'Highest-volume feedback categories in this window.'
           }
         >
@@ -583,7 +583,7 @@ export default function DashboardInsightsSection({
 
         <SectionCard
           title="Peak feedback times"
-          subtitle="Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume. Includes row/column totals and highlights top peaks."
+          subtitle="Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume."
         >
           {analyticsLoading ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />

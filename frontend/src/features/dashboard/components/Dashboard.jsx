@@ -466,7 +466,6 @@ function Dashboard({
           setDashboardAutoRefresh(on)
         }}
         onRefresh={() => reloadDashboardRef.current?.()}
-        onExportOverviewCsv={handleExportCsv}
       />
 
       {error && (
@@ -490,7 +489,16 @@ function Dashboard({
         <>
       {mode === 'overview' && (
         <>
-              <OverviewTimeFilterRow value={overviewTimeFilter} onChange={setOverviewTimeFilter} />
+              <OverviewTimeFilterRow
+                value={overviewTimeFilter}
+                onChange={setOverviewTimeFilter}
+                onExportCsv={handleExportCsv}
+                onRefresh={() => reloadDashboardRef.current?.()}
+                actionsDisabled={loading || !analyticsDelayPassed}
+                isAdminUser={isAdminUser}
+                dashboardAutoRefresh={dashboardAutoRefresh}
+                onToggleAutoRefresh={setDashboardAutoRefresh}
+              />
 
           <OverviewMetricCards
             metrics={metrics}

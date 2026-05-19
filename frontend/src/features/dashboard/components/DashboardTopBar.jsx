@@ -1,4 +1,4 @@
-import { FiRefreshCw, FiDownload } from 'react-icons/fi'
+import { FiRefreshCw } from 'react-icons/fi'
 
 export default function DashboardTopBar({
   mode,
@@ -12,8 +12,11 @@ export default function DashboardTopBar({
   dashboardAutoRefreshKey,
   onToggleAutoRefresh,
   onRefresh,
-  onExportOverviewCsv,
 }) {
+  if (mode === 'overview') {
+    return null
+  }
+
   return (
     <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
@@ -52,10 +55,11 @@ export default function DashboardTopBar({
           <button
             type="button"
             onClick={onRefresh}
-            className="inline-flex items-center justify-center min-h-[44px] rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
+            aria-label="Refresh dashboard"
+            title="Refresh"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
           >
-            <FiRefreshCw className="h-4 w-4 mr-1.5" />
-            Refresh
+            <FiRefreshCw className="h-4 w-4" aria-hidden />
           </button>
 
           {isAdminUser && (
@@ -70,16 +74,6 @@ export default function DashboardTopBar({
             </label>
           )}
 
-          {mode === 'overview' && (
-            <button
-              type="button"
-              onClick={onExportOverviewCsv}
-              className="inline-flex items-center justify-center min-h-[44px] rounded-xl bg-[#009750] px-3.5 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#007a42] transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
-            >
-              <FiDownload className="w-4 h-4 mr-1.5" />
-              Export CSV
-            </button>
-          )}
         </div>
       )}
     </div>
