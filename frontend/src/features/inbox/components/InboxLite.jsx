@@ -983,10 +983,10 @@ export default function InboxLite({ onNavigate }) {
           tabIndex={-1}
         >
           <div
-            className="w-full max-w-2xl h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain rounded-none sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-xl dark:border-gray-700 dark:bg-gray-950 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:pb-5"
+            className="w-full max-w-2xl h-[100dvh] max-h-[100dvh] sm:h-auto sm:max-h-[85vh] flex flex-col overflow-hidden rounded-none sm:rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 -mx-4 sm:-mx-5 px-4 sm:px-5 pt-4 sm:pt-5 pb-3 bg-white/95 backdrop-blur border-b border-gray-100 dark:bg-gray-950/95 dark:border-gray-800">
+            <div className="shrink-0 z-10 border-b border-gray-100 bg-white px-4 sm:px-5 py-4 dark:border-gray-800 dark:bg-gray-950">
               <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Feedback</h2>
@@ -1033,7 +1033,8 @@ export default function InboxLite({ onNavigate }) {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 sm:px-5 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:pb-5">
+            <div className="flex flex-wrap items-center gap-2">
               <SentimentPill label={openItem.sentiment_label} />
               <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                 {(openItem.source_group || openItem.source || 'source').replace(/_/g, ' ')}
@@ -1317,6 +1318,7 @@ export default function InboxLite({ onNavigate }) {
             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               {openItem.customer_label || openItem.customer_id || 'Unknown customer'}
             </p>
+            </div>
           </div>
         </div>
       )}
