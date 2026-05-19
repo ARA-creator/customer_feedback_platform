@@ -12,9 +12,9 @@ from sqlalchemy import desc, func
 from ..config import get_config
 from ..models import Feedback, User
 from ..security import decrypt_text
-from ..services.ai_drafts import _genai_generate_json, _normalize_model_name
 from ..services.analytics_time_window import parse_overview_time_window
 from ..services.metadata_normalization import normalize_channel_metadata
+from ..services.prioritization import normalize_source_group
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,6 @@ def gather_analyzer_context(
     time_window: str,
     scope_feedback_query,
 ) -> Dict[str, Any]:
-    from ..routes.api._helpers import _normalize_source_group
-
     now = datetime.now(tz=timezone.utc)
     tw, filter_from, filter_to, label, range_days = parse_overview_time_window(time_window, now=now)
 
@@ -91,7 +89,7 @@ def gather_analyzer_context(
         .all()
     )
     top_sources = [
-        {"source": _normalize_source_group(src) or (src or "unknown"), "count": int(cnt or 0)}
+        {"source": normalize_source_group(src) or (src or "unknown"), "count": int(cnt or 0)}
         for src, cnt in source_rows
     ]
 
@@ -135,7 +133,7 @@ def gather_analyzer_context(
         samples.append(
             {
                 "id": row.id,
-                "source": _normalize_source_group(row.source) or row.source,
+                "source": normalize_source_group(row.source) or row.source,
                 "sentiment": row.sentiment_label,
                 "category": row.category,
                 "priority": row.priority,
@@ -225,6 +223,13 @@ def _fallback_analysis(context: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _analyze_with_gemini(context: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        from ..services.ai_drafts import _genai_generate_json, _normalize_model_name
+    except Exception:
+        logger.exception("Gemini SDK unavailable; using rule-based analyzer")
+        parsed = _fallback_analysis(context)
+        return {**parsed, "ai_generated": False, "model_name": "rule-based"}
+
     cfg = get_config()
     api_key = (getattr(cfg, "GEMINI_API_KEY", "") or "").strip()
     model = (getattr(cfg, "GEMINI_MODEL", "gemini-1.5-flash") or "gemini-1.5-flash").strip()

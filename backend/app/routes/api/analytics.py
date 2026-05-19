@@ -15,7 +15,6 @@ from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch
-from ...services.feedback_analyzer import run_feedback_analyzer
 from ...services.metadata_normalization import normalize_channel_metadata
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
@@ -643,6 +642,9 @@ def feedback_analyzer():
         user = _require_user(db)
         perms = _user_permission_keys(db, user.id)
         time_window = (request.args.get("time_window") or "all").strip().lower()
+        # Lazy import: google-genai is heavy; keep it off the app cold-start path.
+        from ...services.feedback_analyzer import run_feedback_analyzer
+
         result = run_feedback_analyzer(
             db,
             user=user,

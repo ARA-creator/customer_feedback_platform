@@ -6,6 +6,7 @@ Populated incrementally during the api.py split.
 
 import hashlib
 import hmac
+import logging
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from email_validator import EmailNotValidError, validate_email
 from flask import current_app, jsonify, request, session
 from passlib.hash import argon2
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import load_only
 
 from ...database import SessionLocal
@@ -23,6 +25,8 @@ from ...emails.templates import reset_password_email, verify_email, welcome_emai
 from ...extensions import limiter
 from . import api_bp
 from ._helpers import _current_user, _require_user, _user_permission_keys
+
+logger = logging.getLogger(__name__)
 
 
 _CODE_RE = re.compile(r"^\d{6}$")
@@ -209,23 +213,29 @@ def auth_login():
 
     db = SessionLocal()
     try:
-        user = (
-            db.query(User)
-            .options(
-                load_only(
-                    User.id,
-                    User.email,
-                    User.password_hash,
-                    User.role,
-                    User.deleted_at,
-                    User.is_active,
-                    User.email_verified_at,
-                    User.last_login_at,
+        try:
+            user = (
+                db.query(User)
+                .options(
+                    load_only(
+                        User.id,
+                        User.email,
+                        User.password_hash,
+                        User.role,
+                        User.deleted_at,
+                        User.is_active,
+                        User.email_verified_at,
+                        User.last_login_at,
+                    )
                 )
+                .filter(User.email == email)
+                .first()
             )
-            .filter(User.email == email)
-            .first()
-        )
+        except SQLAlchemyError:
+            logger.exception("Login failed: database error while loading user")
+            db.rollback()
+            return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
+
         if not user:
             return jsonify({"error": "No account found"}), 404
         if getattr(user, "deleted_at", None):
@@ -242,15 +252,26 @@ def auth_login():
                 ),
                 403,
             )
-        if not argon2.verify(password, user.password_hash):
+        try:
+            password_ok = argon2.verify(password, user.password_hash)
+        except Exception:
+            logger.exception("Login failed: password verification error for %s", email)
+            return jsonify({"error": "Incorrect password"}), 401
+        if not password_ok:
             return jsonify({"error": "Incorrect password"}), 401
 
         session.clear()
         session["user_id"] = user.id
         csrf = _ensure_csrf()
         session.permanent = True
-        user.last_login_at = datetime.now(tz=timezone.utc)
-        db.commit()
+        try:
+            user.last_login_at = datetime.now(tz=timezone.utc)
+            db.commit()
+        except SQLAlchemyError:
+            logger.exception("Login failed: could not update last_login_at")
+            db.rollback()
+            return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
+
         perms = sorted(_user_permission_keys(db, user.id))
         return (
             jsonify({"csrf": csrf, "user": {"id": user.id, "email": user.email, "role": user.role, "permissions": perms}}),
