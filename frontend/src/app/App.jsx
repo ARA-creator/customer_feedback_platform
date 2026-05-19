@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Sidebar from '../shared/components/layout/Sidebar'
 import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
@@ -62,6 +62,17 @@ function App() {
   })
   const [theme, setTheme] = useState(() => localStorage.getItem('cfp_theme') || 'light')
   const [liveToasts, setLiveToasts] = useState([])
+  const dashboardRefreshRef = useRef(null)
+
+  const registerDashboardRefresh = useCallback((fn) => {
+    dashboardRefreshRef.current = typeof fn === 'function' ? fn : null
+  }, [])
+
+  const handleDashboardRefresh = useCallback(() => {
+    dashboardRefreshRef.current?.()
+  }, [])
+
+  const showDashboardRefresh = currentView === 'overview' || currentView === 'insights'
 
   useEffect(() => {
     let cancelled = false
@@ -230,6 +241,8 @@ function App() {
             onToggleSidebar={() => setSidebarOpen((open) => !open)}
             theme={theme}
             onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+            showRefresh={showDashboardRefresh}
+            onRefresh={handleDashboardRefresh}
           />
           <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
             {!isAdminUI && currentView === 'overview' && (
@@ -237,6 +250,7 @@ function App() {
                 userRole={auth?.role}
                 onNavigateToInsights={() => setCurrentView('insights')}
                 onNavigateToInbox={navigateToInboxWithPreset}
+                registerRefresh={registerDashboardRefresh}
               />
             )}
             {!isAdminUI && currentView === 'insights' && (
@@ -244,6 +258,7 @@ function App() {
                 userRole={auth?.role}
                 onNavigateBack={() => setCurrentView('overview')}
                 onNavigateToInbox={navigateToInboxWithPreset}
+                registerRefresh={registerDashboardRefresh}
               />
             )}
             {!isAdminUI && currentView === 'inbox' && <InboxPage onNavigate={setCurrentView} />}

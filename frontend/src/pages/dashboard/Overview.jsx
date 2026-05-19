@@ -1,6 +1,6 @@
 import Dashboard from '../../features/dashboard/components/Dashboard'
 
-function DashboardOverviewPage({ userRole, onNavigateToInsights, onNavigateToInbox }) {
+function DashboardOverviewPage({ userRole, onNavigateToInsights, onNavigateToInbox, registerRefresh }) {
   return (
     <Dashboard
       mode="overview"
@@ -8,6 +8,7 @@ function DashboardOverviewPage({ userRole, onNavigateToInsights, onNavigateToInb
       userRole={userRole}
       onNavigateToInsights={onNavigateToInsights}
       onNavigateToInbox={onNavigateToInbox}
+      registerRefresh={registerRefresh}
     />
   )
 }

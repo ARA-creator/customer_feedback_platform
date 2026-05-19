@@ -1,6 +1,6 @@
-import { FiMenu, FiMoon, FiSun } from 'react-icons/fi'
+import { FiMenu, FiMoon, FiRefreshCw, FiSun } from 'react-icons/fi'
 
-function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
+function Header({ currentView, onToggleSidebar, theme, onToggleTheme, showRefresh, onRefresh, refreshDisabled }) {
   const label =
     currentView === 'inbox'
       ? 'Inbox'
@@ -55,7 +55,19 @@ function Header({ currentView, onToggleSidebar, theme, onToggleTheme }) {
           </span>
         </nav>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {showRefresh && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshDisabled}
+            aria-label="Refresh dashboard"
+            title="Refresh"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#009750] focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+          >
+            <FiRefreshCw className="h-5 w-5" aria-hidden />
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleTheme}

@@ -90,6 +90,7 @@ function Dashboard({
   onNavigateBack,
   onNavigateScheduleReport,
   onNavigateCustomReport,
+  registerRefresh,
 }) {
   const isDarkMode =
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -256,6 +257,14 @@ function Dashboard({
       clearTimeout(inboxTimer)
     }
   }, [])
+
+  useEffect(() => {
+    if (!registerRefresh) return undefined
+    registerRefresh(() => {
+      reloadDashboardRef.current?.()
+    })
+    return () => registerRefresh(null)
+  }, [registerRefresh])
 
   useEffect(() => {
     if (mode !== 'inbox') return
@@ -493,8 +502,7 @@ function Dashboard({
                 value={overviewTimeFilter}
                 onChange={setOverviewTimeFilter}
                 onExportCsv={handleExportCsv}
-                onRefresh={() => reloadDashboardRef.current?.()}
-                actionsDisabled={loading || !analyticsDelayPassed}
+                exportDisabled={loading || !analyticsDelayPassed}
                 isAdminUser={isAdminUser}
                 dashboardAutoRefresh={dashboardAutoRefresh}
                 onToggleAutoRefresh={setDashboardAutoRefresh}
