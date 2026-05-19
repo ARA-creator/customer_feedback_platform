@@ -74,12 +74,10 @@ import { buildInboxActiveFilterLabels } from '../utils/dashboardInboxFilterLabel
 import { SAVED_VIEWS } from '../utils/dashboardSavedViews'
 import { computePeakTimesTotals, pivotCategoryTrends, pivotProductPulseTrends } from '../utils/dashboardPivots'
 import { buildThemesBarChartData, sentimentChartHasRealData as sentimentChartHasRealDataFn, themesChartHasRealData } from '../utils/dashboardChartData'
-import { useManagementInsights } from '../hooks/useManagementInsights'
 import { useDashboardActions } from '../hooks/useDashboardActions'
 import { useDashboardExports } from '../hooks/useDashboardExports'
 import { useDashboardAutoRefresh } from '../hooks/useDashboardAutoRefresh'
 import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
-import { useKpiHover } from '../hooks/useKpiHover'
 import { useFeedbackDetailModal } from '../hooks/useFeedbackDetailModal'
 
 function Dashboard({
@@ -114,7 +112,6 @@ function Dashboard({
   const [analyticsDelayPassed, setAnalyticsDelayPassed] = useState(false)
   const [inboxDelayPassed, setInboxDelayPassed] = useState(false)
   const [trendData, setTrendData] = useState([])
-  const [comparison, setComparison] = useState({ this_week: null, last_week: null })
   const [responseMetrics, setResponseMetrics] = useState(null)
   const [peakTimes, setPeakTimes] = useState([])
   const [scoreHistogram, setScoreHistogram] = useState([])
@@ -164,7 +161,6 @@ function Dashboard({
     storageKey: DASHBOARD_AUTO_REFRESH_KEY,
   })
   const analyticsDataRef = useRef(null)
-  const { activeKpiChange, setActiveKpiChange, onKpiPointerEnter, onKpiPointerLeave } = useKpiHover()
   const [serverSourceCounts, setServerSourceCounts] = useState(null)
   const [insightsRange, setInsightsRange] = useState(30) // Insights (all cards): 7/30/90
   /** `prefix|group` from product pulse (empty = all products) */
@@ -198,7 +194,6 @@ function Dashboard({
     sentimentData,
     categoryData,
     trendData,
-    comparison,
     responseMetrics,
     peakTimes,
     scoreHistogram,
@@ -289,15 +284,6 @@ function Dashboard({
     pushToast,
   })
 
-  const { managementInsights } = useManagementInsights({
-    mode,
-    overviewTimeFilter,
-    comparison,
-    highPriority: metrics?.highPriority,
-    responseMetrics,
-    analyticsDataRef,
-  })
-
   const sourceTrendColors = useMemo(() => buildSourceTrendColorMap(sourceTrends), [sourceTrends])
 
   useDashboardDataLoader({
@@ -323,7 +309,6 @@ function Dashboard({
     setSentimentData,
     setCategoryData,
     setTrendData,
-    setComparison,
     setResponseMetrics,
     setPeakTimes,
     setScoreHistogram,
@@ -512,11 +497,6 @@ function Dashboard({
             kpiTrackPercent={kpiTrackPercent}
             analyticsLoading={analyticsLoading}
             analyticsDelayPassed={analyticsDelayPassed}
-            activeKpiChange={activeKpiChange}
-            setActiveKpiChange={setActiveKpiChange}
-            onKpiPointerEnter={onKpiPointerEnter}
-            onKpiPointerLeave={onKpiPointerLeave}
-            managementInsights={managementInsights}
             navigateToInboxPreset={navigateToInboxPreset}
           />
         </>

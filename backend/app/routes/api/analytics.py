@@ -183,35 +183,6 @@ def get_analytics():
                 trends_filled.append({"date": key, "positive": 0, "negative": 0, "neutral": 0, "total": 0})
         trends = trends_filled
 
-        def _period_counts(start_dt: datetime, end_dt: datetime) -> Dict[str, int]:
-            rows = (
-                _pf(
-                    db.query(Feedback.sentiment_label, func.count(Feedback.id))
-                    .filter(Feedback.deleted_at.is_(None))
-                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                    .filter(Feedback.created_at >= start_dt)
-                    .filter(Feedback.created_at < end_dt)
-                )
-                .group_by(Feedback.sentiment_label)
-                .all()
-            )
-            pos = sum(c for lbl, c in rows if lbl == "positive")
-            neg = sum(c for lbl, c in rows if lbl == "negative")
-            neu = sum(c for lbl, c in rows if lbl == "neutral")
-            total = pos + neg + neu
-            return {"total": total, "positive": pos, "negative": neg, "neutral": neu}
-
-        if time_window == "all":
-            weekday = now.weekday()
-            start_this_week = datetime(year=now.year, month=now.month, day=now.day, tzinfo=timezone.utc) - timedelta(days=weekday)
-            start_last_week = start_this_week - timedelta(days=7)
-            end_last_week = start_this_week
-            this_week = _period_counts(start_this_week, now)
-            last_week = _period_counts(start_last_week, end_last_week)
-        else:
-            this_week = None
-            last_week = None
-
         def _avg_age_hours(query):
             rows = query.all()
             if not rows:
@@ -513,7 +484,6 @@ def get_analytics():
                     "high_priority_count": high_priority_count,
                 },
                 "trends": trends,
-                "period_comparison": {"this_week": this_week, "last_week": last_week},
                 "response_metrics": response_metrics,
                 "peak_times": peak_times,
                 "score_histogram": score_histogram,

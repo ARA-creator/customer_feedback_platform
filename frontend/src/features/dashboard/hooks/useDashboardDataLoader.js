@@ -30,7 +30,6 @@ export function useDashboardDataLoader({
   setSentimentData,
   setCategoryData,
   setTrendData,
-  setComparison,
   setResponseMetrics,
   setPeakTimes,
   setScoreHistogram,
@@ -126,7 +125,6 @@ export function useDashboardDataLoader({
         setCategoryData(categoryChartData)
 
         setTrendData(analyticsData.trends || [])
-        setComparison(analyticsData.period_comparison || { this_week: null, last_week: null })
         setResponseMetrics(analyticsData.response_metrics || null)
         setPeakTimes(analyticsData.peak_times || [])
 
