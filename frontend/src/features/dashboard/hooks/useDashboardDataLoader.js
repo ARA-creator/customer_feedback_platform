@@ -269,7 +269,6 @@ export function useDashboardDataLoader({
     setSentimentData,
     setCategoryData,
     setTrendData,
-    setComparison,
     setResponseMetrics,
     setPeakTimes,
     setScoreHistogram,
