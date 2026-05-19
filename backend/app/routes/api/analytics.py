@@ -15,6 +15,7 @@ from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch
+from ...services.feedback_analyzer import run_feedback_analyzer
 from ...services.metadata_normalization import normalize_channel_metadata
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
@@ -627,6 +628,35 @@ def product_pulse_trend():
         db.rollback()
         logger.exception("Failed to compute product pulse trend")
         return jsonify({"error": "Internal server error"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/analytics/analyzer", methods=["GET"])
+def feedback_analyzer():
+    """
+    AI summary of feedback for the overview dashboard time window.
+    Query: time_window = all | today | week | last_week | month
+    """
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+        time_window = (request.args.get("time_window") or "all").strip().lower()
+        result = run_feedback_analyzer(
+            db,
+            user=user,
+            perms=perms,
+            time_window=time_window,
+            scope_feedback_query=_scope_feedback_query,
+        )
+        return jsonify(result), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to run feedback analyzer")
+        return jsonify({"error": "Failed to analyze feedback"}), 500
     finally:
         db.close()
 

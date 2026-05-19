@@ -40,3 +40,9 @@ export const getProductPulseTrend = async (params = undefined) => {
 }
 
 export const getWordCloudUrl = () => `${getBackendOrigin()}/api/wordcloud.png`
+
+/** AI analysis for overview dashboard time window (all | today | week | last_week | month). */
+export const getFeedbackAnalyzer = async (params = undefined) => {
+  const response = await api.get('/analytics/analyzer', withParamsConfig(params))
+  return response.data
+}

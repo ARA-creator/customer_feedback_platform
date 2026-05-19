@@ -19,6 +19,7 @@ import {
 } from 'react-icons/fi'
 import {
   getAnalytics,
+  getFeedbackAnalyzer,
   getRecentFeedback,
   getPriorityQueue,
   getProductPulse,
@@ -42,6 +43,7 @@ import {
   computeKpiTrackPercent,
   computeTrendYStats,
   getOverviewThemesCaption,
+  getOverviewTimeFilterLabel,
 } from '../utils/dashboardDerived'
 import OverviewMetricCards from './OverviewMetricCards'
 import OverviewChartsSection from './OverviewChartsSection'
@@ -51,6 +53,7 @@ import DashboardInboxSection from './DashboardInboxSection'
 import FeedbackDetailModal from './FeedbackDetailModal'
 import DashboardTopBar from './DashboardTopBar'
 import OverviewTimeFilterRow from './OverviewTimeFilterRow'
+import FeedbackAnalyzerModal from './FeedbackAnalyzerModal'
 import { DashboardProvider } from '../context/DashboardContext'
 import { useDashboardController } from '../hooks/useDashboardController'
 import { useInboxSelection } from '../hooks/useInboxSelection'
@@ -169,6 +172,10 @@ function Dashboard({
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
   const [overviewTimeFilter, setOverviewTimeFilter] = useState('all') // all | today | week | last_week | month
+  const [analyzerOpen, setAnalyzerOpen] = useState(false)
+  const [analyzerLoading, setAnalyzerLoading] = useState(false)
+  const [analyzerResult, setAnalyzerResult] = useState(null)
+  const [analyzerError, setAnalyzerError] = useState(null)
 
   const { selectedFeedback, isDetailOpen, openFeedbackModal, closeFeedbackModal } = useFeedbackDetailModal({
     unreadPriorityIds,
@@ -400,6 +407,33 @@ function Dashboard({
     inboxFilters,
     getStatus,
   })
+  const overviewTimeFilterLabel = useMemo(
+    () => getOverviewTimeFilterLabel(overviewTimeFilter),
+    [overviewTimeFilter],
+  )
+
+  const handleOpenAnalyzer = async () => {
+    setAnalyzerOpen(true)
+    setAnalyzerLoading(true)
+    setAnalyzerError(null)
+    setAnalyzerResult(null)
+    try {
+      const data = await getFeedbackAnalyzer({ time_window: overviewTimeFilter })
+      setAnalyzerResult(data)
+    } catch (err) {
+      const msg =
+        err?.response?.data?.error || err?.message || 'Could not analyze feedback for this period.'
+      setAnalyzerError(msg)
+      pushToast?.('Analyzer failed', msg, 'error')
+    } finally {
+      setAnalyzerLoading(false)
+    }
+  }
+
+  const handleCloseAnalyzer = () => {
+    setAnalyzerOpen(false)
+  }
+
   const { exportOverviewCsv: handleExportCsv, exportInboxCsv: handleExportCSV } = useDashboardExports({
     metrics,
     sentimentData,
@@ -501,11 +535,22 @@ function Dashboard({
               <OverviewTimeFilterRow
                 value={overviewTimeFilter}
                 onChange={setOverviewTimeFilter}
+                onAnalyzer={handleOpenAnalyzer}
+                analyzerDisabled={loading || !analyticsDelayPassed}
+                analyzerLoading={analyzerLoading}
                 onExportCsv={handleExportCsv}
                 exportDisabled={loading || !analyticsDelayPassed}
                 isAdminUser={isAdminUser}
                 dashboardAutoRefresh={dashboardAutoRefresh}
                 onToggleAutoRefresh={setDashboardAutoRefresh}
+              />
+              <FeedbackAnalyzerModal
+                open={analyzerOpen}
+                onClose={handleCloseAnalyzer}
+                loading={analyzerLoading}
+                error={analyzerError}
+                result={analyzerResult}
+                timeFilterLabel={overviewTimeFilterLabel}
               />
 
           <OverviewMetricCards

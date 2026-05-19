@@ -4,6 +4,22 @@ export function clampPercent(n) {
   return Math.min(100, Math.max(0, x))
 }
 
+export function getOverviewTimeFilterLabel(overviewTimeFilter) {
+  switch (overviewTimeFilter) {
+    case 'today':
+      return 'Today'
+    case 'week':
+      return 'This week'
+    case 'last_week':
+      return 'Last week'
+    case 'month':
+      return 'This month'
+    case 'all':
+    default:
+      return 'All time'
+  }
+}
+
 export function getOverviewThemesCaption(overviewTimeFilter) {
   switch (overviewTimeFilter) {
     case 'today':

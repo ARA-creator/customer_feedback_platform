@@ -1,4 +1,4 @@
-import { FiCalendar, FiClock, FiDownload } from 'react-icons/fi'
+import { FiCalendar, FiClock, FiDownload, FiZap } from 'react-icons/fi'
 
 const FILTERS = [
   { id: 'today', label: 'Today', Icon: FiClock },
@@ -12,6 +12,9 @@ export default function OverviewTimeFilterRow({
   value,
   onChange,
   onExportCsv,
+  onAnalyzer,
+  analyzerDisabled = false,
+  analyzerLoading = false,
   exportDisabled = false,
   isAdminUser = false,
   dashboardAutoRefresh = false,
@@ -59,6 +62,15 @@ export default function OverviewTimeFilterRow({
               <span className="whitespace-nowrap">Auto-refresh</span>
             </label>
           )}
+          <button
+            type="button"
+            onClick={onAnalyzer}
+            disabled={analyzerDisabled || analyzerLoading}
+            className="inline-flex items-center justify-center min-h-[40px] rounded-xl border border-[#009750]/40 bg-white px-3.5 py-2 text-xs font-semibold text-[#009750] shadow-sm hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-emerald-800/50 dark:bg-gray-900 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+          >
+            <FiZap className="h-4 w-4 mr-1.5 shrink-0" aria-hidden />
+            {analyzerLoading ? 'Analyzing…' : 'Analyzer'}
+          </button>
           <button
             type="button"
             onClick={onExportCsv}
