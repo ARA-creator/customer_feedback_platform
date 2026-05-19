@@ -67,7 +67,7 @@ export default function OverviewWordCloudAndSource({
 
       {showSourceChart && (
         <div className="card p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Source</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Feedback Source</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             How each channel performs by volume and sentiment.
           </p>
