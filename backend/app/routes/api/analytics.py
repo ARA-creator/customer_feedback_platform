@@ -15,6 +15,7 @@ from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch
+from ...services.analytics_time_window import parse_overview_time_window
 from ...services.metadata_normalization import normalize_channel_metadata
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
@@ -673,6 +674,7 @@ def product_pulse():
         user = _require_user(db)
         perms = _user_permission_keys(db, user.id)
 
+        time_window = (request.args.get("time_window") or "").strip().lower()
         range_days = _safe_int(request.args.get("range_days"), 30)
         if range_days <= 0 or range_days > 365:
             range_days = 30
@@ -681,7 +683,16 @@ def product_pulse():
         location = str(request.args.get("location") or "").strip()
 
         now = datetime.now(tz=timezone.utc)
-        start = now - timedelta(days=range_days)
+        filter_from = None
+        filter_to = None
+        if time_window in ("all", "today", "week", "last_week", "month"):
+            time_window, filter_from, filter_to, _label, range_days = parse_overview_time_window(
+                time_window, now=now
+            )
+            start = filter_from or (now - timedelta(days=range_days))
+        else:
+            time_window = ""
+            start = now - timedelta(days=range_days)
 
         q = (
             db.query(
@@ -694,9 +705,12 @@ def product_pulse():
             .filter(Feedback.deleted_at.is_(None))
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
             .filter(Feedback.created_at >= start)
-            .filter(Feedback.created_at <= now)
             .filter(FeedbackPolicyMatch.is_primary.is_(True))
         )
+        if filter_to is not None:
+            q = q.filter(Feedback.created_at < filter_to)
+        else:
+            q = q.filter(Feedback.created_at <= now)
 
         q = _scope_feedback_query(db, q, user=user, perms=perms)
 
@@ -740,7 +754,10 @@ def product_pulse():
                 agg[key][sent] += n
 
         items = sorted(agg.values(), key=lambda x: int(x.get("total") or 0), reverse=True)
-        return jsonify({"items": items, "range_days": range_days}), 200
+        payload: Dict[str, Any] = {"items": items, "range_days": range_days}
+        if time_window:
+            payload["time_window"] = time_window
+        return jsonify(payload), 200
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
     except Exception:

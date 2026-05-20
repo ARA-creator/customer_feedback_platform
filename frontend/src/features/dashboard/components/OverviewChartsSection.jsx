@@ -63,7 +63,7 @@ function SentimentLegendPills({ sentimentData }) {
 }
 
 /**
- * Overview dashboard charts: sentiment pie, insurance tags, product pulse, 30d sentiment trend.
+ * Overview dashboard charts: sentiment pie, insurance tags, product pulse, sentiment trend.
  */
 export default function OverviewChartsSection({
   isCx,
@@ -72,7 +72,7 @@ export default function OverviewChartsSection({
   sentimentChartHasRealData,
   categoryChartHasRealData,
   sentimentData,
-  overviewInsuranceTagsCaption,
+  overviewPeriod,
   insuranceTagsBarChartData,
   isDarkMode,
   productPulse,
@@ -81,6 +81,10 @@ export default function OverviewChartsSection({
   trendAllZero,
   onNavigateToInsights,
 }) {
+  const trendTitle = overviewPeriod?.trend?.title || 'Sentiment Trend'
+  const trendEmptyMessage =
+    overviewPeriod?.trend?.empty ||
+    'No feedback for the selected period. The chart shows daily counts at zero for this period.'
   return (
     <>
           {/* Charts Row */}
@@ -192,12 +196,12 @@ export default function OverviewChartsSection({
               >
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Themes</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                  {overviewInsuranceTagsCaption.subtitle}
+                  {overviewPeriod?.themes?.subtitle}
                 </span>
               </div>
               {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  {overviewInsuranceTagsCaption.empty}
+                  {overviewPeriod?.themes?.empty}
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -272,14 +276,14 @@ export default function OverviewChartsSection({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Product breakdown</h2>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                Volume by product · window matches the Overview filter
+                {overviewPeriod?.productPulse?.subtitle}
               </span>
             </div>
             {analyticsLoading || !analyticsDelayPassed ? (
               <div className="w-full h-64 sm:h-72 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
             ) : productPulse.length === 0 ? (
               <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-                No product/policy matches in this time window yet.
+                {overviewPeriod?.productPulse?.empty}
               </p>
             ) : (
               <div className="mt-4" style={{ height: `${Math.max(280, Math.min(520, productPulse.length * 42 + 120))}px` }}>
@@ -334,9 +338,7 @@ export default function OverviewChartsSection({
             {/* Sentiment Trend (Area Chart) */}
             <div className="card p-4 sm:p-6 lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Sentiment Trend (Last 30 Days)
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{trendTitle}</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400">Daily counts · GMT</span>
               </div>
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -344,9 +346,8 @@ export default function OverviewChartsSection({
               ) : (
                 <div>
                   {trendAllZero && (
-                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      No feedback in the last 30 days (chart shows daily counts at zero). Overview totals
-                      include all time.
+                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                      {trendEmptyMessage}
                     </p>
                   )}
                   <div

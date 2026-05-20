@@ -6,6 +6,7 @@ import { FiBarChart2, FiMinus, FiThumbsDown, FiThumbsUp } from 'react-icons/fi'
 export default function OverviewMetricCards({
   metrics,
   kpiTrackPercent,
+  periodHint,
   analyticsLoading,
   analyticsDelayPassed,
   navigateToInboxPreset,
@@ -13,6 +14,10 @@ export default function OverviewMetricCards({
   const loading = analyticsLoading || !analyticsDelayPassed
 
   return (
+    <div className="space-y-2">
+      {periodHint && !loading && (
+        <p className="text-xs text-gray-500 dark:text-gray-400 px-0.5">{periodHint}</p>
+      )}
     <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 xl:gap-6">
       {loading ? (
         <>
@@ -130,6 +135,7 @@ export default function OverviewMetricCards({
           </button>
         </>
       )}
+    </div>
     </div>
   )
 }

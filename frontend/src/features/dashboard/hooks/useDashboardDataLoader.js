@@ -153,19 +153,10 @@ export function useDashboardDataLoader({
         setInsuranceTagsTrends(Array.isArray(analyticsData.insurance_tags_trends) ? analyticsData.insurance_tags_trends : [])
 
         if (mode === 'overview' || mode === 'insights') {
-          const rangeDays =
-            mode === 'insights'
-              ? insightsRange
-              : overviewTimeFilter === 'today'
-                ? 1
-                : overviewTimeFilter === 'week'
-                  ? 7
-                  : overviewTimeFilter === 'last_week'
-                    ? 7
-                    : overviewTimeFilter === 'month'
-                      ? 30
-                      : 30
-          const pulseParams = mode === 'insights' ? { range_days: rangeDays, ...insightsProductParams } : { range_days: rangeDays }
+          const pulseParams =
+            mode === 'overview'
+              ? { time_window: overviewTimeFilter }
+              : { range_days: insightsRange, ...insightsProductParams }
           const pulse = await getProductPulse(pulseParams).catch(() => ({ items: [] }))
           if (!cancelled) {
             const items = Array.isArray(pulse?.items) ? pulse.items : []

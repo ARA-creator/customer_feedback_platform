@@ -27,7 +27,7 @@ export default function OverviewAnalyticsCharts({
   sentimentChartHasRealData,
   sentimentData,
   categoryChartHasRealData,
-  overviewInsuranceTagsCaption,
+  overviewPeriod,
   insuranceTagsBarChartData,
   productPulse,
   trendData,
@@ -35,6 +35,10 @@ export default function OverviewAnalyticsCharts({
   trendAllZero,
   onNavigateToInsights,
 }) {
+  const trendTitle = overviewPeriod?.trend?.title || 'Sentiment Trend'
+  const trendEmptyMessage =
+    overviewPeriod?.trend?.empty ||
+    'No feedback for the selected period. The chart shows daily counts at zero for this period.'
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0]
@@ -156,12 +160,12 @@ export default function OverviewAnalyticsCharts({
               >
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Insurance tags</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                  {overviewInsuranceTagsCaption.subtitle}
+                  {overviewPeriod?.themes?.subtitle}
                 </span>
               </div>
               {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  {overviewInsuranceTagsCaption.empty}
+                  {overviewPeriod?.themes?.empty}
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -298,9 +302,7 @@ export default function OverviewAnalyticsCharts({
             {/* Sentiment Trend (Area Chart) */}
             <div className="card p-4 sm:p-6 xl:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Sentiment Trend (Last 30 Days)
-                </h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{trendTitle}</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400">Daily counts · GMT</span>
               </div>
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -308,9 +310,8 @@ export default function OverviewAnalyticsCharts({
               ) : (
                 <div>
                   {trendAllZero && (
-                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      No feedback in the last 30 days (chart shows daily counts at zero). Overview totals
-                      include all time.
+                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                      {trendEmptyMessage}
                     </p>
                   )}
                   <div

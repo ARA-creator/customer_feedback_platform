@@ -22,6 +22,7 @@ export default function OverviewWordCloudAndSource({
   analyticsDelayPassed,
   isDarkMode,
   sourcePerformance,
+  overviewPeriod,
 }) {
   if (!showSourceChart && !showWordCloudSection) return null
 
@@ -35,7 +36,12 @@ export default function OverviewWordCloudAndSource({
     >
       {showWordCloudSection && (
         <div className="card p-4 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 sm:mb-6">Word Cloud</h2>
+          <div className="mb-4 sm:mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Word Cloud</h2>
+            {overviewPeriod?.wordCloud?.subtitle && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{overviewPeriod.wordCloud.subtitle}</p>
+            )}
+          </div>
           {analyticsLoading ? (
             <div className="w-full h-64 sm:h-72 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
           ) : (
@@ -69,7 +75,8 @@ export default function OverviewWordCloudAndSource({
         <div className="card p-4 sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Feedback Source</h2>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-            How each channel performs by volume and sentiment.
+            {overviewPeriod?.sourceChart?.subtitle ||
+              'How each channel performs by volume and sentiment.'}
           </p>
           {analyticsLoading || !analyticsDelayPassed ? (
             <div className="w-full h-64 sm:h-72 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />

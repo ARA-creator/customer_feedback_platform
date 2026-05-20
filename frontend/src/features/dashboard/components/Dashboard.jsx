@@ -42,8 +42,7 @@ import { buildSourceTrendColorMap } from '../utils/dashboardCharts'
 import {
   computeKpiTrackPercent,
   computeTrendYStats,
-  getOverviewThemesCaption,
-  getOverviewTimeFilterLabel,
+  getOverviewPeriodConfig,
 } from '../utils/dashboardDerived'
 import OverviewMetricCards from './OverviewMetricCards'
 import OverviewChartsSection from './OverviewChartsSection'
@@ -245,9 +244,10 @@ function Dashboard({
   const [heatmapHover, setHeatmapHover] = useState(null)
 
   /** Subtitle/empty copy for the overview Insurance tags chart (aligns with API window). */
-  const overviewInsuranceTagsCaption = useMemo(() => {
-    return getOverviewThemesCaption(overviewTimeFilter)
-  }, [overviewTimeFilter])
+  const overviewPeriod = useMemo(
+    () => getOverviewPeriodConfig(overviewTimeFilter),
+    [overviewTimeFilter],
+  )
 
   /** Share of total feedback for KPI bottom track (0–100). */
   const kpiTrackPercent = useMemo(() => computeKpiTrackPercent(metrics), [metrics])
@@ -406,10 +406,7 @@ function Dashboard({
     inboxFilters,
     getStatus,
   })
-  const overviewTimeFilterLabel = useMemo(
-    () => getOverviewTimeFilterLabel(overviewTimeFilter),
-    [overviewTimeFilter],
-  )
+  const overviewTimeFilterLabel = overviewPeriod.label
 
   const handleOpenAnalyzer = async () => {
     setAnalyzerOpen(true)
@@ -438,6 +435,7 @@ function Dashboard({
     sentimentData,
     categoryData,
     trendData,
+    overviewPeriod,
     recentFeedback,
     priorityQueue,
     buildDashboardSummaryCsv,
@@ -555,6 +553,7 @@ function Dashboard({
           <OverviewMetricCards
             metrics={metrics}
             kpiTrackPercent={kpiTrackPercent}
+            periodHint={overviewPeriod.metricsHint}
             analyticsLoading={analyticsLoading}
             analyticsDelayPassed={analyticsDelayPassed}
             navigateToInboxPreset={navigateToInboxPreset}
@@ -570,7 +569,7 @@ function Dashboard({
               sentimentChartHasRealData={sentimentChartHasRealData}
               categoryChartHasRealData={categoryChartHasRealData}
               sentimentData={sentimentData}
-              overviewInsuranceTagsCaption={overviewInsuranceTagsCaption}
+              overviewPeriod={overviewPeriod}
               insuranceTagsBarChartData={insuranceTagsBarChartData}
               isDarkMode={isDarkMode}
               productPulse={productPulse}
@@ -618,6 +617,7 @@ function Dashboard({
               analyticsDelayPassed={analyticsDelayPassed}
               isDarkMode={isDarkMode}
               sourcePerformance={sourcePerformance}
+              overviewPeriod={overviewPeriod}
             />
           )}
         </>
