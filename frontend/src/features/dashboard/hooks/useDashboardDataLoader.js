@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { CHART_PALETTE, SENTIMENT_COLORS } from '../constants/palette'
 import { formatCategoryChartLabel } from '../utils/dashboardFormatters'
+import { formatDashboardLoadError } from '../utils/dashboardLoadError'
 
 export function useDashboardDataLoader({
   // identity / flags
@@ -18,7 +19,6 @@ export function useDashboardDataLoader({
   getProductPulse,
   getProductPulseTrend,
   USE_DEV_API_PROXY,
-  getClipboardBackendOrigin,
 
   // state setters
   setLoading,
@@ -216,11 +216,7 @@ export function useDashboardDataLoader({
         if (cancelled) return
         console.error('Error fetching analytics:', err)
         if (!isSilent) {
-          setError(
-            USE_DEV_API_PROXY
-              ? 'Failed to load dashboard data. With dev proxy, Flask should listen on 127.0.0.1:5000 (see VITE_PROXY_TARGET in vite.config.js).'
-              : `Failed to load dashboard data. Make sure Flask API is running on ${getClipboardBackendOrigin()}`
-          )
+          setError(formatDashboardLoadError(err, { useDevProxy: USE_DEV_API_PROXY }))
           setSentimentData([{ name: 'Error', value: 1, color: '#d1d5db' }])
           setCategoryData([{ name: 'Error', value: 0 }])
           setRecentFeedback([])
@@ -259,7 +255,6 @@ export function useDashboardDataLoader({
     getProductPulse,
     getProductPulseTrend,
     USE_DEV_API_PROXY,
-    getClipboardBackendOrigin,
     setLoading,
     setAnalyticsLoading,
     setInboxLoading,

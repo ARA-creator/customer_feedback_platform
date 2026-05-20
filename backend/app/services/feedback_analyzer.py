@@ -233,11 +233,19 @@ def _gemini_credentials() -> tuple[str, str]:
 
 def _analyze_with_gemini(context: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        from ..services.ai_drafts import _genai_generate_json, _normalize_model_name
+        from .gemini_client import genai_generate_json, gemini_sdk_available, normalize_model_name
     except Exception as exc:
-        logger.exception("Gemini SDK unavailable; using rule-based analyzer")
+        logger.exception("Gemini client unavailable; using rule-based analyzer")
         parsed = _fallback_analysis(context)
         return {**parsed, "ai_generated": False, "model_name": "rule-based", "gemini_error": str(exc)[:200]}
+
+    if not gemini_sdk_available():
+        from .gemini_client import gemini_sdk_error
+
+        err = (gemini_sdk_error() or "google-genai not installed")[:200]
+        logger.warning("Gemini SDK missing (%s); using rule-based analyzer", err)
+        parsed = _fallback_analysis(context)
+        return {**parsed, "ai_generated": False, "model_name": "rule-based", "gemini_error": err}
 
     api_key, model = _gemini_credentials()
 
@@ -265,7 +273,7 @@ Dataset:
 """.strip()
 
     try:
-        parsed = _genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.35)
+        parsed = genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.35)
         out = {
             "summary": (parsed.get("summary") or "").strip(),
             "key_themes": [str(x).strip() for x in (parsed.get("key_themes") or []) if str(x).strip()][:6],
@@ -275,7 +283,7 @@ Dataset:
         }
         if not out["summary"]:
             raise ValueError("Empty analyzer summary")
-        return {**out, "ai_generated": True, "model_name": _normalize_model_name(model)}
+        return {**out, "ai_generated": True, "model_name": normalize_model_name(model)}
     except Exception as exc:
         logger.exception("Gemini feedback analysis failed")
         parsed = _fallback_analysis(context)

@@ -2,14 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-import random
-import time
 from typing import Any, Dict, Optional
 
-from google import genai as _genai  # type: ignore[import-not-found]
-from google.genai import types  # type: ignore[import-not-found]
-
 from ..config import get_config
+from .gemini_client import genai_generate_json, normalize_model_name
 
 logger = logging.getLogger(__name__)
 
@@ -35,92 +31,6 @@ def _fallback_reply(*, feedback_message: str, customer_name: Optional[str], tone
         "ai_generated": False,
         "meta": {"tone": tone, "brand_voice": brand_voice, "source_excerpt": (feedback_message or "")[:240]},
     }
-
-
-def _normalize_model_name(model: str) -> str:
-    m = (model or "").strip()
-    if m.startswith("models/"):
-        m = m[len("models/") :]
-    return m or "gemini-1.5-flash"
-
-
-def _candidate_models(model: str) -> list[str]:
-    m = _normalize_model_name(model)
-    out = [m]
-    if not m.endswith("-latest"):
-        out.append(f"{m}-latest")
-    # common fallbacks
-    if m == "gemini-1.5-flash":
-        out.append("gemini-1.5-flash-latest")
-        out.append("gemini-1.5-pro-latest")
-    if m == "gemini-1.5-pro":
-        out.append("gemini-1.5-pro-latest")
-    # current common families
-    if m.startswith("gemini-2.5-flash"):
-        out.append("gemini-2.0-flash")
-        out.append("gemini-2.5-pro")
-    if m.startswith("gemini-2.5-pro"):
-        out.append("gemini-2.5-flash")
-        out.append("gemini-2.0-flash")
-    # de-dupe
-    seen: set[str] = set()
-    uniq: list[str] = []
-    for x in out:
-        x = (x or "").strip()
-        if x and x not in seen:
-            uniq.append(x)
-            seen.add(x)
-    return uniq
-
-
-def _is_unavailable_error(err: Exception) -> bool:
-    s = str(err).lower()
-    return "503" in s or "unavailable" in s or "high demand" in s
-
-
-def _is_not_found_error(err: Exception) -> bool:
-    s = str(err).lower()
-    return "404" in s or "not found" in s or "is not found for api version" in s
-
-
-def _genai_generate_json(*, api_key: str, model: str, prompt: str, temperature: float) -> Dict[str, Any]:
-    """
-    Generate JSON with keys {body, alt_body}.
-    Uses google-genai SDK; retries alternate model names when model isn't available.
-    """
-    client = _genai.Client(api_key=api_key)
-    last_err: Optional[Exception] = None
-    for m in _candidate_models(model):
-        # Retry on transient capacity errors (free tier often sees 503 spikes).
-        for attempt in range(3):
-            try:
-                resp = client.models.generate_content(
-                    model=m,
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=temperature,
-                        response_mime_type="application/json",
-                    ),
-                )
-                text = (getattr(resp, "text", None) or "").strip()
-                if not text:
-                    raise ValueError("Empty Gemini response")
-                return json.loads(text)
-            except Exception as e:
-                last_err = e
-                # Model not found / unsupported -> try next model immediately.
-                if _is_not_found_error(e):
-                    break
-                # Transient high-demand -> backoff + retry.
-                if _is_unavailable_error(e) and attempt < 2:
-                    sleep_s = (2**attempt) + random.random() * 0.25
-                    time.sleep(sleep_s)
-                    continue
-                # Other errors -> try next model candidate.
-                break
-    if last_err:
-        raise last_err
-    raise RuntimeError("Gemini request failed")
 
 
 def generate_reply_draft(*, feedback: Dict[str, Any], customer_profile: Optional[Dict[str, Any]] = None, tone: str = "empathetic", brand_voice: str = "professional, calm, reassuring", public_response: bool = False) -> Dict[str, Any]:
@@ -163,7 +73,7 @@ Feedback:
         )
 
     try:
-        parsed = _genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.5)
+        parsed = genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.5)
         body = (parsed.get("body") or "").strip()
         alt_body = (parsed.get("alt_body") or "").strip() or None
         if not body:
@@ -176,7 +86,7 @@ Feedback:
         return {
             "body": body,
             "alt_body": alt_body,
-            "model_name": _normalize_model_name(model),
+            "model_name": normalize_model_name(model),
             "ai_generated": True,
             "meta": {"tone": tone, "brand_voice": brand_voice},
         }
@@ -232,7 +142,7 @@ Original text:
 """.strip()
 
     try:
-        parsed = _genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.4)
+        parsed = genai_generate_json(api_key=api_key, model=model, prompt=prompt, temperature=0.4)
         body = (parsed.get("body") or "").strip()
         alt_body = (parsed.get("alt_body") or "").strip() or None
         if not body:
@@ -240,7 +150,7 @@ Original text:
         return {
             "body": body,
             "alt_body": alt_body,
-            "model_name": _normalize_model_name(model),
+            "model_name": normalize_model_name(model),
             "ai_generated": True,
             "meta": {"tone": tone, "brand_voice": brand_voice},
         }

@@ -6,6 +6,7 @@ from sqlalchemy import text
 
 from ...core.config import get_config
 from ...core.database import engine
+from ...services.gemini_client import gemini_sdk_available, gemini_sdk_error
 from . import api_bp
 
 
@@ -29,11 +30,20 @@ def health():
     except Exception as e:
         db_error = repr(e)
 
+    gemini_key_set = bool((os.getenv("GEMINI_API_KEY") or getattr(cfg, "GEMINI_API_KEY", "") or "").strip())
+    sdk_ok = gemini_sdk_available()
+
     return (
         jsonify(
             {
                 "ok": bool(db_ok),
                 "db": {"ok": bool(db_ok), "error": db_error},
+                "gemini": {
+                    "api_key_configured": gemini_key_set,
+                    "sdk_available": sdk_ok,
+                    "ready": bool(gemini_key_set and sdk_ok),
+                    "sdk_error": None if sdk_ok else (gemini_sdk_error() or "unknown")[:240],
+                },
                 "env": {
                     "APP_ENV": os.getenv("APP_ENV"),
                     "FLASK_ENV": os.getenv("FLASK_ENV"),

@@ -13,8 +13,13 @@ function serializeParams(params) {
 const withParamsConfig = (params) =>
   params && Object.keys(params).length > 0 ? { params, paramsSerializer: serializeParams } : undefined
 
+/** Analytics against Neon can exceed the default 10s api client timeout. */
+const ANALYTICS_TIMEOUT_MS = 90000
+
+const withAnalyticsTimeout = (config) => ({ ...config, timeout: ANALYTICS_TIMEOUT_MS })
+
 export const getAnalytics = async (params = undefined) => {
-  const response = await api.get('/analytics', withParamsConfig(params))
+  const response = await api.get('/analytics', withAnalyticsTimeout(withParamsConfig(params) || {}))
   return response.data
 }
 
@@ -29,13 +34,19 @@ export const getPriorityQueue = async (limit = 20) => {
 }
 
 export const getProductPulse = async (params = undefined) => {
-  const response = await api.get('/analytics/product-pulse', withParamsConfig(params))
+  const response = await api.get(
+    '/analytics/product-pulse',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
   return response.data
 }
 
 /** Daily counts per product (primary match) for Insights trend chart */
 export const getProductPulseTrend = async (params = undefined) => {
-  const response = await api.get('/analytics/product-pulse-trend', withParamsConfig(params))
+  const response = await api.get(
+    '/analytics/product-pulse-trend',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
   return response.data
 }
 

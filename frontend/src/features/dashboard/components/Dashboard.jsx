@@ -315,7 +315,6 @@ function Dashboard({
     getProductPulse,
     getProductPulseTrend,
     USE_DEV_API_PROXY,
-    getClipboardBackendOrigin,
     setLoading,
     setAnalyticsLoading,
     setInboxLoading,

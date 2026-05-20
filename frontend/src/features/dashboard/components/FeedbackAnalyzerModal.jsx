@@ -1,5 +1,21 @@
 import { FiAlertCircle, FiX } from 'react-icons/fi'
 
+function formatGeminiError(err) {
+  const raw = String(err || '').trim()
+  if (!raw) return 'AI analysis is unavailable.'
+  if (raw === 'missing_api_key') {
+    return 'GEMINI_API_KEY is not set. Add it to the repo-root .env and restart the backend.'
+  }
+  if (raw.includes("No module named 'google'") || raw.toLowerCase().includes('google-genai')) {
+    return (
+      'Google Gemini SDK is not installed in the Python environment running Flask. ' +
+      'From repo root: pip install -r backend/requirements.txt — then start the backend with ' +
+      '../.venv/bin/python run.py from the backend/ folder.'
+    )
+  }
+  return raw
+}
+
 function BulletList({ items, empty = 'None identified.' }) {
   const rows = Array.isArray(items) ? items.filter(Boolean) : []
   if (!rows.length) {
@@ -109,9 +125,7 @@ export default function FeedbackAnalyzerModal({
               </p>
               {!aiGenerated && result?.gemini_error && (
                 <p className="text-xs text-amber-800 dark:text-amber-200 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900/40 dark:bg-amber-950/30">
-                  AI analysis unavailable ({result.gemini_error}). Showing stats-based summary. Restart the
-                  backend after updating <code className="text-[11px]">GEMINI_API_KEY</code> in{' '}
-                  <code className="text-[11px]">.env</code>.
+                  {formatGeminiError(result.gemini_error)} Showing a stats-based summary instead.
                 </p>
               )}
 

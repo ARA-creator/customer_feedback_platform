@@ -22,7 +22,26 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        '/api': { target: proxyTarget, changeOrigin: true, secure: false },
+        // Browser calls /api/*; Flask routes are unprefixed (Vercel strips /api in prod).
+        '/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, '') || '/',
+          configure: (proxy) => {
+            proxy.on('error', (err, _req, res) => {
+              console.error('[vite] /api proxy error — is Flask running?', proxyTarget, err?.message || err)
+              if (res && !res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' })
+                res.end(
+                  JSON.stringify({
+                    error: `Cannot reach Flask at ${proxyTarget}. Start: ./scripts/dev/start_backend.sh`,
+                  }),
+                )
+              }
+            })
+          },
+        },
         '/integrations': { target: proxyTarget, changeOrigin: true, secure: false },
         '/wordcloud.png': { target: proxyTarget, changeOrigin: true, secure: false },
       },

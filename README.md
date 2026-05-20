@@ -28,8 +28,21 @@ source ../.venv/bin/activate
 # Install deps (first time / after changes)
 pip install -r requirements.txt
 
-# Run
-python run.py
+# Run (use repo-root .venv so Gemini / AI analyzer works)
+../.venv/bin/python run.py
+# or from repo root:
+# ./scripts/dev/start_backend.sh
+```
+
+Check Gemini (Flask has no `/api` prefix locally — Vercel adds that at the edge):
+
+```bash
+curl -s http://127.0.0.1:5000/health | python3 -m json.tool
+# or via Vite (same path the browser uses):
+curl -s http://127.0.0.1:5173/api/health | python3 -m json.tool
+```
+
+`gemini.ready` should be `true` when `GEMINI_API_KEY` is set in repo-root `.env`.
 ```
 
 ### Frontend
@@ -39,6 +52,8 @@ cd /home/araba/customer_feedback_platform/frontend
 npm install
 npm run dev
 ```
+
+Keep **both** processes running in dev: Flask on `:5000` and Vite on `:5173`. If the dashboard says it cannot reach Flask, start the backend first (`./scripts/dev/start_backend.sh`), then hard-refresh the browser.
 
 ### Build (frontend)
 
