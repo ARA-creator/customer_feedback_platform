@@ -308,6 +308,26 @@ def run_feedback_analyzer(
         time_window=time_window,
         scope_feedback_query=scope_feedback_query,
     )
+    total = int(context["metrics"].get("total_feedback") or 0)
+    if total <= 0:
+        return {
+            "time_window": context["time_window"],
+            "time_window_label": context["time_window_label"],
+            "feedback_count": 0,
+            "metrics": context["metrics"],
+            "empty": True,
+            "ai_generated": False,
+            "model_name": "none",
+            "analysis": {
+                "summary": "No feedback for analysis.",
+                "key_themes": [],
+                "sentiment_insights": "",
+                "risks": [],
+                "recommendations": [],
+            },
+            "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+
     analysis = _analyze_with_gemini(context)
     ai_generated = bool(analysis.pop("ai_generated", False))
     model_name = analysis.pop("model_name", "unknown")

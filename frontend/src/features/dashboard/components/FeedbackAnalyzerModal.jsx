@@ -41,6 +41,9 @@ export default function FeedbackAnalyzerModal({
   const analysis = result?.analysis || {}
   const metrics = result?.metrics || {}
   const aiGenerated = !!result?.ai_generated
+  const noFeedback =
+    !!result?.empty ||
+    (result?.feedback_count != null && Number(result.feedback_count) <= 0)
 
   return (
     <div
@@ -98,7 +101,13 @@ export default function FeedbackAnalyzerModal({
             </div>
           )}
 
-          {!loading && !error && result && (
+          {!loading && !error && result && noFeedback && (
+            <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+              No feedback for analysis.
+            </p>
+          )}
+
+          {!loading && !error && result && !noFeedback && (
             <>
               <div className="flex flex-wrap gap-2 text-[11px]">
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
