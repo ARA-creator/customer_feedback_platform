@@ -43,7 +43,21 @@ curl -s http://127.0.0.1:5173/api/health | python3 -m json.tool
 ```
 
 `gemini.ready` should be `true` when `GEMINI_API_KEY` is set in repo-root `.env`.
+
+### Vercel (production AI analyzer)
+
+On the **backend** service in the Vercel project, set:
+
+- `GEMINI_API_KEY` — same key as local `.env`
+- `GEMINI_MODEL` — e.g. `gemini-2.5-flash` (optional)
+
+Redeploy after pushing `backend/uv.lock` (includes `google-genai` as a core dependency). Confirm:
+
+```bash
+curl -s https://YOUR_APP.vercel.app/api/health
 ```
+
+`gemini.sdk_available` and `gemini.ready` should both be `true`.
 
 ### Frontend
 

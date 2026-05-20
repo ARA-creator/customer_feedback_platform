@@ -72,3 +72,7 @@ line_length = 100
 # See: https://vercel.com/docs/frameworks/backend/flask#exporting-the-flask-application
 [tool.vercel]
 entrypoint = "main:app"
+
+[tool.vercel.scripts]
+# Belt-and-suspenders: ensure google-genai is installed (AI analyzer + reply drafts).
+install = "pip install -r requirements.txt"

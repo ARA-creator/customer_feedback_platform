@@ -7,11 +7,9 @@ function formatGeminiError(err) {
     return 'GEMINI_API_KEY is not set. Add it to the repo-root .env and restart the backend.'
   }
   if (raw.includes("No module named 'google'") || raw.toLowerCase().includes('google-genai')) {
-    return (
-      'Google Gemini SDK is not installed in the Python environment running Flask. ' +
-      'From repo root: pip install -r backend/requirements.txt — then start the backend with ' +
-      '../.venv/bin/python run.py from the backend/ folder.'
-    )
+    return import.meta.env.PROD
+      ? 'Google Gemini SDK is missing on the server. Redeploy the backend after the latest uv.lock/requirements.txt (google-genai) and check /api/health shows gemini.sdk_available: true.'
+      : 'Google Gemini SDK is not installed in the Python environment running Flask. From repo root: pip install -r backend/requirements.txt — then start the backend with ../.venv/bin/python run.py from the backend/ folder.'
   }
   return raw
 }

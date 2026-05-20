@@ -596,6 +596,8 @@ dependencies = [
     { name = "flask" },
     { name = "flask-cors" },
     { name = "flask-limiter" },
+    { name = "google-genai" },
+    { name = "google-generativeai" },
     { name = "nltk" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pillow" },
@@ -622,8 +624,6 @@ dev = [
 integrations = [
     { name = "beautifulsoup4" },
     { name = "feedparser" },
-    { name = "google-genai" },
-    { name = "google-generativeai" },
 ]
 ml = [
     { name = "torch" },
@@ -647,8 +647,8 @@ requires-dist = [
     { name = "flask", specifier = "==3.0.3" },
     { name = "flask-cors", specifier = "==4.0.0" },
     { name = "flask-limiter", specifier = "==3.8.0" },
-    { name = "google-genai", marker = "extra == 'integrations'", specifier = "==1.73.1" },
-    { name = "google-generativeai", marker = "extra == 'integrations'", specifier = "==0.8.6" },
+    { name = "google-genai", specifier = "==1.73.1" },
+    { name = "google-generativeai", specifier = "==0.8.6" },
     { name = "nltk", specifier = "==3.9.1" },
     { name = "nltk", marker = "extra == 'nlp'", specifier = "==3.9.1" },
     { name = "pandas", marker = "extra == 'data'", specifier = "==2.2.3" },
@@ -2666,7 +2666,7 @@ name = "triton"
 version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
+    { name = "filelock", marker = "python_full_version < '3.13'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/86/17/d9a5cf4fcf46291856d1e90762e36cbabd2a56c7265da0d1d9508c8e3943/triton-3.1.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0f34f6e7885d1bf0eaaf7ba875a5f0ce6f3c13ba98f9503651c1e6dc6757ed5c", size = 209506424, upload-time = "2024-10-14T16:05:42.337Z" },
