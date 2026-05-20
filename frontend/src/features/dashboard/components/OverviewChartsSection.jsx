@@ -103,7 +103,7 @@ export default function OverviewChartsSection({
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
                 <div className="w-full h-72 sm:h-80 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
-              ) : (
+              ) : sentimentChartHasRealData ? (
                 <div className="flex flex-col items-center">
                   <div className="w-full max-w-md">
                     <div className="relative w-full aspect-square">
@@ -155,6 +155,27 @@ export default function OverviewChartsSection({
                   </div>
 
                   <SentimentLegendPills sentimentData={sentimentData} />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-md">
+                    <div className="relative w-full aspect-square">
+                      <div
+                        className="absolute inset-[10%] rounded-full border-[14px] border-gray-200 dark:border-gray-700"
+                        aria-hidden
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            Total
+                          </div>
+                          <div className="mt-0.5 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                            0
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

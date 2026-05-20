@@ -102,13 +102,6 @@ export function useDashboardDataLoader({
             color: SENTIMENT_COLORS.Neutral,
           })
         }
-        if (sentimentChartData.length === 0) {
-          sentimentChartData.push({
-            name: 'No Data',
-            value: 1,
-            color: SENTIMENT_COLORS['No Data'],
-          })
-        }
         setSentimentData(sentimentChartData)
 
         const categories = analyticsData.categories || {}
@@ -217,7 +210,7 @@ export function useDashboardDataLoader({
         console.error('Error fetching analytics:', err)
         if (!isSilent) {
           setError(formatDashboardLoadError(err, { useDevProxy: USE_DEV_API_PROXY }))
-          setSentimentData([{ name: 'Error', value: 1, color: '#d1d5db' }])
+          setSentimentData([])
           setCategoryData([{ name: 'Error', value: 0 }])
           setRecentFeedback([])
           setPriorityQueue([])

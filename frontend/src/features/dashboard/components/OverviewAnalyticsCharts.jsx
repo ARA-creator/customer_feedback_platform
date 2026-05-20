@@ -73,7 +73,7 @@ export default function OverviewAnalyticsCharts({
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
                 <div className="w-full h-[400px] bg-gray-50 rounded-xl animate-pulse" />
-              ) : (
+              ) : sentimentChartHasRealData ? (
                 <div className="flex flex-col items-center">
                   <div className="w-full max-w-md" style={{ height: '320px' }}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -118,12 +118,27 @@ export default function OverviewAnalyticsCharts({
                           <span className="text-gray-600 dark:text-gray-300">
                               {' '}
                               ({entry.value}
-                              {entry.name !== 'No Data' ? ` · ${percentage}%` : ''})
+                              {` · ${percentage}%`})
                             </span>
                           </span>
                         </div>
                       )
                     })}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-md aspect-square max-h-[320px] relative">
+                    <div
+                      className="absolute inset-[10%] rounded-full border-[14px] border-gray-200 dark:border-gray-700"
+                      aria-hidden
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</div>
+                        <div className="mt-0.5 text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">0</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
