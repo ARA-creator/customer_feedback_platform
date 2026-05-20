@@ -1,0 +1,7 @@
+# Keep serverless bundles under the 245 MB limit
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/tests
+**/*.pyc
+backend/.venv

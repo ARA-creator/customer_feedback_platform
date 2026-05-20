@@ -1,0 +1,24 @@
+# Slim production install for Vercel Functions (245 MB bundle limit).
+# Local dev: use requirements.txt (wordcloud, full NLP, tests).
+#
+# Omitted vs requirements.txt:
+# - google-generativeai (unused; pulls ~100MB google-api-python-client)
+# - wordcloud, Pillow (matplotlib/numpy; wordcloud route returns 204 without them)
+# - textblob, pytest, alembic
+
+Flask==3.0.3
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+nltk==3.9.1
+cryptography==43.0.3
+passlib[bcrypt]==1.7.4
+argon2-cffi==23.1.0
+requests==2.32.3
+python-dateutil==2.9.0.post0
+flask-cors==4.0.0
+feedparser==6.0.11
+beautifulsoup4==4.12.3
+google-genai==1.73.1
+flask-limiter==3.8.0
+email-validator==2.2.0

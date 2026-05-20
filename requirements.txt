@@ -13,7 +13,6 @@ python-dateutil==2.9.0.post0
 flask-cors==4.0.0
 feedparser==6.0.11
 beautifulsoup4==4.12.3
-google-generativeai==0.8.6
 google-genai==1.73.1
 flask-limiter==3.8.0
 email-validator==2.2.0

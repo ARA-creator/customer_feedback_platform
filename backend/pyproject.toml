@@ -19,10 +19,7 @@ dependencies = [
   "nltk==3.9.1",
   "feedparser==6.0.11",
   "beautifulsoup4==4.12.3",
-  "google-generativeai==0.8.6",
   "google-genai==1.73.1",
-  "wordcloud==1.9.4",
-  "Pillow==10.4.0",
 ]
 
 [project.optional-dependencies]
@@ -46,6 +43,10 @@ nlp = [
 assets = [
   "wordcloud==1.9.4",
   "Pillow==10.4.0",
+]
+# Legacy SDK (heavy); app uses google-genai only.
+legacy-gemini = [
+  "google-generativeai==0.8.6",
 ]
 
 # Heavy ML stack (not suitable for Vercel Functions bundle limits).
@@ -74,5 +75,4 @@ line_length = 100
 entrypoint = "main:app"
 
 [tool.vercel.scripts]
-# Belt-and-suspenders: ensure google-genai is installed (AI analyzer + reply drafts).
-install = "pip install -r requirements.txt"
+install = "pip install -r requirements-vercel.txt"

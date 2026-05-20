@@ -51,7 +51,7 @@ On the **backend** service in the Vercel project, set:
 - `GEMINI_API_KEY` — same key as local `.env`
 - `GEMINI_MODEL` — e.g. `gemini-2.5-flash` (optional)
 
-Redeploy after pushing `backend/uv.lock` (includes `google-genai` as a core dependency). Confirm:
+Production installs `backend/requirements-vercel.txt` (slim: `google-genai` only, no wordcloud/matplotlib). Redeploy after pushing that file. Confirm:
 
 ```bash
 curl -s https://YOUR_APP.vercel.app/api/health
