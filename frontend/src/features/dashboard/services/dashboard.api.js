@@ -50,7 +50,21 @@ export const getProductPulseTrend = async (params = undefined) => {
   return response.data
 }
 
-export const getWordCloudUrl = () => `${getBackendOrigin()}/api/wordcloud.png`
+export const getWordCloudUrl = (params = {}) => {
+  const base = `${getBackendOrigin()}/api/wordcloud.png`
+  const tw = params?.time_window
+  if (!tw) return base
+  return `${base}?time_window=${encodeURIComponent(String(tw))}`
+}
+
+/** Top terms for client-rendered overview word cloud (works on Vercel without wordcloud PNG). */
+export const getWordFrequencies = async (params = undefined) => {
+  const response = await api.get(
+    '/analytics/word-frequencies',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
+  return response.data
+}
 
 /** AI analysis for overview dashboard time window (all | today | week | last_week | month). */
 export const getFeedbackAnalyzer = async (params = undefined) => {

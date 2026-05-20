@@ -27,17 +27,18 @@ export default function OverviewAnalyticsCharts({
   sentimentChartHasRealData,
   sentimentData,
   categoryChartHasRealData,
-  overviewPeriod,
+  overviewInsuranceTagsCaption,
   insuranceTagsBarChartData,
   productPulse,
   trendData,
   trendYMax,
   trendAllZero,
+  overviewTrendLabels,
   onNavigateToInsights,
 }) {
-  const trendTitle = overviewPeriod?.trend?.title || 'Sentiment Trend'
+  const trendTitle = overviewTrendLabels?.title || 'Sentiment Trend'
   const trendEmptyMessage =
-    overviewPeriod?.trend?.empty ||
+    overviewTrendLabels?.empty ||
     'No feedback for the selected period. The chart shows daily counts at zero for this period.'
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -160,12 +161,12 @@ export default function OverviewAnalyticsCharts({
               >
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Insurance tags</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                  {overviewPeriod?.themes?.subtitle}
+                  {overviewInsuranceTagsCaption.subtitle}
                 </span>
               </div>
               {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  {overviewPeriod?.themes?.empty}
+                  {overviewInsuranceTagsCaption.empty}
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -223,8 +224,8 @@ export default function OverviewAnalyticsCharts({
                         labelFormatter={(label) => String(label)}
                       />
                       <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} maxBarSize={28}>
-                        {insuranceTagsBarChartData.map((entry) => (
-                          <Cell key={entry._key || entry.name} fill={entry.fill} />
+                        {insuranceTagsBarChartData.map((entry, cellIdx) => (
+                          <Cell key={`${entry._key || entry.name}-${cellIdx}`} fill={entry.fill} />
                         ))}
                       </Bar>
                     </BarChart>

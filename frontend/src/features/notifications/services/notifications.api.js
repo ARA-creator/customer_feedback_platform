@@ -14,11 +14,23 @@ export async function getUnreadCount() {
   return res.data
 }
 
+export function publishUnreadCount(unread) {
+  if (typeof window === 'undefined') return
+  try {
+    window.dispatchEvent(new CustomEvent('cfp-notifications-unread', { detail: { unread } }))
+  } catch {
+    // ignore
+  }
+}
+
 export async function markRead({ ids, all } = {}) {
   const payload = {}
   if (all) payload.all = true
   if (Array.isArray(ids)) payload.ids = ids
   const res = await api.post('/notifications/mark-read', payload)
+  if (Number.isFinite(Number(res?.data?.unread))) {
+    publishUnreadCount(res.data.unread)
+  }
   return res.data
 }
 
@@ -26,6 +38,9 @@ export async function markUnread({ ids } = {}) {
   const payload = {}
   if (Array.isArray(ids)) payload.ids = ids
   const res = await api.post('/notifications/mark-unread', payload)
+  if (Number.isFinite(Number(res?.data?.unread))) {
+    publishUnreadCount(res.data.unread)
+  }
   return res.data
 }
 

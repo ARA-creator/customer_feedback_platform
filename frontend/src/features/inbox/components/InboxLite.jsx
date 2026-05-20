@@ -1231,7 +1231,7 @@ export default function InboxLite({ onNavigate }) {
                     if (type === 'image') {
                       return (
                         <a
-                          key={`${url}-${idx}`}
+                          key={`media-${idx}-${type}`}
                           href={url}
                           target="_blank"
                           rel="noreferrer"
@@ -1256,7 +1256,7 @@ export default function InboxLite({ onNavigate }) {
                     if (type === 'video') {
                       return (
                         <div
-                          key={`${url}-${idx}`}
+                          key={`media-${idx}-${type}`}
                           className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
                         >
                           <video controls src={url} className="h-40 w-full object-cover" />
@@ -1269,7 +1269,7 @@ export default function InboxLite({ onNavigate }) {
                     if (type === 'audio') {
                       return (
                         <div
-                          key={`${url}-${idx}`}
+                          key={`media-${idx}-${type}`}
                           className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950"
                         >
                           <audio controls src={url} className="w-full" />

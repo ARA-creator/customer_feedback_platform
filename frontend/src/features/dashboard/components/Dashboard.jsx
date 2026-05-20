@@ -42,7 +42,10 @@ import { buildSourceTrendColorMap } from '../utils/dashboardCharts'
 import {
   computeKpiTrackPercent,
   computeTrendYStats,
-  getOverviewPeriodConfig,
+  getOverviewPeriodContext,
+  getOverviewThemesCaption,
+  getOverviewTimeFilterLabel,
+  getOverviewTrendLabels,
 } from '../utils/dashboardDerived'
 import OverviewMetricCards from './OverviewMetricCards'
 import OverviewChartsSection from './OverviewChartsSection'
@@ -244,10 +247,9 @@ function Dashboard({
   const [heatmapHover, setHeatmapHover] = useState(null)
 
   /** Subtitle/empty copy for the overview Insurance tags chart (aligns with API window). */
-  const overviewPeriod = useMemo(
-    () => getOverviewPeriodConfig(overviewTimeFilter),
-    [overviewTimeFilter],
-  )
+  const overviewInsuranceTagsCaption = useMemo(() => {
+    return getOverviewThemesCaption(overviewTimeFilter)
+  }, [overviewTimeFilter])
 
   /** Share of total feedback for KPI bottom track (0–100). */
   const kpiTrackPercent = useMemo(() => computeKpiTrackPercent(metrics), [metrics])
@@ -406,7 +408,20 @@ function Dashboard({
     inboxFilters,
     getStatus,
   })
-  const overviewTimeFilterLabel = overviewPeriod.label
+  const overviewTimeFilterLabel = useMemo(
+    () => getOverviewTimeFilterLabel(overviewTimeFilter),
+    [overviewTimeFilter],
+  )
+
+  const overviewTrendLabels = useMemo(
+    () => getOverviewTrendLabels(overviewTimeFilter),
+    [overviewTimeFilter],
+  )
+
+  const overviewPeriodContext = useMemo(
+    () => getOverviewPeriodContext(overviewTimeFilter),
+    [overviewTimeFilter],
+  )
 
   const handleOpenAnalyzer = async () => {
     setAnalyzerOpen(true)
@@ -435,7 +450,6 @@ function Dashboard({
     sentimentData,
     categoryData,
     trendData,
-    overviewPeriod,
     recentFeedback,
     priorityQueue,
     buildDashboardSummaryCsv,
@@ -553,7 +567,6 @@ function Dashboard({
           <OverviewMetricCards
             metrics={metrics}
             kpiTrackPercent={kpiTrackPercent}
-            periodHint={overviewPeriod.metricsHint}
             analyticsLoading={analyticsLoading}
             analyticsDelayPassed={analyticsDelayPassed}
             navigateToInboxPreset={navigateToInboxPreset}
@@ -569,13 +582,15 @@ function Dashboard({
               sentimentChartHasRealData={sentimentChartHasRealData}
               categoryChartHasRealData={categoryChartHasRealData}
               sentimentData={sentimentData}
-              overviewPeriod={overviewPeriod}
+              overviewInsuranceTagsCaption={overviewInsuranceTagsCaption}
               insuranceTagsBarChartData={insuranceTagsBarChartData}
               isDarkMode={isDarkMode}
               productPulse={productPulse}
               trendData={trendData}
               trendYMax={trendYMax}
               trendAllZero={trendAllZero}
+              overviewTrendLabels={overviewTrendLabels}
+              overviewPeriodContext={overviewPeriodContext}
               onNavigateToInsights={onNavigateToInsights}
             />
           )}
@@ -617,7 +632,8 @@ function Dashboard({
               analyticsDelayPassed={analyticsDelayPassed}
               isDarkMode={isDarkMode}
               sourcePerformance={sourcePerformance}
-              overviewPeriod={overviewPeriod}
+              overviewTimeFilter={overviewTimeFilter}
+              overviewPeriodContext={overviewPeriodContext}
             />
           )}
         </>

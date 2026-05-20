@@ -123,14 +123,38 @@ function Sidebar({
     }
   }, [])
 
+  const applyUnreadFromServer = useCallback((n) => {
+    const v = Number(n)
+    setNotificationsUnread(Number.isFinite(v) && v >= 0 ? v : 0)
+  }, [])
+
   useEffect(() => {
+    const refreshUnread = () => {
+      getUnreadCount()
+        .then((res) => applyUnreadFromServer(res?.unread))
+        .catch(() => {})
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refreshUnread()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('cfp-notifications-unread', refreshUnread)
+
     const cleanup = connectNotificationsStream((evt) => {
+      if (evt?.type === 'notification.unread_count' && Number.isFinite(Number(evt.unread))) {
+        applyUnreadFromServer(evt.unread)
+        return
+      }
       if (evt?.type === 'notification.created' && Number.isFinite(Number(evt.unread))) {
-        setNotificationsUnread(Number(evt.unread))
+        applyUnreadFromServer(evt.unread)
       }
     })
-    return cleanup
-  }, [])
+    return () => {
+      cleanup()
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('cfp-notifications-unread', refreshUnread)
+    }
+  }, [applyUnreadFromServer])
 
   const setCollapsed = useCallback((v) => {
     setRailCollapsed(v)

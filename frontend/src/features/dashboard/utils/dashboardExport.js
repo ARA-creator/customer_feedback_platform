@@ -4,19 +4,9 @@ function csvEscape(value) {
   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
 }
 
-export function buildDashboardSummaryCsv({
-  metrics,
-  sentimentData,
-  categoryData,
-  trendData,
-  periodLabel,
-  trendExportHeader,
-}) {
+export function buildDashboardSummaryCsv({ metrics, sentimentData, categoryData, trendData }) {
   const rows = []
   rows.push(['Section', 'Key', 'Value'])
-  if (periodLabel) {
-    rows.push(['Period', 'Filter', periodLabel])
-  }
   rows.push(['Metrics', 'Total feedback', metrics?.totalFeedback ?? 0])
   rows.push(['Metrics', 'Positive', metrics?.positive ?? 0])
   rows.push(['Metrics', 'Negative', metrics?.negative ?? 0])
@@ -32,7 +22,7 @@ export function buildDashboardSummaryCsv({
 
   const header = ['date', 'total', 'positive', 'negative', 'neutral']
   rows.push([])
-  rows.push([trendExportHeader || 'Trends'])
+  rows.push(['Trends (last 30 days)'])
   rows.push(header)
   ;(trendData || []).forEach((t) => {
     rows.push([t?.date || '', t?.total ?? '', t?.positive ?? '', t?.negative ?? '', t?.neutral ?? ''])

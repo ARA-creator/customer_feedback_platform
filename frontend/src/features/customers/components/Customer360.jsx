@@ -46,30 +46,33 @@ function extractUrls(text) {
 
 function renderLinkedText(text) {
   const s = String(text || '')
-  const urls = extractUrls(s)
-  if (!urls.length) return s
+  const re = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi
   const parts = []
-  let cursor = 0
-  for (const url of urls) {
-    const idx = s.indexOf(url, cursor)
-    if (idx === -1) continue
-    if (idx > cursor) parts.push(s.slice(cursor, idx))
+  let last = 0
+  let m
+  let linkIdx = 0
+  while ((m = re.exec(s))) {
+    const start = m.index
+    const raw = m[0]
+    const url = raw.startsWith('http') ? raw : `https://${raw}`
+    if (start > last) parts.push(s.slice(last, start))
     parts.push(
       <a
-        key={`${url}-${idx}`}
+        key={`link-${linkIdx}-${start}`}
         href={url}
         target="_blank"
         rel="noreferrer"
         className="text-[#009750] hover:underline break-words"
         onClick={(e) => e.stopPropagation()}
       >
-        {url}
+        {raw}
       </a>,
     )
-    cursor = idx + url.length
+    linkIdx += 1
+    last = start + raw.length
   }
-  if (cursor < s.length) parts.push(s.slice(cursor))
-  return parts
+  if (last < s.length) parts.push(s.slice(last))
+  return parts.length ? parts : s
 }
 
 export default function Customer360({ onNavigate }) {

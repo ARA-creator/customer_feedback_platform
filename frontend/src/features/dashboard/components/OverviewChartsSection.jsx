@@ -63,7 +63,7 @@ function SentimentLegendPills({ sentimentData }) {
 }
 
 /**
- * Overview dashboard charts: sentiment pie, insurance tags, product pulse, sentiment trend.
+ * Overview dashboard charts: sentiment pie, insurance tags, product pulse, 30d sentiment trend.
  */
 export default function OverviewChartsSection({
   isCx,
@@ -72,18 +72,20 @@ export default function OverviewChartsSection({
   sentimentChartHasRealData,
   categoryChartHasRealData,
   sentimentData,
-  overviewPeriod,
+  overviewInsuranceTagsCaption,
   insuranceTagsBarChartData,
   isDarkMode,
   productPulse,
   trendData,
   trendYMax,
   trendAllZero,
+  overviewTrendLabels,
+  overviewPeriodContext,
   onNavigateToInsights,
 }) {
-  const trendTitle = overviewPeriod?.trend?.title || 'Sentiment Trend'
+  const trendTitle = overviewTrendLabels?.title || 'Sentiment Trend'
   const trendEmptyMessage =
-    overviewPeriod?.trend?.empty ||
+    overviewTrendLabels?.empty ||
     'No feedback for the selected period. The chart shows daily counts at zero for this period.'
   return (
     <>
@@ -196,12 +198,12 @@ export default function OverviewChartsSection({
               >
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Themes</h2>
                 <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                  {overviewPeriod?.themes?.subtitle}
+                  {overviewInsuranceTagsCaption.subtitle}
                 </span>
               </div>
               {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  {overviewPeriod?.themes?.empty}
+                  {overviewInsuranceTagsCaption.empty}
                 </p>
               )}
               {analyticsLoading || !analyticsDelayPassed ? (
@@ -259,8 +261,8 @@ export default function OverviewChartsSection({
                         labelFormatter={(label) => String(label)}
                       />
                       <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} maxBarSize={28}>
-                        {insuranceTagsBarChartData.map((entry) => (
-                          <Cell key={entry._key || entry.name} fill={entry.fill} />
+                        {insuranceTagsBarChartData.map((entry, cellIdx) => (
+                          <Cell key={`${entry._key || entry.name}-${cellIdx}`} fill={entry.fill} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -276,14 +278,14 @@ export default function OverviewChartsSection({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Product breakdown</h2>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {overviewPeriod?.productPulse?.subtitle}
+                {overviewPeriodContext?.productSubtitle || 'Volume by product'}
               </span>
             </div>
             {analyticsLoading || !analyticsDelayPassed ? (
               <div className="w-full h-64 sm:h-72 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
             ) : productPulse.length === 0 ? (
               <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-                {overviewPeriod?.productPulse?.empty}
+                No product/policy matches in this time window yet.
               </p>
             ) : (
               <div className="mt-4" style={{ height: `${Math.max(280, Math.min(520, productPulse.length * 42 + 120))}px` }}>

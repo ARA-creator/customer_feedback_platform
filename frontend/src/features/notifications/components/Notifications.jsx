@@ -107,6 +107,23 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     })
   }
 
+  const markAllRead = async () => {
+    if (!unread) return
+    try {
+      const res = await markRead({ all: true })
+      setUnread((prev) => {
+        const server = Number(res?.unread)
+        if (Number.isFinite(server)) return Math.max(0, server)
+        return 0
+      })
+      const nowIso = new Date().toISOString()
+      setItems((prev) => prev.map((x) => ({ ...x, read_at: x.read_at || nowIso })))
+      clearSelection()
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to mark all as read')
+    }
+  }
+
   const markSelectedRead = async () => {
     const ids = Array.from(selectedIds).filter(Boolean)
     const unreadSet = new Set(unreadItems.map((n) => n.id).filter(Boolean))
@@ -236,6 +253,16 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           >
             <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
           </button>
+          {unread > 0 && (
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-[#009750]/30 bg-[#009750]/10 px-3 py-2 text-xs font-semibold text-[#009750] shadow-sm hover:bg-[#009750]/15 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200"
+              title="Mark all as read"
+            >
+              Mark all read
+            </button>
+          )}
           <button
             type="button"
             disabled={selectedCount === 0}

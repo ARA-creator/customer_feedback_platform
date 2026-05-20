@@ -5,7 +5,6 @@ export function useDashboardExports({
   sentimentData,
   categoryData,
   trendData,
-  overviewPeriod,
   recentFeedback,
   priorityQueue,
   buildDashboardSummaryCsv,
@@ -15,18 +14,10 @@ export function useDashboardExports({
 }) {
   const exportOverviewCsv = useCallback(() => {
     try {
-      const csv = buildDashboardSummaryCsv({
-        metrics,
-        sentimentData,
-        categoryData,
-        trendData,
-        periodLabel: overviewPeriod?.label,
-        trendExportHeader: overviewPeriod?.trend?.exportHeader,
-      })
-      const suffix = overviewPeriod?.exportFilenameSuffix || 'overview'
+      const csv = buildDashboardSummaryCsv({ metrics, sentimentData, categoryData, trendData })
       downloadTextFile({
         contents: csv,
-        filename: `feedback_dashboard_${suffix}_${new Date().toISOString().slice(0, 10)}.csv`,
+        filename: `feedback_dashboard_${new Date().toISOString().slice(0, 10)}.csv`,
         mime: 'text/csv;charset=utf-8;',
       })
       pushToast?.('Export ready', 'Dashboard summary CSV downloaded.', 'success')
@@ -42,7 +33,6 @@ export function useDashboardExports({
     pushToast,
     sentimentData,
     trendData,
-    overviewPeriod,
   ])
 
   const exportInboxCsv = useCallback(() => {
