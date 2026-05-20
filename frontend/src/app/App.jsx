@@ -18,8 +18,6 @@ import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
-import VerifyEmailPage from '../pages/auth/VerifyEmail'
-import ResetPasswordPage from '../pages/auth/ResetPassword'
 import SettingsPage from '../pages/settings/SettingsPage'
 
 function playNotificationBeep() {
@@ -189,14 +187,11 @@ function App() {
   }
 
   if (!isAuthed) {
-    // Deep-link routes used by email verification + password reset.
     if (typeof window !== 'undefined') {
       const path = window.location.pathname || ''
-      if (path.startsWith('/verify-email')) {
-        return <VerifyEmailPage onDone={() => window.location.assign('/')} />
-      }
-      if (path.startsWith('/reset-password')) {
-        return <ResetPasswordPage onDone={() => window.location.assign('/')} />
+      if (path.startsWith('/verify-email') || path.startsWith('/reset-password')) {
+        window.location.replace('/')
+        return <AuthLoadingScreen />
       }
     }
     return (

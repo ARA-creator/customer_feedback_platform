@@ -23,31 +23,6 @@ export const authLogout = async () => {
   return response.data
 }
 
-export const authVerifyEmail = async ({ email, code }) => {
-  const response = await api.post('/auth/verify-email', { email, code })
-  return response.data
-}
-
-export const authResendVerification = async ({ email }) => {
-  const response = await api.post('/auth/resend-verification', { email })
-  return response.data
-}
-
-export const authForgotPassword = async ({ email }) => {
-  const response = await api.post('/auth/forgot-password', { email })
-  return response.data
-}
-
-export const authVerifyResetCode = async ({ email, code }) => {
-  const response = await api.post('/auth/verify-reset-code', { email, code })
-  return response.data
-}
-
-export const authResetPassword = async ({ email, code, password }) => {
-  const response = await api.post('/auth/reset-password', { email, code, password })
-  return response.data
-}
-
 export const authChangePassword = async ({ current_password, new_password, confirm_password }) => {
   const response = await api.post('/auth/change-password', {
     current_password,

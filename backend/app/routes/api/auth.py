@@ -65,6 +65,15 @@ def _validate_password(pw: str) -> str | None:
     return None
 
 
+def _email_verification_enabled() -> bool:
+    return bool(current_app.config.get("REQUIRE_EMAIL_VERIFICATION"))
+
+
+def _password_reset_enabled() -> bool:
+    # OTP reset is tied to the same flag for now; re-enable both via REQUIRE_EMAIL_VERIFICATION=true.
+    return _email_verification_enabled()
+
+
 def _check_password_reset_code(user: User | None, code: str) -> str | None:
     """Return an error message if the reset code is invalid, else None."""
     if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
@@ -122,7 +131,7 @@ def auth_me():
         user = _current_user(db)
         if not user:
             return jsonify({"authenticated": False}), 200
-        if not getattr(user, "email_verified_at", None):
+        if _email_verification_enabled() and not getattr(user, "email_verified_at", None):
             return jsonify({"authenticated": False, "error": "Email not verified"}), 401
         perms = sorted(_user_permission_keys(db, user.id))
         csrf = _ensure_csrf()
@@ -163,6 +172,8 @@ def auth_signup():
         if exists:
             return jsonify({"error": "Account already exists"}), 409
 
+        now = datetime.now(tz=timezone.utc)
+        verify_required = _email_verification_enabled()
         user = User(
             email=email,
             password_hash=argon2.hash(password),
@@ -170,6 +181,7 @@ def auth_signup():
             role=role_name,
             email_verification_nonce=secrets.token_hex(16),
             password_reset_nonce=secrets.token_hex(16),
+            email_verified_at=None if verify_required else now,
         )
         db.add(user)
         db.commit()
@@ -187,22 +199,23 @@ def auth_signup():
                 db.add(UserRole(user_id=user.id, role_id=r.id))
                 db.commit()
 
-        # Email: welcome + verification (no session until email is verified)
         try:
             tpl = welcome_email(name=user.full_name or "", email=user.email)
             send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
         except Exception:
             pass
 
-        try:
-            _issue_email_verification_code(db, user)
-        except Exception:
-            pass
+        if verify_required:
+            try:
+                _issue_email_verification_code(db, user)
+            except Exception:
+                pass
+            return (
+                jsonify({"ok": True, "needs_email_verification": True, "email": user.email}),
+                201,
+            )
 
-        return (
-            jsonify({"ok": True, "needs_email_verification": True, "email": user.email}),
-            201,
-        )
+        return jsonify({"ok": True, "email": user.email}), 201
     finally:
         db.close()
 
@@ -252,7 +265,7 @@ def auth_login():
             return jsonify({"error": "No account found"}), 404
         if getattr(user, "is_active", True) is False:
             return jsonify({"error": "Account is suspended"}), 403
-        if not getattr(user, "email_verified_at", None):
+        if _email_verification_enabled() and not getattr(user, "email_verified_at", None):
             return (
                 jsonify(
                     {
@@ -343,6 +356,8 @@ def auth_change_password():
 @api_bp.route("/auth/verify-email", methods=["POST"])
 @limiter.limit("10 per minute")
 def auth_verify_email():
+    if not _email_verification_enabled():
+        return jsonify({"error": "Email verification is disabled"}), 410
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     code = str(payload.get("code") or "").strip()
@@ -383,6 +398,8 @@ def auth_verify_email():
 @api_bp.route("/auth/resend-verification", methods=["POST"])
 @limiter.limit("5 per minute")
 def auth_resend_verification():
+    if not _email_verification_enabled():
+        return jsonify({"error": "Email verification is disabled"}), 410
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     if not email_raw:
@@ -411,6 +428,8 @@ def auth_resend_verification():
 @api_bp.route("/auth/forgot-password", methods=["POST"])
 @limiter.limit("5 per minute")
 def auth_forgot_password():
+    if not _password_reset_enabled():
+        return jsonify({"error": "Password reset is temporarily disabled. Contact an administrator."}), 503
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     if not email_raw:
@@ -443,6 +462,8 @@ def auth_forgot_password():
 @api_bp.route("/auth/verify-reset-code", methods=["POST"])
 @limiter.limit("10 per minute")
 def auth_verify_reset_code():
+    if not _password_reset_enabled():
+        return jsonify({"error": "Password reset is temporarily disabled. Contact an administrator."}), 503
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     code = str(payload.get("code") or "").strip()
@@ -467,6 +488,8 @@ def auth_verify_reset_code():
 @api_bp.route("/auth/reset-password", methods=["POST"])
 @limiter.limit("5 per minute")
 def auth_reset_password():
+    if not _password_reset_enabled():
+        return jsonify({"error": "Password reset is temporarily disabled. Contact an administrator."}), 503
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     code = str(payload.get("code") or "").strip()

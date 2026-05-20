@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import quote_plus
 from typing import Any, Dict, List, Optional
 
-from flask import jsonify, make_response, request, session
+from flask import current_app, jsonify, make_response, request, session
 from sqlalchemy import asc, desc, func, or_
 from sqlalchemy import create_engine, text as sql_text
 from werkzeug.security import generate_password_hash
@@ -913,7 +913,13 @@ def admin_users():
             or (normalize_role_name(roles_in[0]) if roles_in else None)
             or "agent"
         )
-        user = User(email=email, password_hash=generate_password_hash(password), role=primary_role)
+        verify_required = bool(current_app.config.get("REQUIRE_EMAIL_VERIFICATION"))
+        user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            role=primary_role,
+            email_verified_at=None if verify_required else datetime.now(tz=timezone.utc),
+        )
         db.add(user)
         db.commit()
         db.refresh(user)

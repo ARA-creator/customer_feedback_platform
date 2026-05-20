@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FiEye, FiEyeOff, FiShield, FiBookOpen } from 'react-icons/fi'
-import { authForgotPassword, authLogin, authSignup } from '../services/auth.api'
+import { authLogin, authSignup } from '../services/auth.api'
 import { ToastStack } from '../../../shared/components/ui'
-import AuthResetInline from './AuthResetInline'
-import AuthVerifyFlow from './AuthVerifyFlow'
 
 const ROLE_OPTIONS = [
   { value: 'management', label: 'Management' },
@@ -52,11 +50,8 @@ function PasswordInput({ value, onChange, placeholder, autoComplete }) {
 }
 
 export default function AuthShell({ onAuthenticated }) {
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'reset' | 'verify'
+  const [mode, setMode] = useState('login') // 'login' | 'signup'
   const isSignup = mode === 'signup'
-  const isReset = mode === 'reset'
-  const isVerify = mode === 'verify'
-  const isCodeFlow = isReset || isVerify
 
   const [info, setInfo] = useState(null)
   const [email, setEmail] = useState('')
@@ -65,8 +60,6 @@ export default function AuthShell({ onAuthenticated }) {
   const [role, setRole] = useState('agent')
   const [error, setError] = useState(null)
   const [toasts, setToasts] = useState([])
-  const [resetCodeSent, setResetCodeSent] = useState(false)
-  const [verifyCodeSent, setVerifyCodeSent] = useState(false)
 
   const formatApiErrorMessage = (err, fallback) => {
     const apiErr = err?.response?.data?.error
@@ -109,11 +102,6 @@ export default function AuthShell({ onAuthenticated }) {
     )
   }, [email, password, confirmPassword, role, isSignup])
 
-  const submit = (e) => {
-    // handled async below
-    e.preventDefault()
-  }
-
   const submitAsync = async (e) => {
     e.preventDefault()
     setError(null)
@@ -145,19 +133,20 @@ export default function AuthShell({ onAuthenticated }) {
 
       try {
         await authSignup({ email: normalizedEmail, password, role })
+        setPassword('')
+        setConfirmPassword('')
+        setMode('login')
+        setInfo('Account created. Sign in with your email and password.')
         setToasts((t) => [
           {
             id: `${Date.now()}-signup`,
             type: 'success',
             title: 'Account created',
-            message: 'Check your inbox for a 6-digit verification code.',
+            message: 'Sign in with your password to continue.',
             ttlMs: 4500,
           },
           ...t,
         ])
-        setVerifyCodeSent(true)
-        setInfo(null)
-        setMode('verify')
         return
       } catch (err) {
         const status = err?.response?.status
@@ -187,13 +176,6 @@ export default function AuthShell({ onAuthenticated }) {
         setError('Incorrect password. Please try again.')
         return
       }
-      if (status === 403 && err?.response?.data?.needs_email_verification) {
-        setVerifyCodeSent(true)
-        setMode('verify')
-        setError(null)
-        setInfo(null)
-        return
-      }
       setError(formatApiErrorMessage(err, 'Unable to sign in. Please try again.'))
     }
   }
@@ -205,7 +187,6 @@ export default function AuthShell({ onAuthenticated }) {
         onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))}
       />
       <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2">
-        {/* Left hero */}
         <div className="hidden lg:flex relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_10%_10%,rgba(0,151,80,0.18),transparent_55%),radial-gradient(900px_500px_at_90%_30%,rgba(16,185,129,0.18),transparent_55%),linear-gradient(180deg,#ffffff,rgba(248,250,252,1))]" />
           <div className="relative z-10 flex flex-col justify-between p-10">
@@ -257,7 +238,6 @@ export default function AuthShell({ onAuthenticated }) {
           </div>
         </div>
 
-        {/* Right card */}
         <div className="flex items-start sm:items-center justify-center px-4 py-8 sm:p-6 lg:p-10">
           <div className="w-full max-w-md">
             <div className="card p-6 lg:p-7 bg-white/90 dark:bg-gray-950/70">
@@ -271,16 +251,14 @@ export default function AuthShell({ onAuthenticated }) {
                 </div>
               </div>
 
-              {!isCodeFlow && (
-                <div className="mt-6">
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    {isSignup ? 'Create your account' : 'Welcome back'}
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {isSignup ? 'Sign up to get started' : 'Sign in to continue'}
-                  </p>
-                </div>
-              )}
+              <div className="mt-6">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {isSignup ? 'Create your account' : 'Welcome back'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {isSignup ? 'Sign up to get started' : 'Sign in to continue'}
+                </p>
+              </div>
 
               {error && (
                 <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -293,88 +271,7 @@ export default function AuthShell({ onAuthenticated }) {
                 </div>
               )}
 
-              {isReset && (
-                <div className="mt-6">
-                  <AuthResetInline
-                    email={email}
-                    onEmailChange={setEmail}
-                    showEmailField={false}
-                    codeSent={resetCodeSent}
-                    onBack={() => {
-                      setMode('login')
-                      setResetCodeSent(false)
-                      setError(null)
-                      setInfo(null)
-                    }}
-                    onSuccess={() => {
-                      setMode('login')
-                      setPassword('')
-                      setInfo('Password updated. Sign in with your new password.')
-                      setToasts((t) => [
-                        {
-                          id: `${Date.now()}-reset-ok`,
-                          type: 'success',
-                          title: 'Password updated',
-                          message: 'You can sign in now.',
-                          ttlMs: 4000,
-                        },
-                        ...t,
-                      ])
-                    }}
-                  />
-                </div>
-              )}
-
-              {isVerify && (
-                <div className="mt-6">
-                  <AuthVerifyFlow
-                    email={email}
-                    onEmailChange={setEmail}
-                    showEmailField={false}
-                    codeSent={verifyCodeSent}
-                    onBack={() => {
-                      setMode('login')
-                      setVerifyCodeSent(false)
-                      setError(null)
-                      setInfo(null)
-                    }}
-                    onSuccess={async () => {
-                      const loginEmail = email.trim().toLowerCase()
-                      try {
-                        const data = await authLogin({ email: loginEmail, password })
-                        setToasts((t) => [
-                          {
-                            id: `${Date.now()}-verify-ok`,
-                            type: 'success',
-                            title: 'Email verified',
-                            message: 'Welcome to Customer Pulse.',
-                            ttlMs: 4000,
-                          },
-                          ...t,
-                        ])
-                        onAuthenticated?.(data?.user || { email: loginEmail })
-                      } catch {
-                        setMode('login')
-                        setInfo('Email verified. Sign in with your password.')
-                        setToasts((t) => [
-                          {
-                            id: `${Date.now()}-verify-ok`,
-                            type: 'success',
-                            title: 'Email verified',
-                            message: 'Sign in to continue.',
-                            ttlMs: 4000,
-                          },
-                          ...t,
-                        ])
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {!isCodeFlow && (
               <form onSubmit={submitAsync} className="mt-6 space-y-4">
-                {/* Helps browser password managers associate username+password (accessibility). */}
                 <input
                   type="text"
                   name="username"
@@ -446,48 +343,13 @@ export default function AuthShell({ onAuthenticated }) {
                   {isSignup ? 'Create account' : 'Continue'}
                 </button>
               </form>
+
+              {!isSignup && (
+                <p className="mt-3 text-xs text-gray-500">
+                  Forgot your password? Contact your administrator to reset it.
+                </p>
               )}
 
-              {!isCodeFlow && !isSignup && (
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-gray-600 hover:text-gray-900"
-                    onClick={async () => {
-                      setError(null)
-                      setInfo(null)
-                      const normalizedEmail = email.trim().toLowerCase()
-                      if (!normalizedEmail) {
-                        setError('Enter your email above first.')
-                        return
-                      }
-                      try {
-                        await authForgotPassword({ email: normalizedEmail })
-                        setResetCodeSent(true)
-                        setMode('reset')
-                        setInfo(null)
-                        setError(null)
-                        setToasts((t) => [
-                          {
-                            id: `${Date.now()}-forgot`,
-                            type: 'info',
-                            title: 'Check your inbox',
-                            message: 'Enter the 6-digit code below to reset your password.',
-                            ttlMs: 5000,
-                          },
-                          ...t,
-                        ])
-                      } catch (err) {
-                        setError(formatApiErrorMessage(err, 'Could not send reset email.'))
-                      }
-                    }}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-              )}
-
-              {!isCodeFlow && (
               <div className="mt-5 text-center text-sm text-gray-600">
                 {isSignup ? (
                   <>
@@ -497,6 +359,7 @@ export default function AuthShell({ onAuthenticated }) {
                       onClick={() => {
                         setMode('login')
                         setError(null)
+                        setInfo(null)
                       }}
                       className="font-semibold text-[#009750] hover:text-[#007a42]"
                     >
@@ -511,6 +374,7 @@ export default function AuthShell({ onAuthenticated }) {
                       onClick={() => {
                         setMode('signup')
                         setError(null)
+                        setInfo(null)
                       }}
                       className="font-semibold text-[#009750] hover:text-[#007a42]"
                     >
@@ -519,7 +383,6 @@ export default function AuthShell({ onAuthenticated }) {
                   </>
                 )}
               </div>
-              )}
             </div>
 
             <p className="mt-4 text-center text-xs text-gray-500">
@@ -531,4 +394,3 @@ export default function AuthShell({ onAuthenticated }) {
     </div>
   )
 }
-
