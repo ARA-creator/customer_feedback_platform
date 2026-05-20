@@ -9,8 +9,13 @@ from ..core.config import get_config
 logger = logging.getLogger(__name__)
 
 
-def _smtp_is_configured(cfg) -> bool:
+def smtp_is_configured(cfg=None) -> bool:
+    cfg = cfg or get_config()
     return bool(cfg.SMTP_HOST and cfg.SMTP_FROM_EMAIL and cfg.SMTP_USERNAME and cfg.SMTP_PASSWORD)
+
+
+def _smtp_is_configured(cfg) -> bool:
+    return smtp_is_configured(cfg)
 
 
 def send_email(

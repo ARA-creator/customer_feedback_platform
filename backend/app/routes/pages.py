@@ -1,7 +1,7 @@
 import io
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, Response
 from sqlalchemy import func, desc
@@ -13,6 +13,7 @@ from ..security import decrypt_text, encrypt_text, hash_email
 from ..services.policy_detection import detect_policies
 from ..services.insurance_tags import categorize_insurance_tags
 from ..sentiment_analyzer import analyze_sentiment
+from ..services.analytics_time_window import parse_overview_time_window
 from ..utils.wordcloud_gen import generate_wordcloud
 
 logger = logging.getLogger(__name__)
@@ -151,11 +152,21 @@ def wordcloud_image():
     """Generate and return word cloud image from all feedback messages."""
     db = SessionLocal()
     try:
-        # Get all feedback messages (excluding soft-deleted)
+        now = datetime.now(tz=timezone.utc)
+        time_window = (request.args.get("time_window") or "").strip().lower()
+        filter_from = None
+        filter_to = None
+        if time_window in ("all", "today", "week", "last_week", "month"):
+            _, filter_from, filter_to, _, _ = parse_overview_time_window(time_window, now=now)
+
+        q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+        if filter_from is not None:
+            q = q.filter(Feedback.created_at >= filter_from)
+        if filter_to is not None:
+            q = q.filter(Feedback.created_at < filter_to)
+
         feedback_items = (
-            db.query(Feedback)
-            .filter(Feedback.deleted_at.is_(None))
-            .order_by(Feedback.created_at.desc())
+            q.order_by(Feedback.created_at.desc())
             .limit(1000)  # Include more sources; keep bounded for performance
             .all()
         )

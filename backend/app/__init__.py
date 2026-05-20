@@ -358,7 +358,7 @@ def create_app() -> Flask:
         except Exception:
             return False
         feeds = normalize_feed_list(getattr(config, "WEB_MONITOR_RSS_FEEDS", ""))
-        enabled = bool(getattr(config, "WEB_MONITOR_ENABLED", False) or (getattr(config, "ENV", "development") == "development" and bool(feeds)))
+        enabled = bool(getattr(config, "WEB_MONITOR_ENABLED", False))
         return enabled and bool(feeds)
 
     def _should_start_x_poller() -> bool:

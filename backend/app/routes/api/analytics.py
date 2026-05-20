@@ -15,8 +15,10 @@ from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch
+from ...security import decrypt_text
 from ...services.analytics_time_window import parse_overview_time_window
 from ...services.metadata_normalization import normalize_channel_metadata
+from ...services.wordcloud import word_frequencies
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
 
@@ -71,35 +73,14 @@ def get_analytics():
         now = datetime.now(tz=timezone.utc)
 
         time_window = (request.args.get("time_window") or "all").strip().lower()
-        if time_window not in ("all", "today", "week", "last_week", "month"):
-            time_window = "all"
+        tw, filter_from, filter_to, _time_label, range_days = parse_overview_time_window(time_window, now=now)
+        time_window = tw
 
-        filter_from = None
-        filter_to = None
-        if time_window == "today":
-            filter_from = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        elif time_window == "week":
-            filter_from = now - timedelta(days=7)
-        elif time_window == "last_week":
-            weekday = now.weekday()
-            start_this_week = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) - timedelta(days=weekday)
-            filter_from = start_this_week - timedelta(days=7)
-            filter_to = start_this_week
-        elif time_window == "month":
-            filter_from = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-
-        req_range = request.args.get("range_days", type=int) or 30
         if time_window == "all":
+            req_range = request.args.get("range_days", type=int) or 30
             range_days = req_range if req_range in (7, 30, 90) else 30
-            start_range = now - timedelta(days=range_days)
-        else:
-            if time_window == "today":
-                range_days = 1
-            elif time_window in ("week", "last_week"):
-                range_days = 7
-            else:
-                range_days = min((now.date() - filter_from.date()).days + 1, 62)
-            start_range = filter_from
+            filter_from = now - timedelta(days=range_days)
+            filter_to = None
 
         pf_prefix = (request.args.get("product_prefix") or "").strip()
         pf_group_raw = request.args.get("product_group")
@@ -144,14 +125,15 @@ def get_analytics():
         day_col = func.date(Feedback.created_at)
         daily_rows = (
             _pf(
-                db.query(
-                    day_col.label("day"),
-                    Feedback.sentiment_label,
-                    func.count(Feedback.id),
+                _apply_created_filter(
+                    db.query(
+                        day_col.label("day"),
+                        Feedback.sentiment_label,
+                        func.count(Feedback.id),
+                    )
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
                 )
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
             )
             .group_by(day_col, Feedback.sentiment_label)
             .order_by(day_col)
@@ -173,15 +155,23 @@ def get_analytics():
             bucket[sentiment_key] += count
             bucket["total"] += count
 
-        end_day = now.date()
+        if filter_to is not None:
+            chart_end = filter_to.date() - timedelta(days=1)
+        else:
+            chart_end = now.date()
+        if filter_from is not None:
+            chart_start = filter_from.date()
+        else:
+            chart_start = chart_end - timedelta(days=max(range_days - 1, 0))
         trends_filled: list[Dict[str, Any]] = []
-        for i in range(range_days - 1, -1, -1):
-            d = end_day - timedelta(days=i)
+        d = chart_start
+        while d <= chart_end:
             key = d.isoformat()
             if key in trends_map:
                 trends_filled.append(trends_map[key])
             else:
                 trends_filled.append({"date": key, "positive": 0, "negative": 0, "neutral": 0, "total": 0})
+            d += timedelta(days=1)
         trends = trends_filled
 
         def _avg_age_hours(query):
@@ -210,10 +200,11 @@ def get_analytics():
 
         recent_times = (
             _pf(
-                db.query(Feedback.created_at, Feedback.sentiment_label)
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
+                _apply_created_filter(
+                    db.query(Feedback.created_at, Feedback.sentiment_label)
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                )
             )
             .all()
         )
@@ -298,11 +289,12 @@ def get_analytics():
 
         category_trend_rows = (
             _pf(
-                db.query(func.date(Feedback.created_at).label("day"), Feedback.category, func.count(Feedback.id))
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
-                .filter(Feedback.category.isnot(None))
+                _apply_created_filter(
+                    db.query(func.date(Feedback.created_at).label("day"), Feedback.category, func.count(Feedback.id))
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                    .filter(Feedback.category.isnot(None))
+                )
             )
             .group_by("day", Feedback.category)
             .order_by("day")
@@ -316,10 +308,11 @@ def get_analytics():
 
         source_trend_rows = (
             _pf(
-                db.query(func.date(Feedback.created_at).label("day"), Feedback.source, func.count(Feedback.id))
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
+                _apply_created_filter(
+                    db.query(func.date(Feedback.created_at).label("day"), Feedback.source, func.count(Feedback.id))
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                )
             )
             .group_by("day", Feedback.source)
             .order_by("day")
@@ -399,11 +392,12 @@ def get_analytics():
 
         rating_rows = (
             _pf(
-                db.query(func.date(Feedback.created_at).label("day"), func.avg(cast(Feedback.rating, Float)), func.count(Feedback.id))
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
-                .filter(Feedback.rating.isnot(None))
+                _apply_created_filter(
+                    db.query(func.date(Feedback.created_at).label("day"), func.avg(cast(Feedback.rating, Float)), func.count(Feedback.id))
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                    .filter(Feedback.rating.isnot(None))
+                )
             )
             .group_by("day")
             .order_by("day")
@@ -422,13 +416,14 @@ def get_analytics():
         insurance_tag_mention_total = 0
         tag_rows = (
             _pf(
-                db.query(Feedback.created_at, Feedback.sentiment_label, Feedback.channel_metadata)
-                .filter(Feedback.deleted_at.is_(None))
-                .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-                .filter(Feedback.created_at >= start_range)
-                .order_by(desc(Feedback.created_at))
-                .limit(20000)
+                _apply_created_filter(
+                    db.query(Feedback.created_at, Feedback.sentiment_label, Feedback.channel_metadata)
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                )
             )
+            .order_by(desc(Feedback.created_at))
+            .limit(20000)
             .all()
         )
         for created_at, label, channel_meta in tag_rows:
@@ -463,11 +458,11 @@ def get_analytics():
             day_bucket[k] = int(day_bucket.get(k, 0) or 0) + 1
 
         insurance_tags_trends: list[Dict[str, Any]] = []
-        end_day = now.date()
-        for i in range(range_days - 1, -1, -1):
-            d = end_day - timedelta(days=i)
+        d = chart_start
+        while d <= chart_end:
             key = d.isoformat()
             insurance_tags_trends.append(insurance_trends_map.get(key, {"date": key}))
+            d += timedelta(days=1)
 
         sentiment_dict = {label or "unknown": count for label, count in sentiment_counts}
         category_dict = {cat or "uncategorized": count for cat, count in category_counts}
@@ -674,25 +669,21 @@ def product_pulse():
         user = _require_user(db)
         perms = _user_permission_keys(db, user.id)
 
+        now = datetime.now(tz=timezone.utc)
         time_window = (request.args.get("time_window") or "").strip().lower()
-        range_days = _safe_int(request.args.get("range_days"), 30)
-        if range_days <= 0 or range_days > 365:
-            range_days = 30
+        if time_window in ("all", "today", "week", "last_week", "month"):
+            tw, filter_from, filter_to, _label, range_days = parse_overview_time_window(time_window, now=now)
+            time_window = tw
+        else:
+            range_days = _safe_int(request.args.get("range_days"), 30)
+            if range_days <= 0 or range_days > 365:
+                range_days = 30
+            filter_from = now - timedelta(days=range_days)
+            filter_to = None
+            time_window = None
 
         source = str(request.args.get("source") or "").strip()
         location = str(request.args.get("location") or "").strip()
-
-        now = datetime.now(tz=timezone.utc)
-        filter_from = None
-        filter_to = None
-        if time_window in ("all", "today", "week", "last_week", "month"):
-            time_window, filter_from, filter_to, _label, range_days = parse_overview_time_window(
-                time_window, now=now
-            )
-            start = filter_from or (now - timedelta(days=range_days))
-        else:
-            time_window = ""
-            start = now - timedelta(days=range_days)
 
         q = (
             db.query(
@@ -704,9 +695,10 @@ def product_pulse():
             .join(Feedback, Feedback.id == FeedbackPolicyMatch.feedback_id)
             .filter(Feedback.deleted_at.is_(None))
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-            .filter(Feedback.created_at >= start)
             .filter(FeedbackPolicyMatch.is_primary.is_(True))
         )
+        if filter_from is not None:
+            q = q.filter(Feedback.created_at >= filter_from)
         if filter_to is not None:
             q = q.filter(Feedback.created_at < filter_to)
         else:
@@ -763,6 +755,50 @@ def product_pulse():
     except Exception:
         db.rollback()
         logger.exception("Failed to compute product pulse")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/analytics/word-frequencies", methods=["GET"])
+def analytics_word_frequencies():
+    """Top terms from feedback messages for overview word cloud (works without wordcloud/Pillow)."""
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+
+        now = datetime.now(tz=timezone.utc)
+        time_window = (request.args.get("time_window") or "all").strip().lower()
+        tw, filter_from, filter_to, _label, range_days = parse_overview_time_window(time_window, now=now)
+        time_window = tw
+        if time_window == "all":
+            req_range = request.args.get("range_days", type=int) or 30
+            range_days = req_range if req_range in (7, 30, 90) else 30
+            filter_from = now - timedelta(days=range_days)
+            filter_to = None
+
+        q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+        q = _exclude_removed_sources(q)
+        q = _scope_feedback_query(db, q, user=user, perms=perms)
+        if filter_from is not None:
+            q = q.filter(Feedback.created_at >= filter_from)
+        if filter_to is not None:
+            q = q.filter(Feedback.created_at < filter_to)
+
+        rows = q.order_by(desc(Feedback.created_at)).limit(1000).all()
+        messages = []
+        for row in rows:
+            msg = decrypt_text(row.message_encrypted)
+            if msg and msg != "[encrypted]":
+                messages.append(msg)
+
+        words = word_frequencies(messages, max_words=80)
+        return jsonify({"time_window": time_window, "words": words, "message_count": len(messages)}), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Failed to compute word frequencies")
         return jsonify({"error": "Internal server error"}), 500
     finally:
         db.close()

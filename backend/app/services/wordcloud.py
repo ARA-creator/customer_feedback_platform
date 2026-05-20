@@ -38,6 +38,24 @@ def clean_text(text: str) -> str:
     return text.lower()
 
 
+def word_frequencies(texts: List[str], *, max_words: int = 80) -> list[dict]:
+    """Top terms for client-rendered word clouds (no matplotlib/wordcloud dependency)."""
+    from collections import Counter
+
+    counter: Counter[str] = Counter()
+    for text in texts:
+        cleaned = clean_text(text)
+        if not cleaned:
+            continue
+        for word in cleaned.split():
+            if len(word) >= 3 and word not in STOPWORDS:
+                counter[word] += 1
+    if not counter:
+        return []
+    top = counter.most_common(max(1, min(int(max_words), 200)))
+    return [{"text": w, "weight": int(c)} for w, c in top]
+
+
 def generate_wordcloud(texts: List[str], width: int = 800, height: int = 400) -> Optional[bytes]:
     """
     Generate word cloud image from list of text strings.

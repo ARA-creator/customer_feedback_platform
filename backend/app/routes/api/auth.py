@@ -7,6 +7,7 @@ Populated incrementally during the api.py split.
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -20,7 +21,7 @@ from sqlalchemy.orm import load_only
 from ...database import SessionLocal
 from ...models import Role, User, UserRole
 from ...services.rbac import normalize_role_name
-from ...services.emailer import send_email_async
+from ...services.emailer import send_email_async, smtp_is_configured
 from ...emails.templates import reset_password_email, verify_email, welcome_email
 from ...extensions import limiter
 from . import api_bp
@@ -102,7 +103,16 @@ def _issue_email_verification_code(db, user: User) -> None:
     user.email_verification_code_expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=24)
     db.commit()
     tpl = verify_email(name=user.full_name or "", code=code)
-    send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
+    if smtp_is_configured():
+        send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
+    else:
+        logger.warning(
+            "SMTP not configured; verification email not sent to=%s. "
+            "Set SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL in .env (or Vercel env).",
+            user.email,
+        )
+        if os.getenv("APP_ENV", "development").strip().lower() == "development":
+            logger.warning("DEV ONLY — verification code for %s: %s", user.email, code)
 
 
 @api_bp.route("/auth/me", methods=["GET"])
