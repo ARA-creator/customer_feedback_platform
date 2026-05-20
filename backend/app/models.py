@@ -20,9 +20,13 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(255), nullable=False, unique=True, index=True)
-    password_hash = Column(Text, nullable=False)
+    password_hash = Column(Text, nullable=True)
     full_name = Column(String(160), nullable=True)
     role = Column(String(50), nullable=True)
+    account_type = Column(String(20), nullable=True, index=True)  # enterprise | external
+    auth_provider = Column(String(20), nullable=True)  # local | azure_ad
+    provider_subject = Column(String(128), nullable=True, index=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
     suspended_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)

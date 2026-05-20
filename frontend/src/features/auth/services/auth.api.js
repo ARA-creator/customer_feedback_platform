@@ -1,13 +1,18 @@
 import { api, setCsrfToken } from '../../../shared/lib/apiClient'
 
+export const authConfig = async () => {
+  const response = await api.get('/auth/config')
+  return response.data
+}
+
 export const authMe = async () => {
   const response = await api.get('/auth/me')
   if (response?.data?.csrf) setCsrfToken(response.data.csrf)
   return response.data
 }
 
-export const authSignup = async ({ email, password, role }) => {
-  const response = await api.post('/auth/signup', { email, password, role })
+export const authSignup = async ({ email, password, name, account_type = 'external' }) => {
+  const response = await api.post('/auth/signup', { email, password, name, account_type })
   if (response?.data?.csrf) setCsrfToken(response.data.csrf)
   return response.data
 }

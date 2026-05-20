@@ -852,11 +852,23 @@ def admin_users():
         if request.method == "GET":
             _require_permission(db, "admin.manage_users")
             scope = (request.args.get("scope") or "active").strip().lower()
-            if scope not in ("active", "recycle", "all"):
+            if scope not in ("active", "recycle", "all", "pending"):
                 scope = "active"
             q = db.query(User)
             if scope == "active":
-                q = q.filter(User.deleted_at.is_(None))
+                q = q.filter(User.deleted_at.is_(None)).filter(
+                    or_(
+                        User.account_type.is_(None),
+                        User.account_type != "external",
+                        User.approved_at.isnot(None),
+                    )
+                )
+            elif scope == "pending":
+                q = q.filter(
+                    User.deleted_at.is_(None),
+                    User.account_type == "external",
+                    User.approved_at.is_(None),
+                )
             elif scope == "recycle":
                 q = q.filter(User.deleted_at.isnot(None))
             users = q.order_by(User.created_at.desc(), User.id.desc()).all()
@@ -885,6 +897,17 @@ def admin_users():
                         "roles": sorted(list(set(role_names_by_user.get(u.id, [])))),
                         "team": (scope_by_user.get(u.id) or {}).get("team"),
                         "region": (scope_by_user.get(u.id) or {}).get("region"),
+                        "account_type": getattr(u, "account_type", None),
+                        "auth_provider": getattr(u, "auth_provider", None),
+                        "approved_at": (
+                            u.approved_at.isoformat() if getattr(u, "approved_at", None) else None
+                        ),
+                        "full_name": getattr(u, "full_name", None),
+                        "pending_approval": (
+                            getattr(u, "account_type", None) == "external"
+                            and getattr(u, "approved_at", None) is None
+                            and getattr(u, "deleted_at", None) is None
+                        ),
                     }
                 )
             return jsonify({"users": out})
@@ -914,11 +937,16 @@ def admin_users():
             or "agent"
         )
         verify_required = bool(current_app.config.get("REQUIRE_EMAIL_VERIFICATION"))
+        now = datetime.now(tz=timezone.utc)
         user = User(
             email=email,
             password_hash=generate_password_hash(password),
             role=primary_role,
-            email_verified_at=None if verify_required else datetime.now(tz=timezone.utc),
+            account_type="enterprise",
+            auth_provider="local",
+            approved_at=now,
+            is_active=True,
+            email_verified_at=None if verify_required else now,
         )
         db.add(user)
         db.commit()
@@ -1102,6 +1130,102 @@ def admin_set_user_status(user_id: int):
                 },
             }
         )
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/users/<int:user_id>/approve", methods=["POST"])
+def admin_approve_user(user_id: int):
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or getattr(user, "deleted_at", None):
+            return jsonify({"error": "User not found"}), 404
+        if getattr(user, "account_type", None) != "external":
+            return jsonify({"error": "Only external accounts require approval"}), 400
+        if getattr(user, "approved_at", None):
+            return jsonify({"ok": True, "message": "Already approved"}), 200
+
+        payload = request.get_json(silent=True) or {}
+        roles_in = payload.get("roles") or []
+        if isinstance(roles_in, str):
+            roles_in = [r.strip() for r in roles_in.split(",") if r.strip()]
+        if not isinstance(roles_in, list):
+            roles_in = []
+        primary_role = (
+            normalize_role_name(str(payload.get("primary_role") or ""))
+            or (normalize_role_name(roles_in[0]) if roles_in else None)
+            or "agent"
+        )
+
+        now = datetime.now(tz=timezone.utc)
+        user.approved_at = now
+        user.is_active = True
+        user.role = primary_role
+        user.email_verified_at = user.email_verified_at or now
+        db.commit()
+
+        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+        role_rows = (
+            db.query(Role).filter(Role.name.in_([normalize_role_name(r) for r in roles_in if r])).all()
+            if roles_in
+            else db.query(Role).filter(Role.name == primary_role).all()
+        )
+        for r in role_rows:
+            db.add(UserRole(user_id=user_id, role_id=r.id))
+        if not role_rows:
+            r = db.query(Role).filter(Role.name == primary_role).first()
+            if r:
+                db.add(UserRole(user_id=user_id, role_id=r.id))
+        db.commit()
+
+        _audit_log(
+            db,
+            actor_user_id=session.get("user_id"),
+            action="admin.user.approve",
+            target_type="user",
+            target_id=str(user_id),
+            meta={"email": user.email, "roles": [r.name for r in role_rows] if role_rows else [primary_role]},
+        )
+        return jsonify({"ok": True}), 200
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/users/<int:user_id>/reject", methods=["POST"])
+def admin_reject_user(user_id: int):
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or getattr(user, "deleted_at", None):
+            return jsonify({"error": "User not found"}), 404
+        if getattr(user, "account_type", None) != "external":
+            return jsonify({"error": "Only external accounts can be rejected this way"}), 400
+
+        payload = request.get_json(silent=True) or {}
+        reason = str(payload.get("reason") or "").strip() or None
+        user.deleted_at = datetime.now(tz=timezone.utc)
+        user.is_active = False
+        user.suspended_at = user.suspended_at or user.deleted_at
+        db.commit()
+
+        _audit_log(
+            db,
+            actor_user_id=session.get("user_id"),
+            action="admin.user.reject",
+            target_type="user",
+            target_id=str(user_id),
+            meta={"email": user.email, "reason": reason},
+        )
+        return jsonify({"ok": True}), 200
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403

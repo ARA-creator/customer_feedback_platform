@@ -86,6 +86,25 @@ class BaseConfig:
     # If enabled, users must verify email before accessing the app.
     REQUIRE_EMAIL_VERIFICATION = os.getenv("REQUIRE_EMAIL_VERIFICATION", "").strip().lower() in {"1", "true", "yes", "on"}
 
+    # Dual-path auth: enterprise SSO vs external manual signup
+    EXTERNAL_SIGNUP_ENABLED = os.getenv("EXTERNAL_SIGNUP_ENABLED", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    ENTERPRISE_EMAIL_DOMAINS = [
+        d.strip().lower()
+        for d in (os.getenv("ENTERPRISE_EMAIL_DOMAINS", "enterprisegroup.net.gh,enterprise-life.com") or "").split(",")
+        if d.strip()
+    ]
+
+    AZURE_AD_TENANT_ID = os.getenv("AZURE_AD_TENANT_ID", "").strip() or None
+    AZURE_AD_CLIENT_ID = os.getenv("AZURE_AD_CLIENT_ID", "").strip() or None
+    AZURE_AD_CLIENT_SECRET = os.getenv("AZURE_AD_CLIENT_SECRET", "").strip() or None
+    AZURE_AD_REDIRECT_URI = os.getenv("AZURE_AD_REDIRECT_URI", "").strip() or None
+    AZURE_AD_DEFAULT_ROLE = os.getenv("AZURE_AD_DEFAULT_ROLE", "agent").strip() or "agent"
+
     # Rate limiting (Flask-Limiter). Disable by setting empty.
     RATE_LIMIT_AUTH = os.getenv("RATE_LIMIT_AUTH", "10 per minute")
 

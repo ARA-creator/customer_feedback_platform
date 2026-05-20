@@ -253,6 +253,9 @@ def _current_user(db: SessionLocal) -> Optional[User]:
                 User.is_active,
                 User.deleted_at,
                 User.email_verified_at,
+                User.account_type,
+                User.auth_provider,
+                User.approved_at,
             )
         )
         .filter(User.id == uid)
@@ -262,6 +265,11 @@ def _current_user(db: SessionLocal) -> Optional[User]:
         return None
     if getattr(user, "deleted_at", None):
         # Soft-deleted accounts must not retain a session.
+        session.pop("user_id", None)
+        return None
+    from ...services.auth_account import access_block_reason
+
+    if access_block_reason(user):
         session.pop("user_id", None)
         return None
     return user

@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiArchive, FiRefreshCw, FiRotateCcw, FiTrash2, FiUserX, FiUserCheck, FiUsers } from 'react-icons/fi'
 import {
+  adminApproveUser,
   adminCreateUser,
   adminDeleteUser,
   adminListRoles,
   adminListUsers,
   adminPurgeUser,
+  adminRejectUser,
   adminRestoreUser,
   adminSetUserRoles,
   adminSetUserScope,
@@ -18,8 +20,9 @@ export default function AdminUsers() {
   const [error, setError] = useState(null)
   const [users, setUsers] = useState([])
   const [roles, setRoles] = useState([])
-  /** @type {'active' | 'recycle'} */
+  /** @type {'active' | 'pending' | 'recycle'} */
   const [userScope, setUserScope] = useState('active')
+  const [approveRoles, setApproveRoles] = useState({})
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -96,6 +99,35 @@ export default function AdminUsers() {
       await load()
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to update user status')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const approveUser = async (u) => {
+    const role = approveRoles[u.id] || 'agent'
+    setSaving(true)
+    setError(null)
+    try {
+      await adminApproveUser(u.id, { roles: [role], primary_role: role })
+      await load()
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to approve user')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const rejectUser = async (u) => {
+    const ok = window.confirm(`Reject access request for ${u.email}?`)
+    if (!ok) return
+    setSaving(true)
+    setError(null)
+    try {
+      await adminRejectUser(u.id, {})
+      await load()
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to reject user')
     } finally {
       setSaving(false)
     }
@@ -253,6 +285,19 @@ export default function AdminUsers() {
               </button>
               <button
                 type="button"
+                onClick={() => setUserScope('pending')}
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  userScope === 'pending'
+                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-900'
+                }`}
+                aria-selected={userScope === 'pending'}
+                role="tab"
+              >
+                Pending
+              </button>
+              <button
+                type="button"
                 onClick={() => setUserScope('recycle')}
                 className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
                   userScope === 'recycle'
@@ -270,10 +315,82 @@ export default function AdminUsers() {
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {userScope === 'active'
               ? 'Removing a user moves them to the recycle bin (soft delete). They cannot sign in until restored.'
-              : 'Users here were removed from the active list. Restore to reinstate access, or permanently delete to free the email for a new signup.'}
+              : userScope === 'pending'
+                ? 'External access requests awaiting approval. Assign a role when approving.'
+                : 'Users here were removed from the active list. Restore to reinstate access, or permanently delete to free the email for a new signup.'}
           </p>
           {loading ? (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
+          ) : userScope === 'pending' ? (
+            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                  <tr>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Requested</th>
+                    <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  {users.map((u) => (
+                    <tr key={u.id} className="bg-white dark:bg-gray-950">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{u.email}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.full_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                        {u.created_at ? new Date(u.created_at).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={approveRoles[u.id] || 'agent'}
+                          onChange={(e) =>
+                            setApproveRoles((prev) => ({ ...prev, [u.id]: e.target.value }))
+                          }
+                          disabled={saving}
+                          className="min-h-[40px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                        >
+                          {(roleOptions.length ? roleOptions : ['agent', 'cx_manager']).map((r) => (
+                            <option key={r} value={r}>
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => approveUser(u)}
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
+                          >
+                            <FiUserCheck className="h-4 w-4" />
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => rejectUser(u)}
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-900 hover:bg-rose-100 disabled:opacity-60"
+                          >
+                            <FiUserX className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No pending requests.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           ) : userScope === 'active' ? (
             <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
               <table className="w-full text-left text-sm">

@@ -13,13 +13,21 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 from email_validator import EmailNotValidError, validate_email
-from flask import current_app, jsonify, request, session
+from flask import current_app, jsonify, redirect, request, session
 from passlib.hash import argon2
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import load_only
 
 from ...database import SessionLocal
 from ...models import Role, User, UserRole
+from ...services.auth_account import (
+    access_block_reason,
+    azure_sso_configured,
+    enterprise_domains,
+    is_enterprise_email,
+
+)
+from ...services.enterprise_auth import complete_enterprise_login, start_enterprise_login
 from ...services.rbac import normalize_role_name
 from ...services.emailer import send_email_async, smtp_is_configured
 from ...emails.templates import reset_password_email, verify_email, welcome_email
@@ -99,6 +107,36 @@ def _ensure_csrf() -> str:
     return str(token)
 
 
+def _login_response(db, user: User):
+    session.clear()
+    session["user_id"] = user.id
+    csrf = _ensure_csrf()
+    session.permanent = True
+    try:
+        user.last_login_at = datetime.now(tz=timezone.utc)
+        db.commit()
+    except SQLAlchemyError:
+        logger.exception("Login failed: could not update last_login_at")
+        db.rollback()
+        return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
+    perms = sorted(_user_permission_keys(db, user.id))
+    return (
+        jsonify(
+            {
+                "csrf": csrf,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "permissions": perms,
+                    "account_type": getattr(user, "account_type", None),
+                },
+            }
+        ),
+        200,
+    )
+
+
 def _issue_email_verification_code(db, user: User) -> None:
     """Generate a fresh 6-digit verification code and email it to the user."""
     if getattr(user, "email_verified_at", None):
@@ -124,6 +162,66 @@ def _issue_email_verification_code(db, user: User) -> None:
             logger.warning("DEV ONLY — verification code for %s: %s", user.email, code)
 
 
+@api_bp.route("/auth/config", methods=["GET"])
+def auth_config():
+    return jsonify(
+        {
+            "enterprise_sso_enabled": azure_sso_configured(),
+            "external_signup_enabled": bool(current_app.config.get("EXTERNAL_SIGNUP_ENABLED")),
+            "enterprise_domains": enterprise_domains(),
+        }
+    )
+
+
+@api_bp.route("/auth/enterprise/login", methods=["GET"])
+@limiter.limit("20 per minute")
+def auth_enterprise_login():
+    try:
+        url = start_enterprise_login()
+        return redirect(url)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 503
+    except Exception:
+        logger.exception("Enterprise login redirect failed")
+        return jsonify({"error": "Enterprise sign-in failed. Please try again."}), 500
+
+
+@api_bp.route("/auth/enterprise/callback", methods=["GET"])
+@limiter.limit("20 per minute")
+def auth_enterprise_callback():
+    err = request.args.get("error_description") or request.args.get("error")
+    if err:
+        front = current_app.config.get("FRONTEND_BASE_URL", "/")
+        return redirect(f"{front}/?enterprise_error={err}")
+    code = request.args.get("code") or ""
+    state = request.args.get("state") or ""
+    if not code:
+        return jsonify({"error": "Missing authorization code"}), 400
+    try:
+        user = complete_enterprise_login(code, state)
+    except ValueError as e:
+        front = current_app.config.get("FRONTEND_BASE_URL", "/")
+        return redirect(f"{front}/?enterprise_error={e}")
+    except Exception:
+        logger.exception("Enterprise OAuth callback failed")
+        front = current_app.config.get("FRONTEND_BASE_URL", "/")
+        return redirect(f"{front}/?enterprise_error=sign_in_failed")
+
+    db = SessionLocal()
+    try:
+        session.clear()
+        session["user_id"] = user.id
+        _ensure_csrf()
+        session.permanent = True
+        user.last_login_at = datetime.now(tz=timezone.utc)
+        db.merge(user)
+        db.commit()
+    finally:
+        db.close()
+    front = current_app.config.get("FRONTEND_BASE_URL", "/")
+    return redirect(f"{front}/?enterprise_signed_in=1")
+
+
 @api_bp.route("/auth/me", methods=["GET"])
 def auth_me():
     db = SessionLocal()
@@ -133,6 +231,9 @@ def auth_me():
             return jsonify({"authenticated": False}), 200
         if _email_verification_enabled() and not getattr(user, "email_verified_at", None):
             return jsonify({"authenticated": False, "error": "Email not verified"}), 401
+        blocked = access_block_reason(user)
+        if blocked:
+            return jsonify({"authenticated": False, "error": blocked}), 401
         perms = sorted(_user_permission_keys(db, user.id))
         csrf = _ensure_csrf()
         return jsonify(
@@ -149,12 +250,16 @@ def auth_me():
 @api_bp.route("/auth/signup", methods=["POST"])
 @limiter.limit("10 per minute")
 def auth_signup():
+    if not current_app.config.get("EXTERNAL_SIGNUP_ENABLED"):
+        return jsonify({"error": "External signup is disabled"}), 403
+
     payload = request.get_json(silent=True) or {}
     email_raw = str(payload.get("email") or "").strip()
     full_name = str(payload.get("name") or "").strip() or None
     password = str(payload.get("password") or "")
-    role = str(payload.get("role") or "").strip() or None
-    role_name = normalize_role_name(role) or "agent"
+    account_type = str(payload.get("account_type") or "external").strip().lower()
+    if account_type != "external":
+        return jsonify({"error": "Invalid signup path"}), 400
 
     if not email_raw:
         return jsonify({"error": "Email is required"}), 400
@@ -162,6 +267,15 @@ def auth_signup():
         email = validate_email(email_raw, check_deliverability=False).normalized
     except EmailNotValidError:
         return jsonify({"error": "Email is invalid"}), 400
+    if is_enterprise_email(email):
+        return (
+            jsonify(
+                {
+                    "error": "Use “I have an Enterprise email” to sign in with your work account.",
+                }
+            ),
+            400,
+        )
     pw_err = _validate_password(password)
     if pw_err:
         return jsonify({"error": pw_err}), 400
@@ -173,31 +287,23 @@ def auth_signup():
             return jsonify({"error": "Account already exists"}), 409
 
         now = datetime.now(tz=timezone.utc)
-        verify_required = _email_verification_enabled()
+        role_name = "agent"
         user = User(
             email=email,
             password_hash=argon2.hash(password),
             full_name=full_name,
             role=role_name,
+            account_type="external",
+            auth_provider="local",
+            approved_at=None,
+            is_active=False,
             email_verification_nonce=secrets.token_hex(16),
             password_reset_nonce=secrets.token_hex(16),
-            email_verified_at=None if verify_required else now,
+            email_verified_at=now,
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-
-        # Attach normalized role to the RBAC mapping table (idempotent for dev).
-        r = db.query(Role).filter(Role.name == role_name).first()
-        if r:
-            has = (
-                db.query(UserRole.id)
-                .filter((UserRole.user_id == user.id) & (UserRole.role_id == r.id))
-                .first()
-            )
-            if not has:
-                db.add(UserRole(user_id=user.id, role_id=r.id))
-                db.commit()
 
         try:
             tpl = welcome_email(name=user.full_name or "", email=user.email)
@@ -205,17 +311,17 @@ def auth_signup():
         except Exception:
             pass
 
-        if verify_required:
-            try:
-                _issue_email_verification_code(db, user)
-            except Exception:
-                pass
-            return (
-                jsonify({"ok": True, "needs_email_verification": True, "email": user.email}),
-                201,
-            )
-
-        return jsonify({"ok": True, "email": user.email}), 201
+        return (
+            jsonify(
+                {
+                    "ok": True,
+                    "email": user.email,
+                    "pending_approval": True,
+                    "message": "Your request was submitted. An administrator will approve your access.",
+                }
+            ),
+            201,
+        )
     finally:
         db.close()
 
@@ -249,6 +355,9 @@ def auth_login():
                         User.is_active,
                         User.email_verified_at,
                         User.last_login_at,
+                        User.account_type,
+                        User.auth_provider,
+                        User.approved_at,
                     )
                 )
                 .filter(User.email == email)
@@ -263,8 +372,18 @@ def auth_login():
             return jsonify({"error": "No account found"}), 404
         if getattr(user, "deleted_at", None):
             return jsonify({"error": "No account found"}), 404
-        if getattr(user, "is_active", True) is False:
-            return jsonify({"error": "Account is suspended"}), 403
+        if getattr(user, "auth_provider", None) == "azure_ad":
+            return (
+                jsonify(
+                    {
+                        "error": "This account uses Enterprise sign-in. Click “I have an Enterprise email”.",
+                    }
+                ),
+                403,
+            )
+        blocked = access_block_reason(user)
+        if blocked:
+            return jsonify({"error": blocked}), 403
         if _email_verification_enabled() and not getattr(user, "email_verified_at", None):
             return (
                 jsonify(
@@ -275,6 +394,8 @@ def auth_login():
                 ),
                 403,
             )
+        if not user.password_hash:
+            return jsonify({"error": "This account cannot sign in with a password."}), 403
         try:
             password_ok = argon2.verify(password, user.password_hash)
         except Exception:
@@ -283,23 +404,7 @@ def auth_login():
         if not password_ok:
             return jsonify({"error": "Incorrect password"}), 401
 
-        session.clear()
-        session["user_id"] = user.id
-        csrf = _ensure_csrf()
-        session.permanent = True
-        try:
-            user.last_login_at = datetime.now(tz=timezone.utc)
-            db.commit()
-        except SQLAlchemyError:
-            logger.exception("Login failed: could not update last_login_at")
-            db.rollback()
-            return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
-
-        perms = sorted(_user_permission_keys(db, user.id))
-        return (
-            jsonify({"csrf": csrf, "user": {"id": user.id, "email": user.email, "role": user.role, "permissions": perms}}),
-            200,
-        )
+        return _login_response(db, user)
     finally:
         db.close()
 
@@ -344,7 +449,9 @@ def auth_change_password():
             user = _require_user(db)
         except PermissionError:
             return jsonify({"error": "Not authenticated"}), 401
-        if not argon2.verify(current_password, user.password_hash):
+        if getattr(user, "auth_provider", None) == "azure_ad":
+            return jsonify({"error": "Enterprise accounts cannot change password here."}), 400
+        if not user.password_hash or not argon2.verify(current_password, user.password_hash):
             return jsonify({"error": "Current password is incorrect"}), 401
         user.password_hash = argon2.hash(new_password)
         db.commit()

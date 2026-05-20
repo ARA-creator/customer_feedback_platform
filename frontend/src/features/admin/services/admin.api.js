@@ -40,6 +40,16 @@ export const adminSetUserStatus = async (userId, { is_active }) => {
   return response.data
 }
 
+export const adminApproveUser = async (userId, { roles, primary_role }) => {
+  const response = await api.post(`/admin/users/${userId}/approve`, { roles, primary_role })
+  return response.data
+}
+
+export const adminRejectUser = async (userId, { reason } = {}) => {
+  const response = await api.post(`/admin/users/${userId}/reject`, { reason })
+  return response.data
+}
+
 export const adminDeleteUser = async (userId) => {
   const response = await api.delete(`/admin/users/${userId}`)
   return response.data

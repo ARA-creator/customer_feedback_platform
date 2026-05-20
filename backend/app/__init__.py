@@ -135,6 +135,9 @@ def create_app() -> Flask:
                 "/reset-password",
                 "/verify-email",
                 "/logout",
+                "/config",
+                "/enterprise/login",
+                "/enterprise/callback",
             )
         ):
             return None
@@ -201,6 +204,10 @@ def create_app() -> Flask:
                         ("password_reset_code_hash", "VARCHAR(128)"),
                         ("password_reset_code_expires_at", dt),
                         ("last_login_at", dt),
+                        ("account_type", "VARCHAR(20)"),
+                        ("auth_provider", "VARCHAR(20)"),
+                        ("provider_subject", "VARCHAR(128)"),
+                        ("approved_at", dt),
                     ]
 
                     for name, col_type in add_if_missing:

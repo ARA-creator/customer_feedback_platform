@@ -34,7 +34,8 @@ def main() -> None:
             text(
                 """
                 UPDATE users
-                SET email_verified_at = COALESCE(email_verified_at, NOW())
+                SET email_verified_at = COALESCE(email_verified_at, NOW()),
+                    approved_at = COALESCE(approved_at, NOW())
                 WHERE deleted_at IS NULL
                 """
             )
