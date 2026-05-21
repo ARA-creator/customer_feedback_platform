@@ -9,7 +9,12 @@ from sqlalchemy import desc, func
 
 from ..models import Notification, User
 from ..routes.api._helpers import _notif_publish, _safe_json_dumps
-from .notification_policy import get_notification_prefs, platform_admin_user_ids, prefs_allow
+from .notification_policy import (
+    get_notification_prefs,
+    platform_admin_user_ids,
+    prefs_allow,
+    should_deliver_notification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +45,7 @@ def notify_platform_admins(
     for admin_id in sorted(admin_ids):
         try:
             prefs = get_notification_prefs(db, admin_id, is_admin=True)
-            if not prefs_allow(prefs, "admin_user_events"):
+            if not should_deliver_notification(prefs, notification_type="admin_user_event", is_admin=True):
                 continue
             n = Notification(
                 user_id=admin_id,

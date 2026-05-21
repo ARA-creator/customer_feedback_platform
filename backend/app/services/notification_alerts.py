@@ -58,7 +58,9 @@ def notify_users_anomaly_alert(
             if is_admin:
                 continue
             prefs = _prefs_for_user(db, user.id, is_admin=False)
-            if not prefs.get("anomaly_alerts", True):
+            from ..services.notification_policy import should_deliver_notification
+
+            if not should_deliver_notification(prefs, notification_type="anomaly_alert", is_admin=False):
                 continue
             n = Notification(
                 user_id=user.id,

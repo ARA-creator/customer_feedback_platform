@@ -264,10 +264,11 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                     perms_u = _user_permission_keys(db, u.id)
                     is_admin = _is_admin_ui(u, perms_u)
                     prefs = _get_notification_prefs(db, u.id, is_admin=is_admin)
-                    if not _prefs_allows(prefs, "new_feedback"):
-                        continue
-                    # Admins only get new feedback if they explicitly enabled it (default off).
-                    if is_admin and not bool(prefs.get("new_feedback")):
+                    from ...services.notification_policy import should_deliver_notification
+
+                    if not should_deliver_notification(
+                        prefs, notification_type="new_feedback", is_admin=is_admin
+                    ):
                         continue
                     title = "New feedback received"
                     body = f"{(feedback.source or 'source').upper()} · {feedback.sentiment_label or 'unknown'}"

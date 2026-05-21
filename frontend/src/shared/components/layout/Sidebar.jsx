@@ -408,7 +408,7 @@ function Sidebar({
           />
         )}
         <NavButton
-          active={currentView === 'settings'}
+          active={currentView === 'settings' || currentView === 'settings_security'}
           collapsed={c}
           icon={FiSettings}
           label="Settings"

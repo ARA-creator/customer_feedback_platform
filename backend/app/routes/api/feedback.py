@@ -33,6 +33,7 @@ from ...services.notification_policy import (
     apply_notification_visibility_filter,
     get_notification_prefs,
     is_platform_admin,
+    prefs_allow,
 )
 from ...services.policy_detection import detect_policies
 from . import api_bp
@@ -316,14 +317,15 @@ def notifications_unread_count():
         user = _require_authenticated_user(db)
         perms = _user_permission_keys(db, user.id)
         is_admin = _is_admin_ui(user, perms)
+        prefs = _get_notification_prefs(db, user.id, is_admin=is_admin)
         q = (
             db.query(func.count(Notification.id))
             .filter(Notification.user_id == user.id)
             .filter(Notification.read_at.is_(None))
         )
-        q = apply_notification_visibility_filter(q, is_admin=is_admin)
+        q = apply_notification_visibility_filter(q, is_admin=is_admin, prefs=prefs)
         unread = q.scalar() or 0
-        return jsonify({"unread": int(unread)})
+        return jsonify({"unread": int(unread), "realtime_enabled": prefs_allow(prefs, "realtime")})
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
     finally:
@@ -337,13 +339,14 @@ def notifications_list():
         user = _require_authenticated_user(db)
         perms = _user_permission_keys(db, user.id)
         is_admin = _is_admin_ui(user, perms)
+        prefs = _get_notification_prefs(db, user.id, is_admin=is_admin)
         limit = request.args.get("limit", type=int) or 30
         limit = max(1, min(limit, 100))
         unread_only = str(request.args.get("unread_only") or "").strip().lower() in {"1", "true", "yes", "on"}
         cursor = request.args.get("cursor", type=int)
 
         q = db.query(Notification).filter(Notification.user_id == user.id)
-        q = apply_notification_visibility_filter(q, is_admin=is_admin)
+        q = apply_notification_visibility_filter(q, is_admin=is_admin, prefs=prefs)
         if unread_only:
             q = q.filter(Notification.read_at.is_(None))
         if cursor:
@@ -360,6 +363,7 @@ def notifications_list():
                 "next_cursor": next_cursor,
                 "has_more": bool(has_more),
                 "is_admin": bool(is_admin),
+                "realtime_enabled": prefs_allow(prefs, "realtime"),
             }
         )
     except PermissionError as e:
@@ -458,16 +462,19 @@ def notifications_preferences():
 
         if request.method == "GET":
             prefs = _get_notification_prefs(db, user.id, is_admin=is_admin)
-            return jsonify({"prefs": prefs})
+            row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user.id).first()
+            has_saved = bool(row and str(row.prefs or "").strip())
+            return jsonify({"prefs": prefs, "has_saved_preferences": has_saved})
 
         payload = request.get_json(silent=True) or {}
         incoming = payload.get("prefs") if isinstance(payload.get("prefs"), dict) else {}
-        current = _get_notification_prefs(db, user.id, is_admin=is_admin)
-        allowed_keys = set(current.keys())
-        next_prefs = dict(current)
-        for k, v in incoming.items():
-            if k in allowed_keys:
-                next_prefs[k] = bool(v)
+        from ...services.notification_policy import delivery_pref_keys
+
+        keys = delivery_pref_keys(is_admin=is_admin)
+        next_prefs = {k: False for k in keys}
+        for k in keys:
+            if k in incoming:
+                next_prefs[k] = bool(incoming[k])
 
         row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user.id).first()
         if not row:

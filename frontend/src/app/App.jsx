@@ -5,6 +5,7 @@ import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
 import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
+import { useNotificationPrefs } from '../features/notifications/hooks/useNotificationPrefs'
 import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
@@ -24,6 +25,7 @@ import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
 import SettingsPage from '../pages/settings/SettingsPage'
+import SettingsSecurityPage from '../pages/settings/SettingsSecurityPage'
 import {
   defaultPathForUser,
   isAdminPath,
@@ -170,6 +172,8 @@ function AuthenticatedApp({ auth, setAuth }) {
     })()
   }, [location.pathname, navigate, setAuth])
 
+  const { realtimeEnabled } = useNotificationPrefs()
+
   const navigateToInboxWithPreset = useCallback(
     (preset) => {
       try {
@@ -189,6 +193,7 @@ function AuthenticatedApp({ auth, setAuth }) {
   }, [theme])
 
   useEffect(() => {
+    if (!realtimeEnabled) return undefined
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type !== 'notification.created' || !evt?.notification) return
       const n = evt.notification
@@ -208,7 +213,7 @@ function AuthenticatedApp({ auth, setAuth }) {
       }, 6500)
     })
     return cleanup
-  }, [])
+  }, [realtimeEnabled])
 
   if (!isAdminUI && isAdminPath(location.pathname)) {
     return <Navigate to="/" replace />
@@ -282,6 +287,7 @@ function AuthenticatedApp({ auth, setAuth }) {
             element={<Notifications isAdminUI={isAdminUI} onNavigate={navigateToView} />}
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/security" element={<SettingsSecurityPage auth={auth} />} />
           <Route
             path="/reports"
             element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}

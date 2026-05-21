@@ -4,6 +4,7 @@ import {
   connectNotificationsStream,
   getNotifications,
   getUnreadCount,
+  getPreferences,
   markRead,
   markUnread,
 } from '../services/notifications.api'
@@ -36,8 +37,45 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
   const [lastLoadedAt, setLastLoadedAt] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
-  // Preferences/settings panel removed; keep realtime streaming enabled.
-  const realtimeEnabled = true
+  const [realtimeEnabled, setRealtimeEnabled] = useState(false)
+  const [deliveryPrefs, setDeliveryPrefs] = useState(null)
+
+  const itemAllowedByPrefs = (n) => {
+    const p = deliveryPrefs
+    if (!p) return true
+    const t = String(n?.type || '').toLowerCase()
+    if (t === 'admin_user_event') return Boolean(p.admin_user_events)
+    if (t === 'new_feedback') return Boolean(p.new_feedback)
+    if (t === 'assigned_to_me') return Boolean(p.assigned_to_me)
+    if (t === 'anomaly_alert' || t === 'anomaly') return Boolean(p.anomaly_alerts)
+    return false
+  }
+
+  useEffect(() => {
+    let mounted = true
+    const apply = (prefs) => {
+      setDeliveryPrefs(prefs || {})
+      setRealtimeEnabled(Boolean(prefs?.realtime))
+    }
+    ;(async () => {
+      try {
+        const data = await getPreferences()
+        if (mounted) apply(data?.prefs)
+      } catch {
+        if (mounted) apply({})
+      }
+    })()
+    const onPrefsChanged = (e) => {
+      apply(e?.detail?.prefs)
+      load({ reset: true })
+    }
+    window.addEventListener('cfp-notification-prefs-changed', onPrefsChanged)
+    return () => {
+      mounted = false
+      window.removeEventListener('cfp-notification-prefs-changed', onPrefsChanged)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const load = async ({ reset } = {}) => {
     setLoading(true)
@@ -84,9 +122,10 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       items.filter((n) => {
         const t = String(n?.type || '').toLowerCase()
         if (ADMIN_NOTIFICATION_TYPES.has(t) && !isAdminUI) return false
+        if (deliveryPrefs && !itemAllowedByPrefs(n)) return false
         return true
       }),
-    [items, isAdminUI],
+    [items, isAdminUI, deliveryPrefs],
   )
 
   const unreadItems = useMemo(() => visibleItems.filter((x) => !x?.read_at), [visibleItems])

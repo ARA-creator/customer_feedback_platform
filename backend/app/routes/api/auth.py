@@ -148,6 +148,7 @@ def _login_response(db, user: User):
                     "role": user.role,
                     "permissions": perms,
                     "account_type": getattr(user, "account_type", None),
+                    "auth_provider": getattr(user, "auth_provider", None) or "local",
                 },
             }
         ),
@@ -261,7 +262,13 @@ def auth_me():
             {
                 "authenticated": True,
                 "csrf": csrf,
-                "user": {"id": user.id, "email": user.email, "role": user.role, "permissions": perms},
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "permissions": perms,
+                    "auth_provider": getattr(user, "auth_provider", None) or "local",
+                },
             }
         )
     finally:

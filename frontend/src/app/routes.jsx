@@ -6,6 +6,7 @@ export const VIEW_PATHS = {
   insights: '/insights',
   notifications: '/notifications',
   settings: '/settings',
+  settings_security: '/settings/security',
   customer: '/customer',
   channels: '/admin/channels',
   admin_overview: '/admin',
