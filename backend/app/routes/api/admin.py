@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 from flask import current_app, jsonify, make_response, request, session
 from sqlalchemy import asc, desc, func, or_
 from sqlalchemy import create_engine, text as sql_text
-from werkzeug.security import generate_password_hash
+from passlib.hash import argon2
 
 from ...database import SessionLocal
 from ...models import (
@@ -1018,7 +1018,7 @@ def admin_users():
         now = datetime.now(tz=timezone.utc)
         user = User(
             email=email,
-            password_hash=generate_password_hash(password),
+            password_hash=argon2.hash(password),
             role=primary_role,
             account_type="enterprise",
             auth_provider="local",
@@ -1270,6 +1270,59 @@ def admin_approve_user(user_id: int):
             meta={"email": user.email, "roles": [r.name for r in role_rows] if role_rows else [primary_role]},
         )
         return jsonify({"ok": True}), 200
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/users/<int:user_id>/reset-password", methods=["POST"])
+def admin_reset_user_password(user_id: int):
+    """Set a new password for a local (non–Azure AD) user."""
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        payload = request.get_json(silent=True) or {}
+        password = str(payload.get("password") or "")
+        confirm = str(payload.get("confirm_password") or payload.get("confirmPassword") or "")
+
+        if len(password) < 12:
+            return jsonify({"error": "Password must be at least 12 characters"}), 400
+        if len(password) > 256:
+            return jsonify({"error": "Password is too long"}), 400
+        if password != confirm:
+            return jsonify({"error": "Passwords do not match"}), 400
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user or getattr(user, "deleted_at", None):
+            return jsonify({"error": "User not found"}), 404
+        if getattr(user, "auth_provider", None) == "azure_ad":
+            return (
+                jsonify(
+                    {
+                        "error": "This account uses Enterprise SSO and cannot have a password set here.",
+                    }
+                ),
+                400,
+            )
+
+        user.password_hash = argon2.hash(password)
+        user.auth_provider = user.auth_provider or "local"
+        user.password_reset_nonce = None
+        user.password_reset_code_hash = None
+        user.password_reset_code_expires_at = None
+        db.commit()
+
+        _audit_log(
+            db,
+            actor_user_id=session.get("user_id"),
+            action="admin.user.reset_password",
+            target_type="user",
+            target_id=str(user_id),
+            meta={"email": user.email},
+        )
+        return jsonify({"ok": True, "message": "Password updated."})
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403

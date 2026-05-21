@@ -40,6 +40,14 @@ export const adminSetUserStatus = async (userId, { is_active }) => {
   return response.data
 }
 
+export const adminResetUserPassword = async (userId, { password, confirm_password }) => {
+  const response = await api.post(`/admin/users/${userId}/reset-password`, {
+    password,
+    confirm_password,
+  })
+  return response.data
+}
+
 export const adminApproveUser = async (userId, { roles, primary_role }) => {
   const response = await api.post(`/admin/users/${userId}/approve`, { roles, primary_role })
   return response.data

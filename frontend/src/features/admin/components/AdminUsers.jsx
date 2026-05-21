@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiArchive, FiRefreshCw, FiRotateCcw, FiTrash2, FiUserX, FiUserCheck, FiUsers } from 'react-icons/fi'
+import { FiArchive, FiKey, FiRefreshCw, FiRotateCcw, FiTrash2, FiUserX, FiUserCheck, FiUsers } from 'react-icons/fi'
 import {
   adminApproveUser,
   adminCreateUser,
@@ -13,6 +13,7 @@ import {
   adminSetUserScope,
   adminSetUserStatus,
 } from '../services/admin.api'
+import AdminResetPasswordDialog from './AdminResetPasswordDialog'
 
 export default function AdminUsers() {
   const [loading, setLoading] = useState(true)
@@ -23,6 +24,8 @@ export default function AdminUsers() {
   /** @type {'active' | 'pending' | 'recycle'} */
   const [userScope, setUserScope] = useState('active')
   const [approveRoles, setApproveRoles] = useState({})
+  const [resetUser, setResetUser] = useState(null)
+  const [resetNotice, setResetNotice] = useState(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -210,6 +213,11 @@ export default function AdminUsers() {
             {error}
           </div>
         )}
+        {resetNotice && (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+            {resetNotice}
+          </div>
+        )}
 
         <div className="mt-6 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create user</h2>
@@ -377,6 +385,19 @@ export default function AdminUsers() {
                             <FiUserX className="h-4 w-4" />
                             Reject
                           </button>
+                          {u.auth_provider !== 'azure_ad' && (
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => setResetUser(u)}
+                              title="Reset password"
+                              aria-label="Reset password"
+                              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                            >
+                              <FiKey className="h-4 w-4" />
+                              Reset password
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -450,7 +471,19 @@ export default function AdminUsers() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 whitespace-nowrap">
+                        <div className="flex items-center gap-2 whitespace-nowrap flex-wrap">
+                          {u.auth_provider !== 'azure_ad' && (
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => setResetUser(u)}
+                              title="Reset password"
+                              aria-label="Reset password"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                            >
+                              <FiKey className="h-4 w-4" />
+                            </button>
+                          )}
                           {u.is_active ? (
                             <button
                               type="button"
@@ -556,6 +589,16 @@ export default function AdminUsers() {
           )}
         </div>
       </div>
+
+      <AdminResetPasswordDialog
+        open={!!resetUser}
+        user={resetUser}
+        onClose={() => setResetUser(null)}
+        onSuccess={() => {
+          setResetNotice(`Password updated for ${resetUser?.email || 'user'}. Share the new password securely.`)
+          setResetUser(null)
+        }}
+      />
     </div>
   )
 }
