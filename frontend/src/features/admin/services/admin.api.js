@@ -97,6 +97,13 @@ export const adminReprocessSentiment = async (params = {}) => {
   return response.data
 }
 
+export const adminListActivity = async ({ limit = 100, action, target_type } = {}) => {
+  const response = await api.get('/admin/activity', {
+    params: { limit, action, target_type },
+  })
+  return response.data
+}
+
 export const adminListApprovalQueue = async ({ limit = 200 } = {}) => {
   const response = await api.get('/admin/approval-queue', { params: { limit } })
   return response.data

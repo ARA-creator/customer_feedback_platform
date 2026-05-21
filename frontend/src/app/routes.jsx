@@ -16,8 +16,23 @@ export const VIEW_PATHS = {
   admin_db: '/admin/db',
   admin_enterprise_auth: '/admin/enterprise-sso',
   admin_reply_approvals: '/admin/reply-approvals',
+  admin_activity: '/admin/activity',
   reports: '/reports',
 }
+
+/** Notification href values that require platform admin UI. */
+export const ADMIN_NOTIFICATION_HREFS = new Set([
+  'admin_users',
+  'admin_roles',
+  'admin_integrations',
+  'admin_overview',
+  'admin_reply_approvals',
+  'admin_activity',
+  'admin_db',
+  'admin_enterprise_auth',
+  'admin_release_impact',
+  'channels',
+])
 
 const PATH_TO_VIEW = Object.fromEntries(
   Object.entries(VIEW_PATHS).map(([view, path]) => [path, view]),

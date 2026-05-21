@@ -7,7 +7,10 @@ import {
   markRead,
   markUnread,
 } from '../services/notifications.api'
+import { ADMIN_NOTIFICATION_HREFS } from '../../../app/routes'
 import { EmptyState, LastUpdated, NotificationListSkeleton } from '../../../shared/components/ui'
+
+const ADMIN_NOTIFICATION_TYPES = new Set(['admin_user_event'])
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -76,7 +79,17 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     return cleanup
   }, [realtimeEnabled])
 
-  const unreadItems = useMemo(() => items.filter((x) => !x?.read_at), [items])
+  const visibleItems = useMemo(
+    () =>
+      items.filter((n) => {
+        const t = String(n?.type || '').toLowerCase()
+        if (ADMIN_NOTIFICATION_TYPES.has(t) && !isAdminUI) return false
+        return true
+      }),
+    [items, isAdminUI],
+  )
+
+  const unreadItems = useMemo(() => visibleItems.filter((x) => !x?.read_at), [visibleItems])
   const selectedCount = useMemo(() => selectedIds.size, [selectedIds])
   const unreadIds = useMemo(() => unreadItems.map((n) => n.id).filter(Boolean), [unreadItems])
   const allUnreadSelected = useMemo(() => {
@@ -194,6 +207,21 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     const meta = n?.meta && typeof n.meta === 'object' ? n.meta : {}
     const feedbackId = Number(meta?.feedback_id)
 
+    if (href && ADMIN_NOTIFICATION_HREFS.has(href) && !isAdminUI) {
+      setError('This notification is for platform administrators only.')
+      return
+    }
+
+    if (href === 'admin_users') {
+      try {
+        if (meta?.scope === 'pending' || meta?.scope === 'active' || meta?.scope === 'recycle') {
+          sessionStorage.setItem('cfp_admin_users_scope', meta.scope)
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     if (href === 'inbox' && Number.isFinite(feedbackId)) {
       try {
         sessionStorage.setItem('cfp_inbox_open_feedback_id', String(feedbackId))
@@ -208,7 +236,9 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
         // ignore
       }
     }
-    if (canNavigate && href) onNavigate(href)
+    if (canNavigate && href && (!ADMIN_NOTIFICATION_HREFS.has(href) || isAdminUI)) {
+      onNavigate(href)
+    }
 
     // Mark read after opening (best-effort).
     if (!n?.read_at && n?.id) {
@@ -347,16 +377,21 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           )}
           {!loading &&
             !error &&
-            items.map((n) => {
+            visibleItems.map((n) => {
               const isUnread = !n.read_at
               const href = String(n?.href || '').trim()
               const meta = n?.meta && typeof n.meta === 'object' ? n.meta : {}
               const feedbackId = Number(meta?.feedback_id)
+              const canOpenHref = href && (!ADMIN_NOTIFICATION_HREFS.has(href) || isAdminUI)
               const openLabel =
                 href === 'inbox' && Number.isFinite(feedbackId)
                   ? 'Open feedback'
-                  : href
-                    ? 'Open'
+                  : canOpenHref
+                    ? href === 'admin_activity'
+                      ? 'View activity'
+                      : href === 'admin_users'
+                        ? 'Manage users'
+                        : 'Open'
                     : null
               return (
                 <div
@@ -364,13 +399,13 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                   className="card p-0 overflow-hidden bg-white/90 dark:bg-gray-950/70"
                 >
                   <div
-                    role={canNavigate && href ? 'button' : undefined}
-                    tabIndex={canNavigate && href ? 0 : -1}
+                    role={canNavigate && canOpenHref ? 'button' : undefined}
+                    tabIndex={canNavigate && canOpenHref ? 0 : -1}
                     onClick={() => {
-                      if (canNavigate && href) openNotification(n)
+                      if (canNavigate && canOpenHref) openNotification(n)
                     }}
                     onKeyDown={(e) => {
-                      if (!(canNavigate && href)) return
+                      if (!(canNavigate && canOpenHref)) return
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
                         openNotification(n)
@@ -381,11 +416,11 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                         ? 'border-emerald-200/80 dark:border-emerald-400/20'
                         : 'border-gray-200/70 dark:border-white/10'
                     } ${
-                      !canNavigate || !href
+                      !canNavigate || !canOpenHref
                         ? 'cursor-default'
                         : 'hover:bg-white/70 dark:hover:bg-gray-950/45'
                     } focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/30`}
-                    aria-label={href ? 'Open notification' : 'Notification'}
+                    aria-label={canOpenHref ? 'Open notification' : 'Notification'}
                   >
                   <div className="flex items-start gap-3">
                     <div className="pt-0.5">
@@ -471,7 +506,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                             Mark unread
                           </button>
                         )}
-                        {openLabel && canNavigate && href && (
+                        {openLabel && canNavigate && canOpenHref && (
                           <span className="inline-flex min-h-[36px] items-center rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-3 py-1.5 text-xs font-semibold text-emerald-950 shadow-sm dark:border-emerald-400/15 dark:bg-emerald-400/10 dark:text-emerald-100">
                             {openLabel}
                           </span>

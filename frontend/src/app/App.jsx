@@ -14,6 +14,7 @@ import AdminReleaseImpact from '../features/admin/components/AdminReleaseImpact'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
 import AdminReplyApprovals from '../features/admin/components/AdminReplyApprovals'
+import AdminUserActivity from '../features/admin/components/AdminUserActivity'
 import ReportsPage from '../pages/reports/ReportsPage'
 import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
@@ -329,6 +330,10 @@ function AuthenticatedApp({ auth, setAuth }) {
                 <Navigate to={isAdminUI ? '/admin' : '/'} replace />
               )
             }
+          />
+          <Route
+            path="/admin/activity"
+            element={isAdminUI ? <AdminUserActivity /> : <Navigate to="/" replace />}
           />
 
           <Route path="*" element={<Navigate to={isAdminUI ? '/admin' : '/'} replace />} />

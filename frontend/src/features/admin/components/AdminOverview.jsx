@@ -207,6 +207,16 @@ export default function AdminOverview({ auth, onNavigate }) {
                 Manage users
               </button>
             )}
+            {canManageUsers && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.('admin_activity')}
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+              >
+                <FiActivity className="h-4 w-4" />
+                User activity
+              </button>
+            )}
             {canManageUsers && Number(queue.external_users_pending) > 0 && (
               <button
                 type="button"

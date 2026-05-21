@@ -28,6 +28,7 @@ from ...services.auth_account import (
 )
 from ...services.enterprise_auth import complete_enterprise_login, start_enterprise_login
 from ...services.enterprise_sso_config import admin_public_view as enterprise_sso_public_view
+from ...services.admin_notifications import notify_platform_admins
 from ...services.rbac import normalize_role_name
 from ...services.emailer import send_email_async, smtp_is_configured
 from ...emails.templates import reset_password_email, verify_email, welcome_email
@@ -328,6 +329,18 @@ def auth_signup():
         try:
             tpl = welcome_email(name=user.full_name or "", email=user.email)
             send_email_async(to_email=user.email, subject=tpl.subject, html=tpl.html, text=tpl.text)
+        except Exception:
+            pass
+
+        try:
+            notify_platform_admins(
+                db,
+                title="Access request",
+                body=email,
+                href="admin_users",
+                meta={"user_id": user.id, "email": email, "scope": "pending"},
+                exclude_user_id=user.id,
+            )
         except Exception:
             pass
 

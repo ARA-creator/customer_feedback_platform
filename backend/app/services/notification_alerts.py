@@ -14,18 +14,18 @@ logger = logging.getLogger(__name__)
 
 
 def _prefs_for_user(db, user_id: int, *, is_admin: bool) -> dict:
-    from ..routes.api.feedback import _get_notification_prefs
+    from ..services.notification_policy import get_notification_prefs
 
-    return _get_notification_prefs(db, user_id, is_admin=is_admin)
+    return get_notification_prefs(db, user_id, is_admin=is_admin)
 
 
 def _is_admin_user(db, user_id: int, perms: set[str]) -> bool:
-    from ..routes.api.feedback import _is_admin_ui
+    from ..services.notification_policy import is_platform_admin
 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return False
-    return _is_admin_ui(user, perms)
+    return is_platform_admin(perms=perms, user=user)
 
 
 def _serialize_notification(row: Notification) -> dict:
@@ -55,7 +55,9 @@ def notify_users_anomaly_alert(
         try:
             perms = _user_permission_keys(db, user.id)
             is_admin = _is_admin_user(db, user.id, perms)
-            prefs = _prefs_for_user(db, user.id, is_admin=is_admin)
+            if is_admin:
+                continue
+            prefs = _prefs_for_user(db, user.id, is_admin=False)
             if not prefs.get("anomaly_alerts", True):
                 continue
             n = Notification(

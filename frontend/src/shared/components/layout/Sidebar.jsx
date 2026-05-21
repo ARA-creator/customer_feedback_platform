@@ -106,6 +106,8 @@ function Sidebar({
     canManageUsers ||
     isSuperAdmin
   const canApproveReplies = perms.includes('feedback.approve') || canManageUsers
+  const canViewActivity =
+    canManageUsers || perms.includes('admin.view_audit_logs') || canManageRoles
 
   const [railCollapsed, setRailCollapsed] = useState(false)
 
@@ -370,6 +372,15 @@ function Sidebar({
                 icon={FiShield}
                 label="Reply approvals"
                 onClick={() => go('admin_reply_approvals')}
+              />
+            )}
+            {canViewActivity && (
+              <NavButton
+                active={currentView === 'admin_activity'}
+                collapsed={c}
+                icon={FiActivity}
+                label="User activity"
+                onClick={() => go('admin_activity')}
               />
             )}
           </>

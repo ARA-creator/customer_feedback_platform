@@ -22,6 +22,7 @@ from passlib.hash import argon2
 from ...database import SessionLocal
 from ...models import (
     AppSetting,
+    AuditLog,
     Feedback,
     FeedbackReplyDraft,
     FeedbackWorkflow,
@@ -37,6 +38,8 @@ from ...security import decrypt_text
 from ...sentiment_analyzer import analyze_sentiment
 from ...services.insurance_tags import categorize_insurance_tags
 from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
+from ...services.admin_notifications import notify_platform_admins
+from ...services.notification_policy import get_notification_prefs, is_platform_admin, prefs_allow
 from ...services.rbac import normalize_role_name
 from . import api_bp
 from ._helpers import (
@@ -67,98 +70,22 @@ def _serialize_notification(row: Notification) -> Dict[str, Any]:
 
 
 def _is_admin_ui(user: User, perms: set[str]) -> bool:
-    return (
-        "admin.manage_users" in perms
-        or "admin.manage_roles" in perms
-        or "admin.manage_integrations" in perms
-        or str(getattr(user, "role", "") or "").lower() == "super_admin"
-    )
+    return is_platform_admin(perms=perms, user=user)
 
 
 def _get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, bool]:
-    from ...models import NotificationPreference
-
-    row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
-    base = safe_json_loads(row.prefs) if row and row.prefs else {}
-    defaults = {
-        "new_feedback": True,
-        "assigned_to_me": True,
-        "admin_user_events": bool(is_admin),
-        "realtime": True,
-        "anomaly_alerts": not bool(is_admin),
-    }
-    out = {**defaults}
-    for k, v in (base or {}).items():
-        if k in defaults:
-            out[k] = bool(v)
-    return out
+    return get_notification_prefs(db, user_id, is_admin=is_admin)
 
 
 def _notify_admins_user_roles_changed(db, *, changed_user: User, roles: List[str]) -> None:
     try:
-        admin_perm_keys = ["admin.manage_users", "admin.manage_roles", "admin.manage_integrations"]
-        admin_ids = set()
-        rows = (
-            db.query(UserRole.user_id)
-            .join(Role, Role.id == UserRole.role_id)
-            .join(RolePermission, RolePermission.role_id == Role.id)
-            .join(Permission, Permission.id == RolePermission.permission_id)
-            .filter(Permission.key.in_(admin_perm_keys))
-            .all()
+        notify_platform_admins(
+            db,
+            title="User roles updated",
+            body=f"{changed_user.email}: {', '.join(roles)}",
+            href="admin_users",
+            meta={"user_id": changed_user.id, "email": changed_user.email, "roles": roles},
         )
-        for r in rows:
-            if r and r[0]:
-                admin_ids.add(int(r[0]))
-        super_rows = db.query(User.id).filter(func.lower(User.role) == "super_admin").all()
-        for r in super_rows:
-            if r and r[0]:
-                admin_ids.add(int(r[0]))
-
-        created_for: List[int] = []
-        for admin_id in sorted(list(admin_ids)):
-            try:
-                prefs = _get_notification_prefs(db, admin_id, is_admin=True)
-                if not _prefs_allows(prefs, "admin_user_events"):
-                    continue
-                n = Notification(
-                    user_id=admin_id,
-                    type="admin_user_event",
-                    title="User roles updated",
-                    body=f"{changed_user.email}: {', '.join(roles)}",
-                    href="admin_users",
-                    meta=_safe_json_dumps({"user_id": changed_user.id, "email": changed_user.email, "roles": roles}),
-                )
-                db.add(n)
-                created_for.append(admin_id)
-            except Exception:
-                continue
-        if created_for:
-            db.commit()
-            for uid in created_for:
-                try:
-                    unread = (
-                        db.query(func.count(Notification.id))
-                        .filter(Notification.user_id == uid)
-                        .filter(Notification.read_at.is_(None))
-                        .scalar()
-                        or 0
-                    )
-                    last = (
-                        db.query(Notification)
-                        .filter(Notification.user_id == uid)
-                        .order_by(desc(Notification.created_at), desc(Notification.id))
-                        .first()
-                    )
-                    _notif_publish(
-                        uid,
-                        {
-                            "type": "notification.created",
-                            "notification": _serialize_notification(last) if last else None,
-                            "unread": int(unread),
-                        },
-                    )
-                except Exception:
-                    pass
     except Exception:
         logger.exception("Failed to create admin notification for role change")
 
@@ -1072,71 +999,15 @@ def admin_users():
             meta={"email": email, "roles": [r.name for r in role_rows] if role_rows else []},
         )
 
-        # Admin notifications (best-effort): new user created
         try:
-            admin_perm_keys = ["admin.manage_users", "admin.manage_roles", "admin.manage_integrations"]
-            admin_ids = set()
-            rows = (
-                db.query(UserRole.user_id)
-                .join(Role, Role.id == UserRole.role_id)
-                .join(RolePermission, RolePermission.role_id == Role.id)
-                .join(Permission, Permission.id == RolePermission.permission_id)
-                .filter(Permission.key.in_(admin_perm_keys))
-                .all()
+            notify_platform_admins(
+                db,
+                title="New user created",
+                body=email,
+                href="admin_users",
+                meta={"user_id": user.id, "email": email},
+                exclude_user_id=user.id,
             )
-            for r in rows:
-                if r and r[0]:
-                    admin_ids.add(int(r[0]))
-            super_rows = db.query(User.id).filter(func.lower(User.role) == "super_admin").all()
-            for r in super_rows:
-                if r and r[0]:
-                    admin_ids.add(int(r[0]))
-
-            created_for: List[int] = []
-            for admin_id in sorted(list(admin_ids)):
-                try:
-                    prefs = _get_notification_prefs(db, admin_id, is_admin=True)
-                    if not _prefs_allows(prefs, "admin_user_events"):
-                        continue
-                    n = Notification(
-                        user_id=admin_id,
-                        type="admin_user_event",
-                        title="New user created",
-                        body=f"{email}",
-                        href="admin_users",
-                        meta=_safe_json_dumps({"user_id": user.id, "email": email}),
-                    )
-                    db.add(n)
-                    created_for.append(admin_id)
-                except Exception:
-                    continue
-            if created_for:
-                db.commit()
-                for uid in created_for:
-                    try:
-                        unread = (
-                            db.query(func.count(Notification.id))
-                            .filter(Notification.user_id == uid)
-                            .filter(Notification.read_at.is_(None))
-                            .scalar()
-                            or 0
-                        )
-                        last = (
-                            db.query(Notification)
-                            .filter(Notification.user_id == uid)
-                            .order_by(desc(Notification.created_at), desc(Notification.id))
-                            .first()
-                        )
-                        _notif_publish(
-                            uid,
-                            {
-                                "type": "notification.created",
-                                "notification": _serialize_notification(last) if last else None,
-                                "unread": int(unread),
-                            },
-                        )
-                    except Exception:
-                        pass
         except Exception:
             logger.exception("Failed to create admin notification for user create")
 
@@ -1509,6 +1380,16 @@ def admin_approve_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email, "roles": [r.name for r in role_rows] if role_rows else [primary_role]},
         )
+        try:
+            notify_platform_admins(
+                db,
+                title="User approved",
+                body=user.email,
+                href="admin_users",
+                meta={"user_id": user.id, "email": user.email, "scope": "active"},
+            )
+        except Exception:
+            pass
         return jsonify({"ok": True}), 200
     except PermissionError as e:
         msg = str(e)
@@ -1596,6 +1477,16 @@ def admin_reject_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email, "reason": reason},
         )
+        try:
+            notify_platform_admins(
+                db,
+                title="User access rejected",
+                body=user.email,
+                href="admin_activity",
+                meta={"user_id": user.id, "email": user.email, "reason": reason},
+            )
+        except Exception:
+            pass
         return jsonify({"ok": True}), 200
     except PermissionError as e:
         msg = str(e)
@@ -1626,6 +1517,16 @@ def admin_delete_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email},
         )
+        try:
+            notify_platform_admins(
+                db,
+                title="User moved to recycle bin",
+                body=user.email,
+                href="admin_users",
+                meta={"user_id": user.id, "email": user.email, "scope": "recycle"},
+            )
+        except Exception:
+            pass
         return jsonify({"ok": True})
     except PermissionError as e:
         msg = str(e)
@@ -1737,9 +1638,56 @@ def admin_set_user_scope(user_id: int):
         db.close()
 
 
+def _serialize_audit_entry(db, row: AuditLog) -> Dict[str, Any]:
+    actor = None
+    if row.actor_user_id:
+        actor = db.query(User).filter(User.id == row.actor_user_id).first()
+    target_user = None
+    if row.target_type == "user" and row.target_id:
+        try:
+            target_user = db.query(User).filter(User.id == int(row.target_id)).first()
+        except (TypeError, ValueError):
+            target_user = None
+    return {
+        "id": row.id,
+        "action": row.action,
+        "target_type": row.target_type,
+        "target_id": row.target_id,
+        "meta": safe_json_loads(row.meta) if row.meta else {},
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "actor_user_id": row.actor_user_id,
+        "actor_email": actor.email if actor else None,
+        "target_email": target_user.email if target_user else None,
+    }
+
+
 @api_bp.route("/admin/audit-logs", methods=["GET"])
+@api_bp.route("/admin/activity", methods=["GET"])
 def admin_audit_logs():
-    return jsonify({"error": "Audit logs have been removed in the streamlined platform."}), 410
+    """Org-wide user/admin activity from audit log (all users)."""
+    db = SessionLocal()
+    try:
+        _require_any_permission(
+            db,
+            ["admin.manage_users", "admin.manage_roles", "admin.view_audit_logs"],
+        )
+        limit = min(max(int(request.args.get("limit") or 100), 1), 500)
+        action_filter = (request.args.get("action") or "").strip()
+        target_type = (request.args.get("target_type") or "").strip()
+
+        q = db.query(AuditLog)
+        if action_filter:
+            q = q.filter(AuditLog.action.ilike(f"%{action_filter}%"))
+        if target_type:
+            q = q.filter(AuditLog.target_type == target_type)
+
+        rows = q.order_by(desc(AuditLog.created_at), desc(AuditLog.id)).limit(limit).all()
+        return jsonify({"items": [_serialize_audit_entry(db, r) for r in rows], "count": len(rows)})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
 
 
 def _admin_overview_queue_metrics(db) -> Dict[str, Any]:

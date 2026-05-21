@@ -29,6 +29,11 @@ from ...security import decrypt_text, encrypt_text, hash_email
 from ...sentiment_analyzer import analyze_sentiment
 from ...services.insurance_tags import categorize_insurance_tags
 from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
+from ...services.notification_policy import (
+    apply_notification_visibility_filter,
+    get_notification_prefs,
+    is_platform_admin,
+)
 from ...services.policy_detection import detect_policies
 from . import api_bp
 from ._helpers import (
@@ -74,29 +79,11 @@ def _serialize_notification(row: Notification) -> dict:
 
 
 def _is_admin_ui(user: User, perms: set[str]) -> bool:
-    return (
-        "admin.manage_users" in perms
-        or "admin.manage_roles" in perms
-        or "admin.manage_integrations" in perms
-        or str(getattr(user, "role", "") or "").lower() == "super_admin"
-    )
+    return is_platform_admin(perms=perms, user=user)
 
 
 def _get_notification_prefs(db, user_id: int, *, is_admin: bool) -> dict:
-    row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
-    base = safe_json_loads(row.prefs) if row and row.prefs else {}
-    defaults = {
-        "new_feedback": True,
-        "assigned_to_me": True,
-        "admin_user_events": bool(is_admin),
-        "realtime": True,
-        "anomaly_alerts": not bool(is_admin),
-    }
-    out = {**defaults}
-    for k, v in (base or {}).items():
-        if k in defaults:
-            out[k] = bool(v)
-    return out
+    return get_notification_prefs(db, user_id, is_admin=is_admin)
 
 
 def _prefs_allows(prefs: dict, key: str) -> bool:
@@ -327,13 +314,15 @@ def notifications_unread_count():
     db = SessionLocal()
     try:
         user = _require_authenticated_user(db)
-        unread = (
+        perms = _user_permission_keys(db, user.id)
+        is_admin = _is_admin_ui(user, perms)
+        q = (
             db.query(func.count(Notification.id))
             .filter(Notification.user_id == user.id)
             .filter(Notification.read_at.is_(None))
-            .scalar()
-            or 0
         )
+        q = apply_notification_visibility_filter(q, is_admin=is_admin)
+        unread = q.scalar() or 0
         return jsonify({"unread": int(unread)})
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
@@ -346,12 +335,15 @@ def notifications_list():
     db = SessionLocal()
     try:
         user = _require_authenticated_user(db)
+        perms = _user_permission_keys(db, user.id)
+        is_admin = _is_admin_ui(user, perms)
         limit = request.args.get("limit", type=int) or 30
         limit = max(1, min(limit, 100))
         unread_only = str(request.args.get("unread_only") or "").strip().lower() in {"1", "true", "yes", "on"}
         cursor = request.args.get("cursor", type=int)
 
         q = db.query(Notification).filter(Notification.user_id == user.id)
+        q = apply_notification_visibility_filter(q, is_admin=is_admin)
         if unread_only:
             q = q.filter(Notification.read_at.is_(None))
         if cursor:
@@ -367,6 +359,7 @@ def notifications_list():
                 "items": [_serialize_notification(r) for r in rows],
                 "next_cursor": next_cursor,
                 "has_more": bool(has_more),
+                "is_admin": bool(is_admin),
             }
         )
     except PermissionError as e:
