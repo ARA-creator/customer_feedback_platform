@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Optional
-
-from flask import current_app
-
 from ..models import User
+from .enterprise_sso_config import (
+    azure_sso_configured,
+    enterprise_domains,
+    parse_azure_role_mapping,
+)
 
 
 def email_domain(email: str) -> str:
@@ -15,10 +15,6 @@ def email_domain(email: str) -> str:
     if "@" not in e:
         return ""
     return e.split("@", 1)[1]
-
-
-def enterprise_domains() -> list[str]:
-    return list(current_app.config.get("ENTERPRISE_EMAIL_DOMAINS") or [])
 
 
 def is_enterprise_email(email: str) -> bool:
@@ -57,37 +53,22 @@ def access_block_reason(user: User | None) -> str | None:
     return None
 
 
-def azure_sso_configured() -> bool:
-    cfg = current_app.config
-    return bool(
-        cfg.get("AZURE_AD_TENANT_ID")
-        and cfg.get("AZURE_AD_CLIENT_ID")
-        and cfg.get("AZURE_AD_CLIENT_SECRET")
-        and cfg.get("AZURE_AD_REDIRECT_URI")
-    )
-
-
-def parse_azure_role_mapping() -> dict[str, str]:
-    import json
-    import os
-
-    raw = os.getenv("AZURE_AD_ROLE_MAPPING", "{}") or "{}"
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(data, dict):
-        return {}
-    out: dict[str, str] = {}
-    for k, v in data.items():
-        if k and v:
-            out[str(k).strip()] = str(v).strip()
-    return out
-
-
 def unusable_password_hash() -> str:
     import secrets
 
     from passlib.hash import argon2
 
     return argon2.hash(secrets.token_urlsafe(48))
+
+
+__all__ = [
+    "email_domain",
+    "enterprise_domains",
+    "is_enterprise_email",
+    "account_type_of",
+    "is_external_pending",
+    "access_block_reason",
+    "azure_sso_configured",
+    "parse_azure_role_mapping",
+    "unusable_password_hash",
+]

@@ -438,6 +438,84 @@ def admin_db_save_connection():
         db.close()
 
 
+@api_bp.route("/admin/auth/enterprise", methods=["GET"])
+def admin_enterprise_auth_get():
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_integrations")
+        from ...services.enterprise_sso_config import admin_public_view
+
+        return jsonify(admin_public_view())
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/auth/enterprise/test", methods=["POST"])
+def admin_enterprise_auth_test():
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_integrations")
+        from ...services.enterprise_sso_config import get_effective_azure_config, test_azure_connection
+
+        payload = request.get_json(silent=True) or {}
+        effective = get_effective_azure_config()
+
+        tenant_id = str(payload.get("tenant_id") or effective.get("tenant_id") or "").strip()
+        client_id = str(payload.get("client_id") or effective.get("client_id") or "").strip()
+        client_secret = payload.get("client_secret")
+        if isinstance(client_secret, str) and not client_secret.strip():
+            client_secret = None
+        elif not isinstance(client_secret, str):
+            client_secret = effective.get("client_secret")
+
+        result = test_azure_connection(tenant_id, client_id, client_secret)
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/auth/enterprise", methods=["POST"])
+def admin_enterprise_auth_save():
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_integrations")
+        from ...services.enterprise_sso_config import admin_public_view, save_admin_config
+
+        payload = request.get_json(silent=True) or {}
+        actor_id = session.get("user_id")
+        try:
+            actor_id = int(actor_id) if actor_id is not None else None
+        except (TypeError, ValueError):
+            actor_id = None
+
+        view = save_admin_config(payload, actor_user_id=actor_id)
+        _audit_log(
+            db,
+            actor_user_id=actor_id,
+            action="admin.auth.enterprise.save",
+            target_type="app_setting",
+            target_id="auth.enterprise_sso",
+            meta={
+                "tenant_id": view.get("tenant_id"),
+                "client_id": view.get("client_id"),
+                "configured": view.get("configured"),
+            },
+        )
+        return jsonify({"ok": True, **view})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
 @api_bp.route("/admin/reprocess-sentiment", methods=["GET", "POST"])
 def admin_reprocess_sentiment():
     db = SessionLocal()

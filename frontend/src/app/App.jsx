@@ -11,6 +11,7 @@ import AdminIntegrations from '../features/admin/components/AdminIntegrations'
 import AdminOverview from '../features/admin/components/AdminOverview'
 import AdminReleaseImpact from '../features/admin/components/AdminReleaseImpact'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
+import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
 import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui/LoadingSkeleton'
@@ -271,6 +272,7 @@ function App() {
             {currentView === 'admin_integrations' && <AdminIntegrations />}
             {currentView === 'admin_release_impact' && <AdminReleaseImpact />}
             {currentView === 'admin_db' && <AdminDbConnection />}
+            {currentView === 'admin_enterprise_auth' && <AdminEnterpriseAuth />}
           </main>
         </div>
 

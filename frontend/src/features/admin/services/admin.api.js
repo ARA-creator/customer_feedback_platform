@@ -249,3 +249,20 @@ export const adminSaveDbConnection = async (payload) => {
   return response.data
 }
 
+// --- Enterprise SSO (Azure AD) ---
+
+export const adminGetEnterpriseAuth = async () => {
+  const response = await api.get('/admin/auth/enterprise')
+  return response.data
+}
+
+export const adminTestEnterpriseAuth = async (payload) => {
+  const response = await api.post('/admin/auth/enterprise/test', payload)
+  return response.data
+}
+
+export const adminSaveEnterpriseAuth = async (payload) => {
+  const response = await api.post('/admin/auth/enterprise', payload)
+  return response.data
+}
+

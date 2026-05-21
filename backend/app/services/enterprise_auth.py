@@ -9,8 +9,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 import requests
-from flask import current_app, session
-from passlib.hash import argon2
+from flask import session
 
 from ..database import SessionLocal
 from ..models import Role, User, UserRole
@@ -18,8 +17,12 @@ from .auth_account import (
     azure_sso_configured,
     enterprise_domains,
     is_enterprise_email,
-    parse_azure_role_mapping,
     unusable_password_hash,
+)
+from .enterprise_sso_config import (
+    default_azure_role,
+    get_effective_azure_config,
+    parse_azure_role_mapping,
 )
 from .rbac import normalize_role_name
 
@@ -28,16 +31,21 @@ logger = logging.getLogger(__name__)
 SCOPES = "openid profile email offline_access User.Read GroupMember.Read.All"
 
 
+def _cfg() -> dict[str, Any]:
+    return get_effective_azure_config()
+
+
 def _tenant_authority() -> str:
-    tenant = current_app.config.get("AZURE_AD_TENANT_ID")
+    tenant = _cfg()["tenant_id"]
     return f"https://login.microsoftonline.com/{tenant}"
 
 
 def build_authorize_url(state: str) -> str:
+    c = _cfg()
     params = {
-        "client_id": current_app.config["AZURE_AD_CLIENT_ID"],
+        "client_id": c["client_id"],
         "response_type": "code",
-        "redirect_uri": current_app.config["AZURE_AD_REDIRECT_URI"],
+        "redirect_uri": c["redirect_uri"],
         "response_mode": "query",
         "scope": SCOPES,
         "state": state,
@@ -46,12 +54,13 @@ def build_authorize_url(state: str) -> str:
 
 
 def exchange_code_for_tokens(code: str) -> dict[str, Any]:
+    c = _cfg()
     token_url = f"{_tenant_authority()}/oauth2/v2.0/token"
     data = {
-        "client_id": current_app.config["AZURE_AD_CLIENT_ID"],
-        "client_secret": current_app.config["AZURE_AD_CLIENT_SECRET"],
+        "client_id": c["client_id"],
+        "client_secret": c["client_secret"],
         "code": code,
-        "redirect_uri": current_app.config["AZURE_AD_REDIRECT_URI"],
+        "redirect_uri": c["redirect_uri"],
         "grant_type": "authorization_code",
         "scope": SCOPES,
     }
@@ -106,7 +115,7 @@ def map_groups_to_roles(group_names: list[str]) -> list[str]:
             if normalized and normalized not in roles:
                 roles.append(normalized)
     if not roles:
-        default = normalize_role_name(current_app.config.get("AZURE_AD_DEFAULT_ROLE") or "agent")
+        default = default_azure_role()
         if default:
             roles.append(default)
     return roles

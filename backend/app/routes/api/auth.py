@@ -25,9 +25,9 @@ from ...services.auth_account import (
     azure_sso_configured,
     enterprise_domains,
     is_enterprise_email,
-
 )
 from ...services.enterprise_auth import complete_enterprise_login, start_enterprise_login
+from ...services.enterprise_sso_config import admin_public_view as enterprise_sso_public_view
 from ...services.rbac import normalize_role_name
 from ...services.emailer import send_email_async, smtp_is_configured
 from ...emails.templates import reset_password_email, verify_email, welcome_email
@@ -164,11 +164,16 @@ def _issue_email_verification_code(db, user: User) -> None:
 
 @api_bp.route("/auth/config", methods=["GET"])
 def auth_config():
+    pub = enterprise_sso_public_view()
     return jsonify(
         {
             "enterprise_sso_enabled": azure_sso_configured(),
             "external_signup_enabled": bool(current_app.config.get("EXTERNAL_SIGNUP_ENABLED")),
             "enterprise_domains": enterprise_domains(),
+            "enterprise_sso": {
+                "configured": pub.get("configured"),
+                "enabled": pub.get("enabled"),
+            },
         }
     )
 

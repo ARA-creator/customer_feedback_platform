@@ -16,7 +16,21 @@ Customer Pulse supports two ways to access the platform:
 5. Grant admin consent for the organization.
 6. Map Azure AD **security group display names** to Customer Pulse roles via `AZURE_AD_ROLE_MAPPING` (JSON).
 
-## Environment variables
+## Configuration
+
+### Admin UI (recommended)
+
+Users with `admin.manage_integrations` can open **Admin → Enterprise SSO** and configure:
+
+- Tenant ID, Client ID, redirect URI, client secret (encrypted in `app_settings`)
+- Enterprise email domains
+- Default role and Azure AD group → role mappings
+
+Settings saved in the database **override** the environment variables below. Leave the client secret field empty when saving to keep the existing secret.
+
+Use **Test connection** to verify Microsoft login metadata (and optionally validate the client secret).
+
+### Environment variables (fallback / bootstrap)
 
 ```env
 ENTERPRISE_EMAIL_DOMAINS=enterprisegroup.net.gh,enterprise-life.com
@@ -30,7 +44,7 @@ AZURE_AD_DEFAULT_ROLE=agent
 AZURE_AD_ROLE_MAPPING={"Customer Pulse Admins":"super_admin","CX Managers":"cx_manager"}
 ```
 
-Until Azure variables are set, the **“I have an Enterprise email”** button shows a configuration message; external signup still works.
+Until Azure is configured (via admin UI or env), the **“I have an Enterprise email”** button shows a configuration message; external signup still works.
 
 ## Admin workflow (external users)
 

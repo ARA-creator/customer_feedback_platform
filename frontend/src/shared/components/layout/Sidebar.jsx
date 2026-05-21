@@ -340,6 +340,16 @@ function Sidebar({
                 onClick={() => setCurrentView('admin_db')}
               />
             )}
+            {canManageIntegrations && (
+              <NavButton
+                active={currentView === 'admin_enterprise_auth'}
+                collapsed={c}
+                icon={FiKey}
+                label="Enterprise SSO"
+                onClick={() => setCurrentView('admin_enterprise_auth')}
+                testId="nav-admin-enterprise-auth"
+              />
+            )}
           </>
         )}
 
