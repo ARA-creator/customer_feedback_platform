@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiArchive, FiKey, FiRefreshCw, FiRotateCcw, FiTrash2, FiUserX, FiUserCheck, FiUsers } from 'react-icons/fi'
+import { FiArchive, FiEdit2, FiKey, FiRefreshCw, FiRotateCcw, FiTrash2, FiUserX, FiUserCheck, FiUsers } from 'react-icons/fi'
 import {
   adminApproveUser,
   adminCreateUser,
@@ -9,10 +9,9 @@ import {
   adminPurgeUser,
   adminRejectUser,
   adminRestoreUser,
-  adminSetUserRoles,
-  adminSetUserScope,
   adminSetUserStatus,
 } from '../services/admin.api'
+import AdminEditUserDialog from './AdminEditUserDialog'
 import AdminResetPasswordDialog from './AdminResetPasswordDialog'
 
 export default function AdminUsers() {
@@ -24,8 +23,10 @@ export default function AdminUsers() {
   /** @type {'active' | 'pending' | 'recycle'} */
   const [userScope, setUserScope] = useState('active')
   const [approveRoles, setApproveRoles] = useState({})
+  const [editUser, setEditUser] = useState(null)
   const [resetUser, setResetUser] = useState(null)
   const [resetNotice, setResetNotice] = useState(null)
+  const [saveNotice, setSaveNotice] = useState(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -75,32 +76,6 @@ export default function AdminUsers() {
       await load()
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to create user')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const updateRoles = async (userId, rolesList) => {
-    setSaving(true)
-    setError(null)
-    try {
-      await adminSetUserRoles(userId, rolesList)
-      await load()
-    } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to update roles')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const updateScope = async (userId, team, region) => {
-    setSaving(true)
-    setError(null)
-    try {
-      await adminSetUserScope(userId, { team, region })
-      await load()
-    } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to update scope')
     } finally {
       setSaving(false)
     }
@@ -223,6 +198,11 @@ export default function AdminUsers() {
         {error && (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
             {error}
+          </div>
+        )}
+        {saveNotice && (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+            {saveNotice}
           </div>
         )}
         {resetNotice && (
@@ -382,6 +362,17 @@ export default function AdminUsers() {
                           <button
                             type="button"
                             disabled={saving}
+                            onClick={() => setEditUser({ ...u, pending_approval: true })}
+                            title="Edit user"
+                            aria-label="Edit user"
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                          >
+                            <FiEdit2 className="h-4 w-4" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={saving}
                             onClick={() => approveUser(u)}
                             className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 disabled:opacity-60"
                           >
@@ -431,11 +422,11 @@ export default function AdminUsers() {
                   <tr>
                     <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Legacy role</th>
-                    <th className="px-4 py-3">Roles</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Role</th>
                     <th className="px-4 py-3">Team</th>
                     <th className="px-4 py-3">Region</th>
-                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -449,41 +440,24 @@ export default function AdminUsers() {
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">Suspended</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.role || '-'}</td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={(u.roles && u.roles[0]) || u.role || 'agent'}
-                          onChange={(e) => updateRoles(u.id, [e.target.value])}
-                          disabled={saving}
-                          className="min-h-[40px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                        >
-                          {(roleOptions.length ? roleOptions : ['agent', 'team_lead', 'analyst', 'cx_manager', 'super_admin', 'auditor']).map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.full_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                        {(u.roles && u.roles[0]) || u.role || '—'}
                       </td>
-                      <td className="px-4 py-3">
-                        <input
-                          defaultValue={u.team || ''}
-                          placeholder="e.g. AccraSupport"
-                          disabled={saving}
-                          onBlur={(e) => updateScope(u.id, e.target.value, u.region || '')}
-                          className="min-h-[40px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          defaultValue={u.region || ''}
-                          placeholder="e.g. Ghana"
-                          disabled={saving}
-                          onBlur={(e) => updateScope(u.id, u.team || '', e.target.value)}
-                          className="min-h-[40px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                        />
-                      </td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.team || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.region || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 whitespace-nowrap flex-wrap">
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => setEditUser(u)}
+                            title="Edit user"
+                            aria-label="Edit user"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                          >
+                            <FiEdit2 className="h-4 w-4" />
+                          </button>
                           {u.auth_provider !== 'azure_ad' && (
                             <button
                               type="button"
@@ -601,6 +575,22 @@ export default function AdminUsers() {
           )}
         </div>
       </div>
+
+      <AdminEditUserDialog
+        open={!!editUser}
+        user={editUser}
+        roleOptions={roleOptions}
+        onClose={() => setEditUser(null)}
+        onResetPassword={(u) => {
+          setEditUser(null)
+          setResetUser(u)
+        }}
+        onSuccess={async () => {
+          setSaveNotice(`Saved changes for ${editUser?.email || 'user'}.`)
+          setEditUser(null)
+          await load()
+        }}
+      />
 
       <AdminResetPasswordDialog
         open={!!resetUser}

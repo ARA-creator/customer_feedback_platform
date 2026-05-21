@@ -10,6 +10,12 @@ export const adminCreateUser = async (payload) => {
   return response.data
 }
 
+/** PATCH /api/admin/users/:id — update email, name, role, scope, status. */
+export const adminUpdateUser = async (userId, payload) => {
+  const response = await api.patch(`/admin/users/${userId}`, payload)
+  return response.data
+}
+
 export const adminSetUserRoles = async (userId, roles) => {
   const response = await api.post(`/admin/users/${userId}/roles`, { roles })
   return response.data

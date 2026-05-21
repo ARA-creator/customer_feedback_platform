@@ -1123,6 +1123,168 @@ def admin_users():
         db.close()
 
 
+def _parse_roles_payload(payload: dict) -> List[str]:
+    roles_in = payload.get("roles")
+    if roles_in is None:
+        return []
+    if isinstance(roles_in, str):
+        roles_in = [r.strip() for r in roles_in.split(",") if r.strip()]
+    if not isinstance(roles_in, list):
+        return []
+    return [normalize_role_name(r) for r in roles_in if r]
+
+
+def _admin_user_to_json(db, user: User) -> Dict[str, Any]:
+    roles = db.query(Role).all()
+    role_by_id = {r.id: r for r in roles}
+    mappings = db.query(UserRole).filter(UserRole.user_id == user.id).all()
+    role_names: List[str] = []
+    team = None
+    region = None
+    for m in mappings:
+        r = role_by_id.get(m.role_id)
+        if r and r.name not in role_names:
+            role_names.append(r.name)
+        if team is None and m.team:
+            team = m.team
+        if region is None and m.region:
+            region = m.region
+    return {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "full_name": getattr(user, "full_name", None),
+        "is_active": bool(getattr(user, "is_active", True)),
+        "suspended_at": (user.suspended_at.isoformat() if getattr(user, "suspended_at", None) else None),
+        "roles": sorted(role_names),
+        "team": team,
+        "region": region,
+        "account_type": getattr(user, "account_type", None),
+        "auth_provider": getattr(user, "auth_provider", None),
+        "approved_at": (user.approved_at.isoformat() if getattr(user, "approved_at", None) else None),
+        "pending_approval": (
+            getattr(user, "account_type", None) == "external"
+            and getattr(user, "approved_at", None) is None
+            and getattr(user, "deleted_at", None) is None
+        ),
+    }
+
+
+@api_bp.route("/admin/users/<int:user_id>", methods=["PATCH"])
+def admin_update_user(user_id: int):
+    """Update user profile fields (email, name, role, scope, status)."""
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        if getattr(user, "deleted_at", None):
+            return jsonify({"error": "User is in the recycle bin; restore before editing"}), 400
+
+        payload = request.get_json(silent=True) or {}
+        changed: Dict[str, Any] = {}
+        is_azure = getattr(user, "auth_provider", None) == "azure_ad"
+
+        if "email" in payload:
+            if is_azure:
+                return jsonify({"error": "Email is managed by Enterprise SSO and cannot be changed here."}), 400
+            email = str(payload.get("email") or "").strip().lower()
+            if not email or "@" not in email:
+                return jsonify({"error": "A valid email is required"}), 400
+            if email != (user.email or "").lower():
+                exists = (
+                    db.query(User.id)
+                    .filter(func.lower(User.email) == email)
+                    .filter(User.id != user_id)
+                    .first()
+                )
+                if exists:
+                    return jsonify({"error": "Another account already uses this email"}), 409
+                user.email = email
+                changed["email"] = email
+
+        if "full_name" in payload:
+            raw = payload.get("full_name")
+            full_name = (str(raw).strip() if raw is not None and str(raw).strip() else None)
+            if full_name and len(full_name) > 160:
+                return jsonify({"error": "Name must be 160 characters or fewer"}), 400
+            user.full_name = full_name
+            changed["full_name"] = full_name
+
+        roles_in = _parse_roles_payload(payload) if "roles" in payload else None
+        primary_role = None
+        if "primary_role" in payload:
+            primary_role = normalize_role_name(str(payload.get("primary_role") or ""))
+        if roles_in is not None:
+            if not roles_in:
+                return jsonify({"error": "At least one role is required"}), 400
+            role_rows = db.query(Role).filter(Role.name.in_(roles_in)).all()
+            if not role_rows:
+                return jsonify({"error": "No valid roles found"}), 400
+            db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+            for r in role_rows:
+                db.add(UserRole(user_id=user_id, role_id=r.id))
+            legacy = primary_role or role_rows[0].name
+            user.role = legacy
+            changed["roles"] = [r.name for r in role_rows]
+        elif primary_role:
+            user.role = primary_role
+            changed["primary_role"] = primary_role
+
+        if "team" in payload or "region" in payload:
+            team = (str(payload.get("team") or "").strip() or None) if "team" in payload else None
+            region = (str(payload.get("region") or "").strip() or None) if "region" in payload else None
+            rows = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+            if not rows:
+                return jsonify({"error": "Assign at least one role before setting team or region"}), 400
+            for row in rows:
+                if "team" in payload:
+                    row.team = team
+                if "region" in payload:
+                    row.region = region
+            changed["team"] = team if "team" in payload else None
+            changed["region"] = region if "region" in payload else None
+
+        if "is_active" in payload:
+            is_active = payload.get("is_active")
+            if not isinstance(is_active, bool):
+                return jsonify({"error": "is_active must be a boolean"}), 400
+            actor_id = session.get("user_id")
+            if actor_id and int(actor_id) == int(user_id) and not is_active:
+                return jsonify({"error": "You cannot suspend your own account"}), 400
+            user.is_active = bool(is_active)
+            user.suspended_at = None if is_active else datetime.now(tz=timezone.utc)
+            changed["is_active"] = bool(is_active)
+
+        if not changed:
+            return jsonify({"error": "No fields to update"}), 400
+
+        db.commit()
+
+        _audit_log(
+            db,
+            actor_user_id=session.get("user_id"),
+            action="admin.user.update",
+            target_type="user",
+            target_id=str(user_id),
+            meta=changed,
+        )
+        if "roles" in changed:
+            try:
+                _notify_admins_user_roles_changed(db, changed_user=user, roles=changed["roles"])
+            except Exception:
+                pass
+
+        db.refresh(user)
+        return jsonify({"ok": True, "user": _admin_user_to_json(db, user)})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
 @api_bp.route("/admin/users/<int:user_id>/roles", methods=["POST"])
 def admin_set_user_roles(user_id: int):
     db = SessionLocal()
