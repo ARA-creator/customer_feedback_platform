@@ -1156,7 +1156,46 @@ def _parse_roles_payload(payload: dict) -> List[str]:
         roles_in = [r.strip() for r in roles_in.split(",") if r.strip()]
     if not isinstance(roles_in, list):
         return []
-    return [normalize_role_name(r) for r in roles_in if r]
+    out: List[str] = []
+    for r in roles_in:
+        if not r:
+            continue
+        normalized = normalize_role_name(r) or str(r).strip().lower()
+        if normalized:
+            out.append(normalized)
+    return out
+
+
+def _ensure_user_role_rows(
+    db,
+    user_id: int,
+    user: User,
+    *,
+    role_names: Optional[List[str]] = None,
+) -> List[UserRole]:
+    """Ensure user_roles rows exist (legacy users may only have users.role set)."""
+    rows = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+    if rows:
+        return rows
+
+    names = list(role_names or [])
+    if not names and getattr(user, "role", None):
+        legacy = normalize_role_name(user.role) or str(user.role).strip().lower()
+        if legacy:
+            names = [legacy]
+
+    if not names:
+        return []
+
+    role_rows = db.query(Role).filter(Role.name.in_(names)).all()
+    for r in role_rows:
+        db.add(UserRole(user_id=user_id, role_id=r.id))
+    if role_rows:
+        if not user.role:
+            user.role = role_rows[0].name
+        db.flush()
+        return db.query(UserRole).filter(UserRole.user_id == user_id).all()
+    return []
 
 
 def _admin_user_to_json(db, user: User) -> Dict[str, Any]:
@@ -1253,16 +1292,29 @@ def admin_update_user(user_id: int):
             legacy = primary_role or role_rows[0].name
             user.role = legacy
             changed["roles"] = [r.name for r in role_rows]
+            db.flush()
         elif primary_role:
             user.role = primary_role
             changed["primary_role"] = primary_role
+            _ensure_user_role_rows(db, user_id, user, role_names=[primary_role])
 
         if "team" in payload or "region" in payload:
             team = (str(payload.get("team") or "").strip() or None) if "team" in payload else None
             region = (str(payload.get("region") or "").strip() or None) if "region" in payload else None
             rows = db.query(UserRole).filter(UserRole.user_id == user_id).all()
             if not rows:
-                return jsonify({"error": "Assign at least one role before setting team or region"}), 400
+                rows = _ensure_user_role_rows(
+                    db,
+                    user_id,
+                    user,
+                    role_names=roles_in if roles_in else ([primary_role] if primary_role else None),
+                )
+            if not rows:
+                return jsonify(
+                    {
+                        "error": "Could not assign team or region — select a valid role and save again.",
+                    }
+                ), 400
             for row in rows:
                 if "team" in payload:
                     row.team = team
@@ -1661,9 +1713,9 @@ def admin_set_user_scope(user_id: int):
         team = (payload.get("team") or "").strip() or None
         region = (payload.get("region") or "").strip() or None
 
-        rows = db.query(UserRole).filter(UserRole.user_id == user_id).all()
+        rows = _ensure_user_role_rows(db, user_id, user)
         if not rows:
-            return jsonify({"error": "User has no roles assigned"}), 400
+            return jsonify({"error": "User has no valid role assigned"}), 400
         for row in rows:
             row.team = team
             row.region = region
