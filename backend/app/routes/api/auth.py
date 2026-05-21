@@ -38,6 +38,23 @@ from ._helpers import _current_user, _require_user, _user_permission_keys
 logger = logging.getLogger(__name__)
 
 
+def _frontend_landing_path(db, user: User) -> str:
+    """Dashboard `/` vs admin portal `/admin` after OAuth or deep links."""
+    perms = set(_user_permission_keys(db, user.id))
+    if (
+        "admin.manage_users" in perms
+        or "admin.manage_roles" in perms
+        or "admin.manage_integrations" in perms
+        or str(getattr(user, "role", "") or "").lower() == "super_admin"
+    ):
+        return "/admin"
+    return "/"
+
+
+def _frontend_base() -> str:
+    return str(current_app.config.get("FRONTEND_BASE_URL", "/") or "/").rstrip("/")
+
+
 _CODE_RE = re.compile(r"^\d{6}$")
 
 
@@ -194,9 +211,9 @@ def auth_enterprise_login():
 @api_bp.route("/auth/enterprise/callback", methods=["GET"])
 @limiter.limit("20 per minute")
 def auth_enterprise_callback():
+    front = _frontend_base()
     err = request.args.get("error_description") or request.args.get("error")
     if err:
-        front = current_app.config.get("FRONTEND_BASE_URL", "/")
         return redirect(f"{front}/?enterprise_error={err}")
     code = request.args.get("code") or ""
     state = request.args.get("state") or ""
@@ -205,11 +222,9 @@ def auth_enterprise_callback():
     try:
         user = complete_enterprise_login(code, state)
     except ValueError as e:
-        front = current_app.config.get("FRONTEND_BASE_URL", "/")
         return redirect(f"{front}/?enterprise_error={e}")
     except Exception:
         logger.exception("Enterprise OAuth callback failed")
-        front = current_app.config.get("FRONTEND_BASE_URL", "/")
         return redirect(f"{front}/?enterprise_error=sign_in_failed")
 
     db = SessionLocal()
@@ -221,10 +236,10 @@ def auth_enterprise_callback():
         user.last_login_at = datetime.now(tz=timezone.utc)
         db.merge(user)
         db.commit()
+        landing = _frontend_landing_path(db, user)
     finally:
         db.close()
-    front = current_app.config.get("FRONTEND_BASE_URL", "/")
-    return redirect(f"{front}/?enterprise_signed_in=1")
+    return redirect(f"{front}{landing}?enterprise_signed_in=1")
 
 
 @api_bp.route("/auth/me", methods=["GET"])

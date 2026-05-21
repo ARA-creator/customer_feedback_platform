@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { pathForView } from '../../../app/routes'
 import {
   FiActivity,
   FiBell,
@@ -67,7 +69,6 @@ function NavButton({
 
 function Sidebar({
   currentView,
-  setCurrentView,
   sidebarOpen = true,
   onSignOut,
   theme: _theme,
@@ -79,6 +80,9 @@ function Sidebar({
   /** { email, role, id? } from /auth/me — optional. */
   user: userProp = null,
 }) {
+  const navigate = useNavigate()
+  const go = useCallback((view) => navigate(pathForView(view)), [navigate])
+
   const perms = Array.isArray(permissions) ? permissions : []
   const isSuperAdmin = String(userRole || '').toLowerCase() === 'super_admin'
   /** Same rule as App.jsx — never trust a lone boolean over RBAC. */
@@ -255,7 +259,7 @@ function Sidebar({
               collapsed={c}
               icon={FiHome}
               label="Overview"
-              onClick={() => setCurrentView('overview')}
+              onClick={() => go('overview')}
               testId="nav-overview"
             />
             <NavButton
@@ -263,7 +267,7 @@ function Sidebar({
               collapsed={c}
               icon={FiInbox}
               label="Inbox"
-              onClick={() => setCurrentView('inbox')}
+              onClick={() => go('inbox')}
               testId="nav-inbox"
             />
           </>
@@ -283,7 +287,7 @@ function Sidebar({
               collapsed={c}
               icon={FiLayout}
               label="Admin overview"
-              onClick={() => setCurrentView('admin_overview')}
+              onClick={() => go('admin_overview')}
             />
             {canAccessWebhooks && (
               <NavButton
@@ -291,7 +295,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiLink2}
                 label="Webhooks & channels"
-                onClick={() => setCurrentView('channels')}
+                onClick={() => go('channels')}
               />
             )}
             {(canManageUsers || isSuperAdmin) && (
@@ -300,7 +304,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiUsers}
                 label="Users"
-                onClick={() => setCurrentView('admin_users')}
+                onClick={() => go('admin_users')}
                 testId="nav-admin-users"
               />
             )}
@@ -310,7 +314,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiKey}
                 label="Roles & permissions"
-                onClick={() => setCurrentView('admin_roles')}
+                onClick={() => go('admin_roles')}
               />
             )}
             {canManageIntegrations && (
@@ -319,7 +323,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiActivity}
                 label="Integrations health"
-                onClick={() => setCurrentView('admin_integrations')}
+                onClick={() => go('admin_integrations')}
               />
             )}
             {canManageIntegrations && (
@@ -328,7 +332,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiActivity}
                 label="Release impact"
-                onClick={() => setCurrentView('admin_release_impact')}
+                onClick={() => go('admin_release_impact')}
               />
             )}
             {canManageIntegrations && (
@@ -337,7 +341,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiServer}
                 label="Database connection"
-                onClick={() => setCurrentView('admin_db')}
+                onClick={() => go('admin_db')}
               />
             )}
             {canManageIntegrations && (
@@ -346,7 +350,7 @@ function Sidebar({
                 collapsed={c}
                 icon={FiKey}
                 label="Enterprise SSO"
-                onClick={() => setCurrentView('admin_enterprise_auth')}
+                onClick={() => go('admin_enterprise_auth')}
                 testId="nav-admin-enterprise-auth"
               />
             )}
@@ -369,12 +373,12 @@ function Sidebar({
           collapsed={c}
           icon={FiSettings}
           label="Settings"
-          onClick={() => setCurrentView('settings')}
+          onClick={() => go('settings')}
           testId="nav-settings"
         />
         <button
           type="button"
-          onClick={() => setCurrentView('notifications')}
+          onClick={() => go('notifications')}
           title="Notifications"
           aria-label="Notifications"
           aria-current={currentView === 'notifications' ? 'page' : undefined}

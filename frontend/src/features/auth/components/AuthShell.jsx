@@ -42,7 +42,7 @@ function PasswordInput({ value, onChange, placeholder, autoComplete }) {
   )
 }
 
-export default function AuthShell({ onAuthenticated }) {
+export default function AuthShell({ onAuthenticated, adminPortal = false }) {
   const [step, setStep] = useState('gate') // gate | external
   const [mode, setMode] = useState('login')
   const isSignup = mode === 'signup'
@@ -237,12 +237,14 @@ export default function AuthShell({ onAuthenticated }) {
 
                   <div className="mt-4">
                     <h2 className="text-xl font-semibold text-gray-900">
-                      {isSignup ? 'Request external access' : 'Sign in'}
+                      {isSignup ? 'Request external access' : adminPortal ? 'Admin sign in' : 'Sign in'}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500">
                       {isSignup
                         ? 'For partners and contractors without an Enterprise email'
-                        : 'Use the email and password from your approval'}
+                        : adminPortal
+                          ? 'Sign in with an administrator account to manage the platform'
+                          : 'Use the email and password from your approval'}
                     </p>
                   </div>
 
