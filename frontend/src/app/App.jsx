@@ -13,6 +13,8 @@ import AdminOverview from '../features/admin/components/AdminOverview'
 import AdminReleaseImpact from '../features/admin/components/AdminReleaseImpact'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
+import AdminReplyApprovals from '../features/admin/components/AdminReplyApprovals'
+import ReportsPage from '../pages/reports/ReportsPage'
 import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui/LoadingSkeleton'
@@ -25,6 +27,8 @@ import {
   defaultPathForUser,
   isAdminPath,
   isDashboardAgentPath,
+  userCanApproveReplies,
+  userCanViewReports,
   userIsAdminUI,
   viewFromPathname,
 } from './routes'
@@ -137,6 +141,8 @@ function AuthenticatedApp({ auth, setAuth }) {
     () => canManageIntegrations || isSuperAdmin,
     [canManageIntegrations, isSuperAdmin],
   )
+  const canViewReports = useMemo(() => userCanViewReports(auth), [auth])
+  const canApproveReplies = useMemo(() => userCanApproveReplies(auth), [auth])
 
   const currentView = viewFromPathname(location.pathname)
   const showDashboardRefresh = currentView === 'overview' || currentView === 'insights'
@@ -275,6 +281,10 @@ function AuthenticatedApp({ auth, setAuth }) {
             element={<Notifications isAdminUI={isAdminUI} onNavigate={navigateToView} />}
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/reports"
+            element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}
+          />
 
           <Route
             path="/admin"
@@ -309,6 +319,16 @@ function AuthenticatedApp({ auth, setAuth }) {
           <Route
             path="/admin/enterprise-sso"
             element={isAdminUI ? <AdminEnterpriseAuth /> : <Navigate to="/" replace />}
+          />
+          <Route
+            path="/admin/reply-approvals"
+            element={
+              isAdminUI && canApproveReplies ? (
+                <AdminReplyApprovals />
+              ) : (
+                <Navigate to={isAdminUI ? '/admin' : '/'} replace />
+              )
+            }
           />
 
           <Route path="*" element={<Navigate to={isAdminUI ? '/admin' : '/'} replace />} />

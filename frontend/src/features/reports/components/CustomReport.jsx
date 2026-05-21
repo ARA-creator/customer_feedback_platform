@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { FiArrowLeft, FiDownload } from 'react-icons/fi'
 import { downloadCustomReportCsv } from '../services/reports.api'
 
-export default function CustomReport({ onBack }) {
+export default function CustomReport({ onBack, embedded = false }) {
   const [sentiment, setSentiment] = useState('all')
   const [category, setCategory] = useState('all')
   const [source, setSource] = useState('all')
@@ -51,25 +51,29 @@ export default function CustomReport({ onBack }) {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <FiArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Custom report</h1>
+    <div className={embedded ? 'space-y-6' : 'p-6 space-y-6'}>
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                >
+                  <FiArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              )}
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Custom report</h1>
+            </div>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Build a filtered export directly from the database.
+            </p>
           </div>
-          <p className="mt-1 text-sm text-gray-600">
-            Build a filtered export directly from the database.
-          </p>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

@@ -8,6 +8,7 @@ export default function AdminOverview({ auth, onNavigate }) {
   const perms = Array.isArray(auth?.permissions) ? auth.permissions : []
   const canIntegrations = perms.includes('admin.manage_integrations')
   const canManageUsers = perms.includes('admin.manage_users')
+  const canApproveReplies = perms.includes('feedback.approve') || canManageUsers
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -98,16 +99,33 @@ export default function AdminOverview({ auth, onNavigate }) {
             </div>
             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Past due, still open</div>
           </div>
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-            <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
-              <FiShield className="h-4 w-4" />
-              Reply approvals
+          {canApproveReplies ? (
+            <button
+              type="button"
+              onClick={() => onNavigate?.('admin_reply_approvals')}
+              className="rounded-2xl border border-gray-200 bg-white p-4 text-left hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900/80"
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                <FiShield className="h-4 w-4" />
+                Reply approvals
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {loading ? '…' : queue.approval_pending ?? '—'}
+              </div>
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Draft replies awaiting approval</div>
+            </button>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+              <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                <FiShield className="h-4 w-4" />
+                Reply approvals
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                {loading ? '…' : queue.approval_pending ?? '—'}
+              </div>
+              <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Draft replies awaiting approval</div>
             </div>
-            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              {loading ? '…' : queue.approval_pending ?? '—'}
-            </div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Draft replies awaiting approval</div>
-          </div>
+          )}
           <div
             className={`rounded-2xl border p-4 ${
               queue.negative_spike_alert
@@ -197,6 +215,16 @@ export default function AdminOverview({ auth, onNavigate }) {
               >
                 <FiUsers className="h-4 w-4" />
                 Pending signups ({queue.external_users_pending})
+              </button>
+            )}
+            {canApproveReplies && Number(queue.approval_pending) > 0 && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.('admin_reply_approvals')}
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-950 hover:bg-violet-100 dark:border-violet-900/50 dark:bg-violet-950/40 dark:text-violet-100"
+              >
+                <FiShield className="h-4 w-4" />
+                Reply queue ({queue.approval_pending})
               </button>
             )}
             {canIntegrations && (

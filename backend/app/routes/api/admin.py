@@ -287,7 +287,32 @@ def _write_env_database_url(database_url: str) -> None:
 
 @api_bp.route("/admin/approval-queue", methods=["GET"])
 def admin_approval_queue():
-    return jsonify({"error": "Approvals have been removed in the streamlined platform."}), 410
+    """List reply drafts awaiting approval (public / external-channel responses)."""
+    db = SessionLocal()
+    try:
+        _require_any_permission(db, ["feedback.approve", "admin.manage_users"])
+        limit = min(max(int(request.args.get("limit") or 200), 1), 500)
+        rows = (
+            db.query(FeedbackReplyDraft, Feedback)
+            .join(Feedback, Feedback.id == FeedbackReplyDraft.feedback_id)
+            .filter(Feedback.deleted_at.is_(None))
+            .filter(func.lower(FeedbackReplyDraft.approval_status) == "pending")
+            .filter(func.lower(FeedbackReplyDraft.send_status) == "draft")
+            .order_by(desc(FeedbackReplyDraft.created_at), desc(FeedbackReplyDraft.id))
+            .limit(limit)
+            .all()
+        )
+        from .replies import _serialize_draft
+
+        items = []
+        for draft, feedback in rows:
+            items.append(_serialize_draft(db, draft, feedback=feedback))
+        return jsonify({"items": items, "count": len(items)})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
 
 
 @api_bp.route("/admin/scoring-config", methods=["GET", "POST"])

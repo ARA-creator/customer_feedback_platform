@@ -14,7 +14,9 @@ import {
   FiLogOut,
   FiServer,
   FiSettings,
+  FiShield,
   FiUsers,
+  FiDownload,
 } from 'react-icons/fi'
 import { connectNotificationsStream, getUnreadCount } from '../../../features/notifications/services/notifications.api'
 
@@ -97,6 +99,13 @@ function Sidebar({
   const canManageUsers = perms.includes('admin.manage_users')
   const canManageRoles = perms.includes('admin.manage_roles')
   const canManageIntegrations = perms.includes('admin.manage_integrations')
+  const canViewReports =
+    perms.includes('reports.view_org') ||
+    perms.includes('reports.view_team') ||
+    perms.includes('reports.export') ||
+    canManageUsers ||
+    isSuperAdmin
+  const canApproveReplies = perms.includes('feedback.approve') || canManageUsers
 
   const [railCollapsed, setRailCollapsed] = useState(false)
 
@@ -354,6 +363,15 @@ function Sidebar({
                 testId="nav-admin-enterprise-auth"
               />
             )}
+            {canApproveReplies && (
+              <NavButton
+                active={currentView === 'admin_reply_approvals'}
+                collapsed={c}
+                icon={FiShield}
+                label="Reply approvals"
+                onClick={() => go('admin_reply_approvals')}
+              />
+            )}
           </>
         )}
 
@@ -368,6 +386,16 @@ function Sidebar({
         >
           Account
         </p>
+        {canViewReports && (
+          <NavButton
+            active={currentView === 'reports'}
+            collapsed={c}
+            icon={FiDownload}
+            label="Reports"
+            onClick={() => go('reports')}
+            testId="nav-reports"
+          />
+        )}
         <NavButton
           active={currentView === 'settings'}
           collapsed={c}

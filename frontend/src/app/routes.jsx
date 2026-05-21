@@ -15,6 +15,8 @@ export const VIEW_PATHS = {
   admin_release_impact: '/admin/release-impact',
   admin_db: '/admin/db',
   admin_enterprise_auth: '/admin/enterprise-sso',
+  admin_reply_approvals: '/admin/reply-approvals',
+  reports: '/reports',
 }
 
 const PATH_TO_VIEW = Object.fromEntries(
@@ -62,6 +64,22 @@ export function userIsAdminUI(user) {
     perms.includes('admin.manage_integrations') ||
     String(user?.role || '').toLowerCase() === 'super_admin'
   )
+}
+
+export function userCanViewReports(user) {
+  const perms = Array.isArray(user?.permissions) ? user.permissions : []
+  return (
+    perms.includes('reports.view_org') ||
+    perms.includes('reports.view_team') ||
+    perms.includes('reports.export') ||
+    perms.includes('admin.manage_users') ||
+    String(user?.role || '').toLowerCase() === 'super_admin'
+  )
+}
+
+export function userCanApproveReplies(user) {
+  const perms = Array.isArray(user?.permissions) ? user.permissions : []
+  return perms.includes('feedback.approve') || perms.includes('admin.manage_users')
 }
 
 export function defaultPathForUser(user) {

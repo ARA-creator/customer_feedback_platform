@@ -18,6 +18,8 @@ from . import feedback as _feedback  # noqa: F401,E402
 from . import health as _health  # noqa: F401,E402
 from . import policies as _policies  # noqa: F401,E402
 from . import releases as _releases  # noqa: F401,E402
+from . import replies as _replies  # noqa: F401,E402
+from . import reports as _reports  # noqa: F401,E402
 
 __all__ = ["api_bp"]
 

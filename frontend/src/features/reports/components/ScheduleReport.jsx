@@ -8,7 +8,7 @@ const CADENCES = [
   { id: 'monthly', label: 'Monthly' },
 ]
 
-export default function ScheduleReport({ onBack }) {
+export default function ScheduleReport({ onBack, embedded = false }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [schedules, setSchedules] = useState([])
@@ -79,25 +79,29 @@ export default function ScheduleReport({ onBack }) {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              <FiArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">Schedule report</h1>
+    <div className={embedded ? 'space-y-6' : 'p-6 space-y-6'}>
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                >
+                  <FiArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              )}
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Schedule report</h1>
+            </div>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+              Save report schedules. Delivery automation can be connected later (email/Slack).
+            </p>
           </div>
-          <p className="mt-1 text-sm text-gray-600">
-            Save report schedules. Delivery automation can be connected later (email/Slack).
-          </p>
         </div>
-      </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">

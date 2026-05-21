@@ -97,6 +97,11 @@ export const adminReprocessSentiment = async (params = {}) => {
   return response.data
 }
 
+export const adminListApprovalQueue = async ({ limit = 200 } = {}) => {
+  const response = await api.get('/admin/approval-queue', { params: { limit } })
+  return response.data
+}
+
 export const adminApproveReplyDraft = async (draftId, { note } = {}) => {
   const response = await api.post(`/feedback/replies/${draftId}/approve`, { note })
   return response.data
