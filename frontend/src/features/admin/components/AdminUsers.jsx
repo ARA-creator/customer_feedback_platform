@@ -48,6 +48,18 @@ export default function AdminUsers() {
   }
 
   useEffect(() => {
+    try {
+      const preset = sessionStorage.getItem('cfp_admin_users_scope')
+      if (preset === 'pending' || preset === 'active' || preset === 'recycle') {
+        setUserScope(preset)
+        sessionStorage.removeItem('cfp_admin_users_scope')
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userScope])

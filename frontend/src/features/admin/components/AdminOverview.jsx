@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiActivity, FiInbox, FiLink2, FiRefreshCw, FiShield, FiSliders } from 'react-icons/fi'
+import { FiActivity, FiAlertTriangle, FiInbox, FiLink2, FiRefreshCw, FiShield, FiUsers } from 'react-icons/fi'
 import { adminGetOverview, adminReprocessInsuranceTags, adminReprocessSentiment } from '../services/admin.api'
+
+const PENDING_USERS_SCOPE_KEY = 'cfp_admin_users_scope'
 
 export default function AdminOverview({ auth, onNavigate }) {
   const perms = Array.isArray(auth?.permissions) ? auth.permissions : []
   const canIntegrations = perms.includes('admin.manage_integrations')
-  const canScoring = perms.includes('admin.manage_scoring')
-  const canApprove = perms.includes('feedback.approve')
+  const canManageUsers = perms.includes('admin.manage_users')
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -15,7 +16,6 @@ export default function AdminOverview({ auth, onNavigate }) {
   const [insuranceReprocessLog, setInsuranceReprocessLog] = useState('')
   const [sentimentReprocessBusy, setSentimentReprocessBusy] = useState(false)
   const [sentimentReprocessLog, setSentimentReprocessLog] = useState('')
-  const [serverNotice, setServerNotice] = useState('')
 
   const ingestion = useMemo(() => health?.ingestion || [], [health])
   const queue = useMemo(() => health?.queue || {}, [health])
@@ -23,15 +23,9 @@ export default function AdminOverview({ auth, onNavigate }) {
   const load = async () => {
     setLoading(true)
     setError(null)
-    setServerNotice('')
     try {
       const data = await adminGetOverview()
       setHealth(data?.org_health || null)
-      if (data?.overview_api === 'fallback-via-integrations-status') {
-        setServerNotice(
-          'The org health table is loaded from /api/admin/integrations/status because /api/admin/overview still returned 410. Maintenance actions below are unaffected. When your API is redeployed with a current /admin/overview, this message disappears.',
-        )
-      }
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to load admin overview')
     } finally {
@@ -42,6 +36,15 @@ export default function AdminOverview({ auth, onNavigate }) {
   useEffect(() => {
     load()
   }, [])
+
+  const goPendingUsers = () => {
+    try {
+      sessionStorage.setItem(PENDING_USERS_SCOPE_KEY, 'pending')
+    } catch {
+      // ignore
+    }
+    onNavigate?.('admin_users')
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -68,44 +71,76 @@ export default function AdminOverview({ auth, onNavigate }) {
           </div>
         </div>
 
-        {serverNotice && (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-            {serverNotice}
-          </div>
-        )}
-
         {error && (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
             {error}
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
               <FiInbox className="h-4 w-4" />
-              Queue volume
+              Open feedback
             </div>
-            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{queue?.open ?? '—'}</div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Open items</div>
+            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              {loading ? '…' : queue.open ?? '—'}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Not resolved or closed</div>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
               <FiActivity className="h-4 w-4" />
               SLA breaches
             </div>
-            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{queue?.sla_breaches ?? '—'}</div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Past due</div>
+            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              {loading ? '…' : queue.sla_breaches ?? '—'}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Past due, still open</div>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
               <FiShield className="h-4 w-4" />
-              Approval queue
+              Reply approvals
             </div>
-            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{queue?.approval_pending ?? '—'}</div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pending approvals</div>
+            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              {loading ? '…' : queue.approval_pending ?? '—'}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Draft replies awaiting approval</div>
+          </div>
+          <div
+            className={`rounded-2xl border p-4 ${
+              queue.negative_spike_alert
+                ? 'border-rose-300 bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/40'
+                : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950'
+            }`}
+          >
+            <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+              {queue.negative_spike_alert ? (
+                <FiAlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-300" />
+              ) : (
+                <FiActivity className="h-4 w-4" />
+              )}
+              Negative (24h)
+            </div>
+            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              {loading ? '…' : queue.negative_24h ?? '—'}
+            </div>
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {queue.negative_spike_alert ? 'Elevated vs 7-day baseline' : 'Last 24 hours'}
+            </div>
           </div>
         </div>
+
+        {!loading && Number(queue.external_users_pending) > 0 && canManageUsers && (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+            <span className="font-semibold">{queue.external_users_pending}</span> external signup
+            {Number(queue.external_users_pending) === 1 ? '' : 's'} awaiting admin approval.{' '}
+            <button type="button" onClick={goPendingUsers} className="font-semibold underline hover:no-underline">
+              Review in Users → Pending
+            </button>
+          </div>
+        )}
 
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Org health</h2>
@@ -144,22 +179,24 @@ export default function AdminOverview({ auth, onNavigate }) {
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick actions</h2>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate?.('admin_users')}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-            >
-              <FiShield className="h-4 w-4" />
-              Invite user
-            </button>
-            {canApprove && (
+            {canManageUsers && (
               <button
                 type="button"
-                onClick={() => onNavigate?.('admin_approval')}
+                onClick={() => onNavigate?.('admin_users')}
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
               >
-                <FiInbox className="h-4 w-4" />
-                View approval queue
+                <FiUsers className="h-4 w-4" />
+                Manage users
+              </button>
+            )}
+            {canManageUsers && Number(queue.external_users_pending) > 0 && (
+              <button
+                type="button"
+                onClick={goPendingUsers}
+                className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <FiUsers className="h-4 w-4" />
+                Pending signups ({queue.external_users_pending})
               </button>
             )}
             {canIntegrations && (
@@ -169,7 +206,7 @@ export default function AdminOverview({ auth, onNavigate }) {
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
               >
                 <FiLink2 className="h-4 w-4" />
-                Connect channel
+                Integrations health
               </button>
             )}
             {canIntegrations && (
@@ -292,16 +329,6 @@ export default function AdminOverview({ auth, onNavigate }) {
                 Backfill sentiment
               </button>
             )}
-            {canScoring && (
-              <button
-                type="button"
-                onClick={() => onNavigate?.('admin_scoring')}
-                className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-              >
-                <FiSliders className="h-4 w-4" />
-                Scoring settings
-              </button>
-            )}
           </div>
         </div>
 
@@ -340,4 +367,3 @@ export default function AdminOverview({ auth, onNavigate }) {
     </div>
   )
 }
-

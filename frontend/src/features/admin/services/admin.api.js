@@ -73,58 +73,10 @@ export const adminPurgeUser = async (userId) => {
   return response.data
 }
 
-export const adminListAuditLogs = async ({ limit = 100 } = {}) => {
-  const response = await api.get('/admin/audit-logs', { params: { limit } })
-  return response.data
-}
-
-/**
- * GET /api/admin/overview — org snapshot.
- * If the server still runs a legacy build that 410s this route, we load the same
- * per-source “last seen” data from /api/admin/integrations/status (older releases
- * had the latter implemented while overview stayed stubbed).
- */
+/** GET /api/admin/overview — org snapshot with live queue metrics. */
 export const adminGetOverview = async () => {
-  const isLegacyOverview410 = (err) => {
-    const s = err?.response?.status
-    const msg = err?.response?.data?.error
-    return (
-      s === 410 || (typeof msg === 'string' && msg.includes('Admin overview has been removed'))
-    )
-  }
-  try {
-    const response = await api.get('/admin/overview')
-    return response.data
-  } catch (e) {
-    if (!isLegacyOverview410(e)) throw e
-    try {
-      const st = await api.get('/admin/integrations/status')
-      const sources = st.data?.sources || []
-      return {
-        overview_api: 'fallback-via-integrations-status',
-        org_health: {
-          ingestion: sources.map((s) => ({
-            source: s.source || '—',
-            last_seen_at: s.last_ingested_at || null,
-          })),
-          queue: {
-            open: null,
-            sla_breaches: null,
-            approval_pending: null,
-          },
-        },
-      }
-    } catch (e2) {
-      const hint =
-        e2?.response?.status === 403
-          ? ' You may be missing admin.manage_integrations, which the fallback needs.'
-          : ''
-      const inner = e2?.response?.data?.error || e2?.message || 'unknown'
-      throw new Error(
-        `Admin overview is not available (legacy 410) and integrations status fallback failed: ${inner}.${hint}`,
-      )
-    }
-  }
+  const response = await api.get('/admin/overview')
+  return response.data
 }
 
 /** POST /api/admin/reprocess-insurance-tags — query params only (no JSON body). */
@@ -136,11 +88,6 @@ export const adminReprocessInsuranceTags = async (params = {}) => {
 /** POST /api/admin/reprocess-sentiment — query params only (no JSON body). */
 export const adminReprocessSentiment = async (params = {}) => {
   const response = await api.post('/admin/reprocess-sentiment', null, { params })
-  return response.data
-}
-
-export const adminListApprovalQueue = async ({ limit = 200 } = {}) => {
-  const response = await api.get('/admin/approval-queue', { params: { limit } })
   return response.data
 }
 
@@ -161,51 +108,6 @@ export const adminAssignReplyApprover = async (draftId, { approver_user_id } = {
 
 export const adminIntegrationsStatus = async () => {
   const response = await api.get('/admin/integrations/status')
-  return response.data
-}
-
-export const adminGetScoringConfig = async () => {
-  const response = await api.get('/admin/scoring-config')
-  return response.data
-}
-
-export const adminSetScoringConfig = async (config) => {
-  const response = await api.post('/admin/scoring-config', { config })
-  return response.data
-}
-
-export const adminGetTemplatesConfig = async () => {
-  const response = await api.get('/admin/templates')
-  return response.data
-}
-
-export const adminSetTemplatesConfig = async (config) => {
-  const response = await api.post('/admin/templates', { config })
-  return response.data
-}
-
-export const adminGetRetentionConfig = async () => {
-  const response = await api.get('/admin/retention')
-  return response.data
-}
-
-export const adminSetRetentionConfig = async (config) => {
-  const response = await api.post('/admin/retention', { config })
-  return response.data
-}
-
-export const adminGetRoutingRules = async () => {
-  const response = await api.get('/admin/routing-rules')
-  return response.data
-}
-
-export const adminSetRoutingRules = async (config) => {
-  const response = await api.post('/admin/routing-rules', { config })
-  return response.data
-}
-
-export const adminGetAnalytics = async ({ days = 30 } = {}) => {
-  const response = await api.get('/admin/analytics', { params: { days } })
   return response.data
 }
 

@@ -23,6 +23,7 @@ from ...database import SessionLocal
 from ...models import (
     AppSetting,
     Feedback,
+    FeedbackReplyDraft,
     FeedbackWorkflow,
     Notification,
     Permission,
@@ -1502,6 +1503,107 @@ def admin_audit_logs():
     return jsonify({"error": "Audit logs have been removed in the streamlined platform."}), 410
 
 
+def _admin_overview_queue_metrics(db) -> Dict[str, Any]:
+    """Live counts for admin overview cards."""
+    now = datetime.now(tz=timezone.utc)
+    recent_start = now - timedelta(hours=24)
+    baseline_start = now - timedelta(days=7, hours=24)
+
+    closed_statuses = ("closed", "resolved")
+
+    open_count = (
+        db.query(func.count(Feedback.id))
+        .outerjoin(FeedbackWorkflow, FeedbackWorkflow.feedback_id == Feedback.id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(
+            or_(
+                FeedbackWorkflow.id.is_(None),
+                func.lower(FeedbackWorkflow.status).notin_(closed_statuses),
+            )
+        )
+        .scalar()
+    ) or 0
+
+    sla_breaches = (
+        db.query(func.count(FeedbackWorkflow.id))
+        .join(Feedback, Feedback.id == FeedbackWorkflow.feedback_id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(FeedbackWorkflow.sla_due_at.isnot(None))
+        .filter(FeedbackWorkflow.sla_due_at < now)
+        .filter(func.lower(FeedbackWorkflow.status).notin_(closed_statuses))
+        .scalar()
+    ) or 0
+
+    reply_approval_pending = (
+        db.query(func.count(FeedbackReplyDraft.id))
+        .join(Feedback, Feedback.id == FeedbackReplyDraft.feedback_id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(func.lower(FeedbackReplyDraft.approval_status) == "pending")
+        .filter(func.lower(FeedbackReplyDraft.send_status) == "draft")
+        .scalar()
+    ) or 0
+
+    external_users_pending = (
+        db.query(func.count(User.id))
+        .filter(User.deleted_at.is_(None))
+        .filter(User.account_type == "external")
+        .filter(User.approved_at.is_(None))
+        .scalar()
+    ) or 0
+
+    negative_24h = (
+        db.query(func.count(Feedback.id))
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(Feedback.created_at >= recent_start)
+        .filter(func.lower(Feedback.sentiment_label) == "negative")
+        .scalar()
+    ) or 0
+
+    baseline_neg = (
+        db.query(func.count(Feedback.id))
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(Feedback.created_at >= baseline_start)
+        .filter(Feedback.created_at < recent_start)
+        .filter(func.lower(Feedback.sentiment_label) == "negative")
+        .scalar()
+    ) or 0
+
+    baseline_total = (
+        db.query(func.count(Feedback.id))
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(Feedback.created_at >= baseline_start)
+        .filter(Feedback.created_at < recent_start)
+        .scalar()
+    ) or 0
+
+    recent_total = (
+        db.query(func.count(Feedback.id))
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(Feedback.created_at >= recent_start)
+        .scalar()
+    ) or 0
+
+    baseline_neg_share = (baseline_neg / baseline_total) if baseline_total else 0.0
+    recent_neg_share = (negative_24h / recent_total) if recent_total else 0.0
+    negative_spike_alert = (
+        negative_24h >= 3
+        and recent_total >= 5
+        and (
+            baseline_total < 12
+            or recent_neg_share >= max(0.35, baseline_neg_share * 1.6)
+        )
+    )
+
+    return {
+        "open": int(open_count),
+        "sla_breaches": int(sla_breaches),
+        "approval_pending": int(reply_approval_pending),
+        "external_users_pending": int(external_users_pending),
+        "negative_24h": int(negative_24h),
+        "negative_spike_alert": bool(negative_spike_alert),
+    }
+
+
 @api_bp.route("/admin/overview", methods=["GET"])
 def admin_overview():
     db = SessionLocal()
@@ -1516,7 +1618,10 @@ def admin_overview():
         ingestion = [{"source": source or "—", "last_seen_at": ts.isoformat() if ts else None} for source, ts in last_by_source]
         payload = {
             "overview_api": "v2",
-            "org_health": {"ingestion": ingestion, "queue": {"open": None, "sla_breaches": None, "approval_pending": None}},
+            "org_health": {
+                "ingestion": ingestion,
+                "queue": _admin_overview_queue_metrics(db),
+            },
         }
         resp = make_response(jsonify(payload))
         resp.headers["Cache-Control"] = "no-store, max-age=0"
