@@ -25,7 +25,7 @@ export default function SettingsLayout({ auth }) {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="min-w-0 space-y-5">
           <nav
-            className="flex gap-1 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]"
+            className="flex gap-0 overflow-x-auto border-b border-gray-200 dark:border-gray-800 [-webkit-overflow-scrolling:touch]"
             aria-label="Settings sections"
           >
             {SETTINGS_TABS.map(({ to, label, icon: Icon, end }) => (
@@ -34,14 +34,14 @@ export default function SettingsLayout({ auth }) {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors min-h-[40px] ${
+                  `inline-flex shrink-0 items-center gap-2 border-b-2 -mb-px px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'border-[#009750] bg-[#009750]/10 text-[#007a42] dark:text-emerald-200'
-                      : 'border-transparent bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:bg-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100'
+                      ? 'border-[#009750] text-[#009750] dark:text-emerald-400'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-200'
                   }`
                 }
               >
-                <Icon className="h-3.5 w-3.5" aria-hidden />
+                <Icon className="h-4 w-4 shrink-0" aria-hidden />
                 {label}
               </NavLink>
             ))}
