@@ -7,7 +7,7 @@ const SETTINGS_SECTIONS = [
   { to: '/settings/notifications', title: 'Notifications', subtitle: 'In-app alerts and quiet hours' },
   { to: '/settings/inbox', title: 'Inbox', subtitle: 'Default filters and archive' },
   { to: '/settings/security', title: 'Security', subtitle: 'Password and sign-in' },
-  { to: '/settings/help', title: 'Help & about', subtitle: 'Version and support' },
+  { to: '/settings/help', title: 'Help & about', subtitle: 'Navigate the platform' },
 ]
 
 export default function SettingsPage() {

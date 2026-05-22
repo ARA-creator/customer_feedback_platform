@@ -295,7 +295,7 @@ function AuthenticatedApp({ auth, setAuth }) {
           <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
           <Route path="/settings/inbox" element={<SettingsInboxPage />} />
           <Route path="/settings/security" element={<SettingsSecurityPage auth={auth} />} />
-          <Route path="/settings/help" element={<SettingsHelpPage />} />
+          <Route path="/settings/help" element={<SettingsHelpPage auth={auth} />} />
           <Route
             path="/reports"
             element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}
