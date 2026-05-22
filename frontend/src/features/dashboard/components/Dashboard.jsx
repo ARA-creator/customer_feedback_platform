@@ -35,7 +35,8 @@ import {
 } from '../utils/dashboardFormatters'
 import { SourceLogo, SourcePill } from './SourceIndicators'
 import EmptyState from './EmptyState'
-import { DEFAULT_INBOX_PRESET, DASHBOARD_AUTO_REFRESH_KEY } from '../constants/dashboardConfig'
+import { DEFAULT_INBOX_PRESET } from '../constants/dashboardConfig'
+import { getDefaultInboxPreset } from '../../../shared/lib/inboxPreferences'
 import { normalizeRoleKey, getPeakHeatmapCellStyles } from '../utils/dashboardRole'
 import { safeParseJson } from '../utils/dashboardHelpers'
 import { buildSourceTrendColorMap } from '../utils/dashboardCharts'
@@ -86,7 +87,9 @@ import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
 import { useFeedbackDetailModal } from '../hooks/useFeedbackDetailModal'
 import {
   DISPLAY_PREFS_CHANGED,
+  getDefaultInsightsRange,
   getDefaultOverviewPeriod,
+  INSIGHTS_RANGE_OPTIONS,
   OVERVIEW_PERIOD_OPTIONS,
 } from '../../../shared/lib/displayPreferences'
 
@@ -169,11 +172,10 @@ function Dashboard({
   /** When true, admins have enabled 30s polling and analytics refresh on SSE. */
   const { dashboardAutoRefresh, setDashboardAutoRefresh, dashboardAutoRefreshRef } = useDashboardAutoRefresh({
     isAdminUser,
-    storageKey: DASHBOARD_AUTO_REFRESH_KEY,
   })
   const analyticsDataRef = useRef(null)
   const [serverSourceCounts, setServerSourceCounts] = useState(null)
-  const [insightsRange, setInsightsRange] = useState(30) // Insights (all cards): 7/30/90
+  const [insightsRange, setInsightsRange] = useState(() => getDefaultInsightsRange())
   /** `prefix|group` from product pulse (empty = all products) */
   const [insightsProductKey, setInsightsProductKey] = useState('')
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
@@ -185,6 +187,10 @@ function Dashboard({
       const period = e?.detail?.defaultOverviewPeriod
       if (OVERVIEW_PERIOD_OPTIONS.some((o) => o.id === period)) {
         setOverviewTimeFilter(period)
+      }
+      const range = Number(e?.detail?.defaultInsightsRange)
+      if (INSIGHTS_RANGE_OPTIONS.some((o) => o.id === range)) {
+        setInsightsRange(range)
       }
     }
     window.addEventListener(DISPLAY_PREFS_CHANGED, onPrefsChanged)
@@ -293,8 +299,9 @@ function Dashboard({
 
   useEffect(() => {
     if (mode !== 'inbox') return
-    const s = inboxPreset?.sentiment ?? 'all'
-    const p = inboxPreset?.priority ?? 'all'
+    const defaults = getDefaultInboxPreset()
+    const s = inboxPreset?.sentiment ?? defaults.sentiment ?? 'all'
+    const p = inboxPreset?.priority ?? defaults.priority ?? 'all'
     setSentimentFilter(s)
     setPriorityFilter(p)
   }, [mode, inboxPreset?.sentiment, inboxPreset?.priority])
@@ -533,7 +540,6 @@ function Dashboard({
         formatRelativeTime={formatRelativeTime}
         isAdminUser={isAdminUser}
         dashboardAutoRefresh={dashboardAutoRefresh}
-        dashboardAutoRefreshKey={DASHBOARD_AUTO_REFRESH_KEY}
         onToggleAutoRefresh={(on) => {
                     setDashboardAutoRefresh(on)
         }}

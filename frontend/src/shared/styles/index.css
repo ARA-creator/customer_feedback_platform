@@ -35,8 +35,16 @@
     transition-duration: 0.01ms !important;
   }
 
+  html.cfp-text-large {
+    font-size: 17px;
+  }
+
   html.cfp-compact {
     font-size: 15px;
+  }
+
+  html.cfp-text-large.cfp-compact {
+    font-size: 16px;
   }
 
   html.cfp-compact .card {

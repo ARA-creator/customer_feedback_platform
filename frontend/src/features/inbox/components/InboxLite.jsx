@@ -4,6 +4,7 @@ import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, Fa
 import { FiGlobe } from 'react-icons/fi'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
 import { EmptyState, InboxListSkeleton, LastUpdated, PageIntro } from '../../../shared/components/ui'
+import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
 
 const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
@@ -262,6 +263,12 @@ export default function InboxLite({ onNavigate }) {
   }, [archivedIds])
 
   useEffect(() => {
+    const onClear = () => setArchivedIds(new Set())
+    window.addEventListener('cfp-archived-feedback-cleared', onClear)
+    return () => window.removeEventListener('cfp-archived-feedback-cleared', onClear)
+  }, [])
+
+  useEffect(() => {
     if (openItem) setListHighlightId(null)
   }, [openItem])
 
@@ -296,6 +303,22 @@ export default function InboxLite({ onNavigate }) {
 
 
   useEffect(() => {
+    let hasDrillDown = false
+    try {
+      hasDrillDown = Boolean(
+        sessionStorage.getItem('cfp_inbox_peak_preset') ||
+          sessionStorage.getItem('cfp_inbox_anomaly_preset'),
+      )
+    } catch {
+      hasDrillDown = false
+    }
+    if (!hasDrillDown) {
+      const { defaultSentiment } = loadInboxPreferences()
+      if (defaultSentiment && defaultSentiment !== 'all') {
+        setSentiment(defaultSentiment)
+      }
+    }
+
     try {
       const raw = sessionStorage.getItem('cfp_inbox_peak_preset')
       if (!raw) return

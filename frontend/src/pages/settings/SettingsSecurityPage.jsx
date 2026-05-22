@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { FiArrowLeft, FiEye, FiEyeOff } from 'react-icons/fi'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { authChangePassword } from '../../features/auth/services/auth.api'
 import { ToastStack } from '../../shared/components/ui'
+import SettingsSubpageShell from '../../shared/components/settings/SettingsSubpageShell'
 
 function PasswordField({ id, label, value, onChange, show, onToggle, autoComplete }) {
   return (
@@ -89,21 +89,8 @@ export default function SettingsSecurityPage({ auth }) {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+    <SettingsSubpageShell title="Security" description="Manage how you sign in to Customer Pulse.">
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
-
-      <Link
-        to="/settings"
-        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-      >
-        <FiArrowLeft className="h-4 w-4" aria-hidden />
-        Settings
-      </Link>
-
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Security</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Manage how you sign in to Customer Pulse.</p>
-      </div>
 
       <div className="card p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Password</h2>
@@ -174,6 +161,6 @@ export default function SettingsSecurityPage({ auth }) {
           </>
         )}
       </div>
-    </div>
+    </SettingsSubpageShell>
   )
 }

@@ -25,7 +25,14 @@ import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
 import SettingsPage from '../pages/settings/SettingsPage'
+import SettingsAccountPage from '../pages/settings/SettingsAccountPage'
+import SettingsDisplayPage from '../pages/settings/SettingsDisplayPage'
+import SettingsHelpPage from '../pages/settings/SettingsHelpPage'
+import SettingsInboxPage from '../pages/settings/SettingsInboxPage'
+import SettingsNotificationsPage from '../pages/settings/SettingsNotificationsPage'
 import SettingsSecurityPage from '../pages/settings/SettingsSecurityPage'
+import { isQuietHoursActive, loadNotificationUiPrefs } from '../shared/lib/notificationUiPreferences'
+import { notificationSoundsEnabled } from '../shared/lib/displayPreferences'
 import {
   defaultPathForUser,
   isAdminPath,
@@ -191,6 +198,7 @@ function AuthenticatedApp({ auth, setAuth }) {
     if (!realtimeEnabled) return undefined
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type !== 'notification.created' || !evt?.notification) return
+      if (isQuietHoursActive(loadNotificationUiPrefs())) return
       const n = evt.notification
       const id = `${Date.now()}-${Math.random()}`
       setLiveToasts((prev) => [
@@ -202,7 +210,9 @@ function AuthenticatedApp({ auth, setAuth }) {
         },
         ...prev,
       ].slice(0, 3))
-      playNotificationBeep()
+      if (notificationSoundsEnabled()) {
+        playNotificationBeep()
+      }
       window.setTimeout(() => {
         setLiveToasts((prev) => prev.filter((t) => t.id !== id))
       }, 6500)
@@ -280,7 +290,12 @@ function AuthenticatedApp({ auth, setAuth }) {
             element={<Notifications isAdminUI={isAdminUI} onNavigate={navigateToView} />}
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/settings/account" element={<SettingsAccountPage auth={auth} />} />
+          <Route path="/settings/display" element={<SettingsDisplayPage auth={auth} />} />
+          <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
+          <Route path="/settings/inbox" element={<SettingsInboxPage />} />
           <Route path="/settings/security" element={<SettingsSecurityPage auth={auth} />} />
+          <Route path="/settings/help" element={<SettingsHelpPage />} />
           <Route
             path="/reports"
             element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}

@@ -1,6 +1,10 @@
 import { FiMoon, FiSun, FiMonitor } from 'react-icons/fi'
 import { useDisplayPreferences } from '../../shared/context/DisplayPreferencesContext'
-import { OVERVIEW_PERIOD_OPTIONS } from '../../shared/lib/displayPreferences'
+import {
+  INSIGHTS_RANGE_OPTIONS,
+  OVERVIEW_PERIOD_OPTIONS,
+  TEXT_SIZE_OPTIONS,
+} from '../../shared/lib/displayPreferences'
 
 function SettingToggle({ id, label, description, checked, onChange, disabled }) {
   return (
@@ -29,14 +33,13 @@ const THEME_OPTIONS = [
   { id: 'system', label: 'System', Icon: FiMonitor },
 ]
 
-export default function SettingsDisplaySection() {
+export default function SettingsDisplaySection({ isAdminUser = false }) {
   const { prefs, resolvedTheme, updatePreferences, setThemeMode } = useDisplayPreferences()
 
   return (
     <div className="card p-6">
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Display</h2>
-      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        Appearance and layout. Changes apply immediately on this device.
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        Changes apply immediately on this device.
       </p>
 
       <div className="mt-5">
@@ -48,11 +51,7 @@ export default function SettingsDisplaySection() {
           </span>
           {prefs.themeMode === 'system' ? ' (following system)' : ''}.
         </p>
-        <div
-          className="mt-3 grid grid-cols-3 gap-2"
-          role="radiogroup"
-          aria-label="Color theme"
-        >
+        <div className="mt-3 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Color theme">
           {THEME_OPTIONS.map(({ id, label, Icon }) => {
             const active = prefs.themeMode === id
             return (
@@ -91,7 +90,41 @@ export default function SettingsDisplaySection() {
           checked={prefs.compactDensity}
           onChange={(v) => updatePreferences({ compactDensity: v })}
         />
+        <SettingToggle
+          id="cfp-notification-sounds"
+          label="Notification sounds"
+          description="Play a short sound when live toast alerts appear."
+          checked={prefs.notificationSounds}
+          onChange={(v) => updatePreferences({ notificationSounds: v })}
+        />
+        {isAdminUser && (
+          <SettingToggle
+            id="cfp-dashboard-auto-refresh"
+            label="Auto-refresh dashboard"
+            description="Refresh overview and insights every 30 seconds while you are signed in."
+            checked={prefs.dashboardAutoRefresh}
+            onChange={(v) => updatePreferences({ dashboardAutoRefresh: v })}
+          />
+        )}
       </ul>
+
+      <div className="mt-5">
+        <label htmlFor="cfp-text-size" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Text size
+        </label>
+        <select
+          id="cfp-text-size"
+          value={prefs.textSize}
+          onChange={(e) => updatePreferences({ textSize: e.target.value })}
+          className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+        >
+          {TEXT_SIZE_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="mt-5">
         <label
@@ -110,6 +143,30 @@ export default function SettingsDisplaySection() {
           className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
         >
           {OVERVIEW_PERIOD_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-5">
+        <label
+          htmlFor="cfp-default-insights-range"
+          className="text-sm font-semibold text-gray-900 dark:text-gray-100"
+        >
+          Default insights range
+        </label>
+        <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          Starting date range when you open the insights dashboard.
+        </p>
+        <select
+          id="cfp-default-insights-range"
+          value={prefs.defaultInsightsRange}
+          onChange={(e) => updatePreferences({ defaultInsightsRange: Number(e.target.value) })}
+          className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+        >
+          {INSIGHTS_RANGE_OPTIONS.map((opt) => (
             <option key={opt.id} value={opt.id}>
               {opt.label}
             </option>

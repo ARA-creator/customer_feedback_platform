@@ -1,7 +1,17 @@
 const STORAGE_KEY = 'cfp_display_prefs'
 const LEGACY_THEME_KEY = 'cfp_theme'
+const LEGACY_AUTO_REFRESH_KEY = 'cfp_dashboard_admin_auto_refresh'
 
 export const THEME_MODES = ['light', 'dark', 'system']
+export const TEXT_SIZE_OPTIONS = [
+  { id: 'comfortable', label: 'Comfortable' },
+  { id: 'large', label: 'Large' },
+]
+export const INSIGHTS_RANGE_OPTIONS = [
+  { id: 7, label: 'Last 7 days' },
+  { id: 30, label: 'Last 30 days' },
+  { id: 90, label: 'Last 90 days' },
+]
 export const OVERVIEW_PERIOD_OPTIONS = [
   { id: 'all', label: 'All time' },
   { id: 'today', label: 'Today' },
@@ -16,7 +26,11 @@ const DEFAULTS = {
   themeMode: 'light',
   reducedMotion: false,
   compactDensity: false,
+  textSize: 'comfortable',
   defaultOverviewPeriod: 'all',
+  defaultInsightsRange: 30,
+  notificationSounds: true,
+  dashboardAutoRefresh: false,
 }
 
 function safeParse(raw) {
@@ -40,6 +54,19 @@ function migrateLegacyTheme() {
   return null
 }
 
+function migrateLegacyAutoRefresh(stored) {
+  if (stored && typeof stored.dashboardAutoRefresh === 'boolean') {
+    return stored.dashboardAutoRefresh
+  }
+  try {
+    const legacy = localStorage.getItem(LEGACY_AUTO_REFRESH_KEY)
+    if (legacy === '1' || legacy === 'true') return true
+  } catch {
+    // ignore
+  }
+  return DEFAULTS.dashboardAutoRefresh
+}
+
 export function loadDisplayPreferences() {
   const legacyTheme = migrateLegacyTheme()
   let stored = null
@@ -57,11 +84,24 @@ export function loadDisplayPreferences() {
     ? stored.defaultOverviewPeriod
     : DEFAULTS.defaultOverviewPeriod
 
+  const rawRange = Number(stored?.defaultInsightsRange)
+  const defaultInsightsRange = INSIGHTS_RANGE_OPTIONS.some((o) => o.id === rawRange)
+    ? rawRange
+    : DEFAULTS.defaultInsightsRange
+
+  const textSize = TEXT_SIZE_OPTIONS.some((o) => o.id === stored?.textSize)
+    ? stored.textSize
+    : DEFAULTS.textSize
+
   return {
     themeMode,
     reducedMotion: Boolean(stored?.reducedMotion),
     compactDensity: Boolean(stored?.compactDensity),
+    textSize,
     defaultOverviewPeriod,
+    defaultInsightsRange,
+    notificationSounds: stored?.notificationSounds !== false,
+    dashboardAutoRefresh: migrateLegacyAutoRefresh(stored),
   }
 }
 
@@ -69,6 +109,7 @@ export function saveDisplayPreferences(partial) {
   const next = { ...loadDisplayPreferences(), ...partial }
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    localStorage.setItem(LEGACY_AUTO_REFRESH_KEY, next.dashboardAutoRefresh ? '1' : '0')
   } catch {
     // ignore quota errors
   }
@@ -100,6 +141,7 @@ export function applyDisplayPreferencesToDocument(prefs) {
   root.classList.toggle('dark', resolved === 'dark')
   root.classList.toggle('cfp-compact', Boolean(prefs.compactDensity))
   root.classList.toggle('cfp-reduce-motion', Boolean(prefs.reducedMotion))
+  root.classList.toggle('cfp-text-large', prefs.textSize === 'large')
   try {
     localStorage.setItem(LEGACY_THEME_KEY, resolved)
   } catch {
@@ -114,4 +156,12 @@ export function bootstrapDisplayPreferences() {
 
 export function getDefaultOverviewPeriod() {
   return loadDisplayPreferences().defaultOverviewPeriod
+}
+
+export function getDefaultInsightsRange() {
+  return loadDisplayPreferences().defaultInsightsRange
+}
+
+export function notificationSoundsEnabled() {
+  return loadDisplayPreferences().notificationSounds !== false
 }

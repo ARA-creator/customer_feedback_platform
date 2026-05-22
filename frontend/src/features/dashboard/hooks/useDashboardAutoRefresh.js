@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { DISPLAY_PREFS_CHANGED, loadDisplayPreferences, saveDisplayPreferences } from '../../../shared/lib/displayPreferences'
 
-export function useDashboardAutoRefresh({ isAdminUser, storageKey }) {
-  const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(false)
+export function useDashboardAutoRefresh({ isAdminUser }) {
+  const [dashboardAutoRefresh, setDashboardAutoRefresh] = useState(() => {
+    if (!isAdminUser) return false
+    return Boolean(loadDisplayPreferences().dashboardAutoRefresh)
+  })
   const dashboardAutoRefreshRef = useRef(false)
 
   useEffect(() => {
@@ -9,25 +13,22 @@ export function useDashboardAutoRefresh({ isAdminUser, storageKey }) {
       setDashboardAutoRefresh(false)
       return
     }
-    try {
-      const s = localStorage.getItem(storageKey)
-      setDashboardAutoRefresh(s === '1' || s === 'true')
-    } catch {
-      // ignore
+    setDashboardAutoRefresh(Boolean(loadDisplayPreferences().dashboardAutoRefresh))
+    const onChanged = (e) => {
+      setDashboardAutoRefresh(Boolean(e?.detail?.dashboardAutoRefresh))
     }
-  }, [isAdminUser, storageKey])
+    window.addEventListener(DISPLAY_PREFS_CHANGED, onChanged)
+    return () => window.removeEventListener(DISPLAY_PREFS_CHANGED, onChanged)
+  }, [isAdminUser])
 
   useEffect(() => {
     dashboardAutoRefreshRef.current = isAdminUser && dashboardAutoRefresh
   }, [isAdminUser, dashboardAutoRefresh])
 
   const setAndPersistDashboardAutoRefresh = (on) => {
+    if (!isAdminUser) return
     setDashboardAutoRefresh(on)
-    try {
-      localStorage.setItem(storageKey, on ? '1' : '0')
-    } catch {
-      // ignore
-    }
+    saveDisplayPreferences({ dashboardAutoRefresh: on })
   }
 
   return {
@@ -36,4 +37,3 @@ export function useDashboardAutoRefresh({ isAdminUser, storageKey }) {
     dashboardAutoRefreshRef,
   }
 }
-

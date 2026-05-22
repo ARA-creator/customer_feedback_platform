@@ -9,7 +9,6 @@ export default function DashboardTopBar({
   formatRelativeTime,
   isAdminUser,
   dashboardAutoRefresh,
-  dashboardAutoRefreshKey,
   onToggleAutoRefresh,
   onRefresh,
 }) {
