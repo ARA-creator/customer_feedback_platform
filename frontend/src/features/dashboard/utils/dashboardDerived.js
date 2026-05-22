@@ -56,13 +56,12 @@ export function getOverviewTrendLabels(overviewTimeFilter) {
   }
 }
 
-/** Short period label for chart subtitles (product breakdown, word cloud, source). */
+/** Short period label for chart subtitles (product breakdown, source). */
 export function getOverviewPeriodContext(overviewTimeFilter) {
   const label = getOverviewTimeFilterLabel(overviewTimeFilter)
   return {
     label,
     productSubtitle: `Volume by product · ${label}`,
-    wordCloudSubtitle: `Top terms from feedback · ${label}`,
     sourceSubtitle: `Channel volume and sentiment · ${label}`,
   }
 }

@@ -15,10 +15,8 @@ from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch
-from ...security import decrypt_text
 from ...services.analytics_time_window import parse_overview_time_window
 from ...services.metadata_normalization import normalize_channel_metadata
-from ...services.wordcloud import word_frequencies
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
 
@@ -114,6 +112,22 @@ def get_analytics():
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
                     .filter(Feedback.category.isnot(None))
+                )
+            )
+            .group_by(Feedback.category)
+            .order_by(desc(func.count(Feedback.id)))
+            .limit(10)
+            .all()
+        )
+
+        category_negative_counts = (
+            _pf(
+                _apply_created_filter(
+                    db.query(Feedback.category, func.count(Feedback.id))
+                    .filter(Feedback.deleted_at.is_(None))
+                    .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                    .filter(Feedback.category.isnot(None))
+                    .filter(func.lower(Feedback.sentiment_label) == "negative")
                 )
             )
             .group_by(Feedback.category)
@@ -508,12 +522,14 @@ def get_analytics():
 
         sentiment_dict = {label or "unknown": count for label, count in sentiment_counts}
         category_dict = {cat or "uncategorized": count for cat, count in category_counts}
+        category_negative_dict = {cat or "uncategorized": count for cat, count in category_negative_counts}
 
         return jsonify(
             {
                 "time_window": time_window,
                 "sentiment": sentiment_dict,
                 "categories": category_dict,
+                "categories_negative": category_negative_dict,
                 "metrics": {
                     "total_feedback": total_feedback,
                     "positive_count": positive_count,
@@ -802,50 +818,6 @@ def product_pulse():
     except Exception:
         db.rollback()
         logger.exception("Failed to compute product pulse")
-        return jsonify({"error": "Internal server error"}), 500
-    finally:
-        db.close()
-
-
-@api_bp.route("/analytics/word-frequencies", methods=["GET"])
-def analytics_word_frequencies():
-    """Top terms from feedback messages for overview word cloud (works without wordcloud/Pillow)."""
-    db = SessionLocal()
-    try:
-        user = _require_user(db)
-        perms = _user_permission_keys(db, user.id)
-
-        now = datetime.now(tz=timezone.utc)
-        time_window = (request.args.get("time_window") or "all").strip().lower()
-        tw, filter_from, filter_to, _label, range_days = parse_overview_time_window(time_window, now=now)
-        time_window = tw
-        if time_window == "all":
-            req_range = request.args.get("range_days", type=int) or 30
-            range_days = req_range if req_range in (7, 30, 90) else 30
-            filter_from = now - timedelta(days=range_days)
-            filter_to = None
-
-        q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
-        q = _exclude_removed_sources(q)
-        q = _scope_feedback_query(db, q, user=user, perms=perms)
-        if filter_from is not None:
-            q = q.filter(Feedback.created_at >= filter_from)
-        if filter_to is not None:
-            q = q.filter(Feedback.created_at < filter_to)
-
-        rows = q.order_by(desc(Feedback.created_at)).limit(1000).all()
-        messages = []
-        for row in rows:
-            msg = decrypt_text(row.message_encrypted)
-            if msg and msg != "[encrypted]":
-                messages.append(msg)
-
-        words = word_frequencies(messages, max_words=80)
-        return jsonify({"time_window": time_window, "words": words, "message_count": len(messages)}), 200
-    except PermissionError as e:
-        return jsonify({"error": str(e)}), 401
-    except Exception:
-        logger.exception("Failed to compute word frequencies")
         return jsonify({"error": "Internal server error"}), 500
     finally:
         db.close()

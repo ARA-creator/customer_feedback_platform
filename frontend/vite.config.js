@@ -43,7 +43,6 @@ export default defineConfig(({ mode }) => {
           },
         },
         '/integrations': { target: proxyTarget, changeOrigin: true, secure: false },
-        '/wordcloud.png': { target: proxyTarget, changeOrigin: true, secure: false },
       },
     },
   }

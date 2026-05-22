@@ -49,7 +49,7 @@ import {
 } from '../utils/dashboardDerived'
 import OverviewMetricCards from './OverviewMetricCards'
 import OverviewChartsSection from './OverviewChartsSection'
-import OverviewWordCloudAndSource from './OverviewWordCloudAndSource'
+import OverviewSourceChart from './OverviewSourceChart'
 import DashboardInsightsSection from './DashboardInsightsSection'
 import DashboardInboxSection from './DashboardInboxSection'
 import FeedbackDetailModal from './FeedbackDetailModal'
@@ -84,6 +84,11 @@ import { useDashboardExports } from '../hooks/useDashboardExports'
 import { useDashboardAutoRefresh } from '../hooks/useDashboardAutoRefresh'
 import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
 import { useFeedbackDetailModal } from '../hooks/useFeedbackDetailModal'
+import {
+  DISPLAY_PREFS_CHANGED,
+  getDefaultOverviewPeriod,
+  OVERVIEW_PERIOD_OPTIONS,
+} from '../../../shared/lib/displayPreferences'
 
 function Dashboard({
   mode = 'overview',
@@ -109,6 +114,7 @@ function Dashboard({
   })
   const [sentimentData, setSentimentData] = useState([])
   const [categoryData, setCategoryData] = useState([])
+  const [categoryNegativeMap, setCategoryNegativeMap] = useState({})
   const [recentFeedback, setRecentFeedback] = useState([])
   const [priorityQueue, setPriorityQueue] = useState([])
   const [loading, setLoading] = useState(true)
@@ -156,8 +162,6 @@ function Dashboard({
   const isCx = overviewRole === 'cx'
   const isOperations = overviewRole === 'operations'
   const showSourceChart = !isOperations
-  const showWordCloudSection = !isCx
-  const sourceAndWordcloudSideBySide = showSourceChart && showWordCloudSection
   const reloadDashboardRef = useRef(() => {})
   /** Silent refetch (no full-page spinners) — used for optional polling + live SSE. */
   const refreshDashboardSilentRef = useRef(() => {})
@@ -174,7 +178,18 @@ function Dashboard({
   const [insightsProductKey, setInsightsProductKey] = useState('')
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
-  const [overviewTimeFilter, setOverviewTimeFilter] = useState('all') // all | today | week | last_week | month
+  const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => getDefaultOverviewPeriod())
+
+  useEffect(() => {
+    const onPrefsChanged = (e) => {
+      const period = e?.detail?.defaultOverviewPeriod
+      if (OVERVIEW_PERIOD_OPTIONS.some((o) => o.id === period)) {
+        setOverviewTimeFilter(period)
+      }
+    }
+    window.addEventListener(DISPLAY_PREFS_CHANGED, onPrefsChanged)
+    return () => window.removeEventListener(DISPLAY_PREFS_CHANGED, onPrefsChanged)
+  }, [])
   const [analyzerOpen, setAnalyzerOpen] = useState(false)
   const [analyzerLoading, setAnalyzerLoading] = useState(false)
   const [analyzerResult, setAnalyzerResult] = useState(null)
@@ -326,6 +341,7 @@ function Dashboard({
     setMetrics,
     setSentimentData,
     setCategoryData,
+    setCategoryNegativeMap,
     setTrendData,
     setResponseMetrics,
     setPeakTimes,
@@ -616,6 +632,7 @@ function Dashboard({
               insuranceTagsTrends={insuranceTagsTrends}
               sourceThemeMatrix={sourceThemeMatrix}
               categoryData={categoryData}
+              categoryNegativeMap={categoryNegativeMap}
               sourceTrends={sourceTrends}
               sourceTrendColors={sourceTrendColors}
               sourcePerformance={sourcePerformance}
@@ -627,16 +644,12 @@ function Dashboard({
             />
           )}
 
-          {mode === 'overview' && (
-            <OverviewWordCloudAndSource
-              showSourceChart={showSourceChart}
-              showWordCloudSection={showWordCloudSection}
-              sourceAndWordcloudSideBySide={sourceAndWordcloudSideBySide}
+          {mode === 'overview' && showSourceChart && (
+            <OverviewSourceChart
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
               isDarkMode={isDarkMode}
               sourcePerformance={sourcePerformance}
-              overviewTimeFilter={overviewTimeFilter}
               overviewPeriodContext={overviewPeriodContext}
             />
           )}

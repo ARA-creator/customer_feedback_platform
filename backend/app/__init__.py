@@ -65,9 +65,6 @@ def create_app() -> Flask:
             r"/*": {
                 "origins": cors_origins,
             },
-            r"/wordcloud.png": {
-                "origins": cors_origins,
-            },
             r"/integrations/*": {"origins": "*"},  # Webhooks need to accept from anywhere
         },
     )

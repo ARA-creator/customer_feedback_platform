@@ -26,6 +26,42 @@
   html {
     scroll-behavior: smooth;
   }
+
+  html.cfp-reduce-motion,
+  html.cfp-reduce-motion * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  html.cfp-compact {
+    font-size: 15px;
+  }
+
+  html.cfp-compact .card {
+    border-radius: 0.75rem;
+  }
+
+  html.cfp-compact main .p-4 {
+    padding: 0.75rem;
+  }
+
+  html.cfp-compact main .p-6 {
+    padding: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    html.cfp-compact main .sm\:p-6 {
+      padding: 1rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html.cfp-compact main .lg\:p-8 {
+      padding: 1.5rem;
+    }
+  }
 }
 
 @layer components {
@@ -161,7 +197,7 @@
   }
 
   .metric-card--kpi {
-    @apply relative flex w-full min-h-[7.5rem] flex-col justify-between gap-3 overflow-visible p-4 text-left;
+    @apply relative flex w-full min-h-[7.5rem] flex-col justify-between gap-3 overflow-visible p-4 text-center;
     border-radius: 0.875rem;
     box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.04);
   }
@@ -177,11 +213,11 @@
   }
 
   .metric-card--kpi .metric-card__body {
-    @apply relative z-[1] flex w-full min-w-0 items-start gap-3;
+    @apply relative z-[1] flex w-full min-w-0 items-center justify-center gap-3;
   }
 
   .metric-card--kpi .metric-card__text {
-    @apply flex min-w-0 flex-1 flex-col items-start;
+    @apply flex min-w-0 flex-col items-center;
   }
 
   .metric-card--kpi .metric-card__value {

@@ -21,7 +21,7 @@ export default function OverviewMetricCards({
               <div key={idx} className={`metric-card metric-card--kpi ${tintClass} animate-pulse`}>
                 <div className="metric-card__body">
                   <div className="h-10 w-10 rounded-full bg-black/[0.06] dark:bg-white/[0.12]" />
-                  <div className="metric-card__text w-full min-w-0">
+                  <div className="metric-card__text">
                     <div className="h-8 w-16 rounded-md bg-black/[0.07] dark:bg-white/[0.1]" />
                     <div className="mt-2 h-3 w-24 rounded bg-black/[0.05] dark:bg-white/[0.08]" />
                   </div>
@@ -39,7 +39,7 @@ export default function OverviewMetricCards({
         <>
           <button
             type="button"
-            className="metric-card metric-card--kpi metric-card--tint-total w-full cursor-pointer text-left"
+            className="metric-card metric-card--kpi metric-card--tint-total w-full cursor-pointer"
             style={{ '--kpi-pct': `${kpiTrackPercent.total}%` }}
             aria-label="View all feedback in inbox"
             onClick={() => navigateToInboxPreset({ sentiment: 'all', priority: 'all' })}
@@ -62,7 +62,7 @@ export default function OverviewMetricCards({
 
           <button
             type="button"
-            className="metric-card metric-card--kpi metric-card--tint-negative w-full cursor-pointer text-left"
+            className="metric-card metric-card--kpi metric-card--tint-negative w-full cursor-pointer"
             style={{ '--kpi-pct': `${kpiTrackPercent.negative}%` }}
             aria-label="View negative feedback in inbox"
             onClick={() => navigateToInboxPreset({ sentiment: 'negative', priority: 'all' })}
@@ -85,7 +85,7 @@ export default function OverviewMetricCards({
 
           <button
             type="button"
-            className="metric-card metric-card--kpi metric-card--tint-positive w-full cursor-pointer text-left"
+            className="metric-card metric-card--kpi metric-card--tint-positive w-full cursor-pointer"
             style={{ '--kpi-pct': `${kpiTrackPercent.positive}%` }}
             aria-label="View positive feedback in inbox"
             onClick={() => navigateToInboxPreset({ sentiment: 'positive', priority: 'all' })}
@@ -108,7 +108,7 @@ export default function OverviewMetricCards({
 
           <button
             type="button"
-            className="metric-card metric-card--kpi metric-card--tint-neutral w-full cursor-pointer text-left"
+            className="metric-card metric-card--kpi metric-card--tint-neutral w-full cursor-pointer"
             style={{ '--kpi-pct': `${kpiTrackPercent.neutral}%` }}
             aria-label="View neutral feedback in inbox"
             onClick={() => navigateToInboxPreset({ sentiment: 'neutral', priority: 'all' })}

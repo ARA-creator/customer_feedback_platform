@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiChevronRight } from 'react-icons/fi'
 import { getPreferences, savePreferences } from '../../features/notifications/services/notifications.api'
+import SettingsDisplaySection from './SettingsDisplaySection'
 
 const PREF_META = [
   {
@@ -96,10 +97,9 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Notification preferences and account security.</p>
-      </div>
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100 tracking-tight">Settings</h1>
+
+      <SettingsDisplaySection />
 
       <div className="card overflow-hidden p-0">
         <Link

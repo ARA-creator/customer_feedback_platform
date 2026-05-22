@@ -1,9 +1,8 @@
-import io
 import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, Response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from sqlalchemy import func, desc
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -13,9 +12,6 @@ from ..security import decrypt_text, encrypt_text, hash_email
 from ..services.policy_detection import detect_policies
 from ..services.insurance_tags import categorize_insurance_tags
 from ..sentiment_analyzer import analyze_sentiment
-from ..services.analytics_time_window import parse_overview_time_window
-from ..utils.wordcloud_gen import generate_wordcloud
-
 logger = logging.getLogger(__name__)
 
 views_bp = Blueprint("views", __name__)
@@ -99,14 +95,6 @@ def dashboard():
         sentiment_data = {label or "unknown": count for label, count in sentiment_counts}
         category_data = {cat or "uncategorized": count for cat, count in category_counts}
 
-        # Collect messages for word cloud check
-        messages_for_wordcloud = [
-            decrypt_text(f.message_encrypted) or ""
-            for f in recent
-            if f.message_encrypted
-        ]
-        messages_for_wordcloud = [m for m in messages_for_wordcloud if m and m != "[encrypted]"]
-
         # Calculate metrics for dashboard cards
         total_feedback = db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None)).scalar() or 0
         positive_count = sum(count for label, count in sentiment_counts if label == "positive")
@@ -131,7 +119,6 @@ def dashboard():
             sentiment_data=sentiment_data,
             category_data=category_data,
             priority_queue=priority_list,
-            has_wordcloud_data=len(messages_for_wordcloud) > 0,
             total_feedback=total_feedback,
             positive_count=positive_count,
             negative_count=negative_count,
@@ -143,88 +130,6 @@ def dashboard():
     except SQLAlchemyError:
         logger.exception("Database error in dashboard")
         return render_template("dashboard.html", error="Failed to load data"), 500
-    finally:
-        db.close()
-
-
-@views_bp.route("/wordcloud.png")
-def wordcloud_image():
-    """Generate and return word cloud image from all feedback messages."""
-    db = SessionLocal()
-    try:
-        now = datetime.now(tz=timezone.utc)
-        time_window = (request.args.get("time_window") or "").strip().lower()
-        filter_from = None
-        filter_to = None
-        if time_window in ("all", "today", "week", "last_week", "month"):
-            _, filter_from, filter_to, _, _ = parse_overview_time_window(time_window, now=now)
-
-        q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
-        if filter_from is not None:
-            q = q.filter(Feedback.created_at >= filter_from)
-        if filter_to is not None:
-            q = q.filter(Feedback.created_at < filter_to)
-
-        feedback_items = (
-            q.order_by(Feedback.created_at.desc())
-            .limit(1000)  # Include more sources; keep bounded for performance
-            .all()
-        )
-
-        # Decrypt and collect messages
-        messages = []
-        for f in feedback_items:
-            msg = decrypt_text(f.message_encrypted)
-            if msg and msg != "[encrypted]":
-                messages.append(msg)
-
-        if not messages:
-            # If Pillow isn't installed (serverless slim deploy), just return 204.
-            try:
-                from PIL import Image, ImageDraw
-            except Exception:
-                return Response(b"", status=204, mimetype="image/png")
-            img = Image.new("RGB", (800, 400), color="white")
-            draw = ImageDraw.Draw(img)
-            draw.text((400, 200), "No feedback data available", fill="gray", anchor="mm")
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format="PNG")
-            img_buffer.seek(0)
-            return Response(img_buffer.getvalue(), mimetype="image/png")
-
-        # Generate word cloud
-        wordcloud_bytes = generate_wordcloud(messages, width=1000, height=500)
-        
-        if wordcloud_bytes:
-            return Response(wordcloud_bytes, mimetype='image/png')
-        else:
-            # Fallback if generation fails
-            try:
-                from PIL import Image, ImageDraw
-            except Exception:
-                return Response(b"", status=204, mimetype="image/png")
-            img = Image.new("RGB", (800, 400), color="white")
-            draw = ImageDraw.Draw(img)
-            draw.text((400, 200), "Unable to generate word cloud", fill="gray", anchor="mm")
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format="PNG")
-            img_buffer.seek(0)
-            return Response(img_buffer.getvalue(), mimetype="image/png")
-
-    except Exception as e:
-        logger.exception("Error generating word cloud")
-        # Return error image
-        try:
-            from PIL import Image, ImageDraw
-        except Exception:
-            return Response(b"", status=204, mimetype="image/png")
-        img = Image.new("RGB", (800, 400), color="white")
-        draw = ImageDraw.Draw(img)
-        draw.text((400, 200), "Error generating word cloud", fill="red", anchor="mm")
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, format="PNG")
-        img_buffer.seek(0)
-        return Response(img_buffer.getvalue(), mimetype="image/png")
     finally:
         db.close()
 

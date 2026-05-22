@@ -16,7 +16,13 @@ import {
 import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
 import { buildPeakPreset } from '../utils/insightsInboxPreset'
-import { buildInsightBrief, buildTopThemes, fmtPct, humanizeSource } from '../utils/insightsMetrics'
+import {
+  buildInsightBrief,
+  buildTopNegativeIssues,
+  buildTopThemes,
+  fmtPct,
+  humanizeSource,
+} from '../utils/insightsMetrics'
 import InsightBriefBanner from './insights/InsightBriefBanner'
 import ThemeLandscapeCard from './insights/ThemeLandscapeCard'
 import ChannelMonitorsCard from './insights/ChannelMonitorsCard'
@@ -73,7 +79,8 @@ export default function DashboardInsightsSection({
   insuranceTagsBreakdown,
   insuranceTagsTrends,
   sourceThemeMatrix,
-  categoryData,
+  categoryData: _categoryData,
+  categoryNegativeMap,
   sourceTrends,
   sourceTrendColors,
   sourcePerformance,
@@ -145,20 +152,7 @@ export default function DashboardInsightsSection({
       ? 'Click a peak cell for time-of-week drill-down. Theme and channel filters apply when you open inbox from Investigate above.'
       : 'Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume. Click a cell to open inbox for that slot.'
 
-  const topIssuesFromCategories = Array.isArray(categoryData)
-    ? categoryData
-        .map((r) => ({ name: r?.name, value: Number(r?.value ?? 0) || 0 }))
-        .filter((r) => r.value > 0)
-        .slice(0, 8)
-    : []
-
-  const topIssuesChartRows =
-    topIssuesFromCategories.length > 0
-      ? { rows: topIssuesFromCategories, source: 'category' }
-      : {
-          rows: topThemes.map((t) => ({ name: t.label || t.key || 'Theme', value: t.total })).filter((r) => r.value > 0),
-          source: 'themes',
-        }
+  const topIssuesChartRows = buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeMap, 8)
 
   const topIssuesEmpty = !topIssuesChartRows.rows.length
 
@@ -479,15 +473,15 @@ export default function DashboardInsightsSection({
           title="Top issues"
           subtitle={
             topIssuesChartRows.source === 'themes'
-              ? undefined
-              : 'Highest-volume feedback categories in this window.'
+              ? 'Themes with the most negative feedback in this window.'
+              : 'Categories with the most negative feedback in this window.'
           }
         >
           {loadingState ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
           ) : topIssuesEmpty ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              No category or theme volume in this range yet.
+              No negative feedback by category or theme in this range yet.
             </p>
           ) : (
             <div className="h-72">
@@ -523,7 +517,7 @@ export default function DashboardInsightsSection({
                     }}
                     labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#0f172a', fontWeight: 700 }}
                   />
-                  <Bar dataKey="value" name="Count" radius={[10, 10, 10, 10]}>
+                  <Bar dataKey="value" name="Negative" radius={[10, 10, 10, 10]}>
                     {topIssuesChartRows.rows.map((row, idx) => (
                       <Cell key={`issue-${row.name}-${idx}`} fill={CHART_PALETTE[idx % CHART_PALETTE.length]} />
                     ))}

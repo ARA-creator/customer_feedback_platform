@@ -1,4 +1,4 @@
-import { formatInsuranceTagChartLabel } from './dashboardFormatters'
+import { formatCategoryChartLabel, formatInsuranceTagChartLabel } from './dashboardFormatters'
 
 function clamp(n, min, max) {
   const x = Number(n)
@@ -48,6 +48,29 @@ export function buildTopThemes(insuranceTagsBreakdown, limit = 8) {
     .filter((r) => r.total > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, limit)
+}
+
+/** Top issues chart: negative feedback only, by category or theme. */
+export function buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeMap, limit = 8) {
+  const fromCategories = Object.entries(categoryNegativeMap || {})
+    .map(([name, value]) => ({
+      name: formatCategoryChartLabel(name),
+      value: Number(value) || 0,
+    }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  if (fromCategories.length > 0) {
+    return { rows: fromCategories.slice(0, limit), source: 'category' }
+  }
+
+  const rows = buildTopThemes(insuranceTagsBreakdown, limit * 2)
+    .map((t) => ({ name: t.label, value: t.negative }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit)
+
+  return { rows, source: 'themes' }
 }
 
 export function buildInsightBrief({ topThemes, sourcePerformance, metrics, rangeDays }) {

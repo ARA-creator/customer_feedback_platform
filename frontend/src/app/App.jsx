@@ -36,6 +36,7 @@ import {
   viewFromPathname,
 } from './routes'
 import { useAppNavigate } from './useAppNavigate'
+import { DisplayPreferencesProvider, useDisplayPreferences } from '../shared/context/DisplayPreferencesContext'
 
 function playNotificationBeep() {
   try {
@@ -72,12 +73,11 @@ function AppChrome({
   permissions,
   sidebarOpen,
   setSidebarOpen,
-  theme,
-  setTheme,
   signOut,
   showDashboardRefresh,
   onDashboardRefresh,
 }) {
+  const { resolvedTheme, toggleTheme } = useDisplayPreferences()
   const location = useLocation()
   const currentView = viewFromPathname(location.pathname)
 
@@ -101,7 +101,6 @@ function AppChrome({
         currentView={currentView}
         sidebarOpen={sidebarOpen}
         onSignOut={signOut}
-        theme={theme}
         permissions={permissions}
         userRole={auth?.role}
         isAdminUser={isAdminUI}
@@ -111,8 +110,8 @@ function AppChrome({
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
         <Header
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
-          theme={theme}
-          onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+          theme={resolvedTheme}
+          onToggleTheme={toggleTheme}
           showRefresh={showDashboardRefresh}
           onRefresh={onDashboardRefresh}
         />
@@ -131,7 +130,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     if (typeof window === 'undefined') return true
     return window.matchMedia?.('(min-width: 768px)')?.matches ?? true
   })
-  const [theme, setTheme] = useState(() => localStorage.getItem('cfp_theme') || 'light')
   const [liveToasts, setLiveToasts] = useState([])
   const dashboardRefreshRef = useRef(null)
   const navigateToView = useAppNavigate()
@@ -190,12 +188,6 @@ function AuthenticatedApp({ auth, setAuth }) {
   )
 
   useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', theme === 'dark')
-    localStorage.setItem('cfp_theme', theme)
-  }, [theme])
-
-  useEffect(() => {
     if (!realtimeEnabled) return undefined
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type !== 'notification.created' || !evt?.notification) return
@@ -236,8 +228,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     permissions,
     sidebarOpen,
     setSidebarOpen,
-    theme,
-    setTheme,
     signOut,
     showDashboardRefresh,
     onDashboardRefresh: handleDashboardRefresh,
@@ -444,28 +434,27 @@ function App() {
     window.history.replaceState({}, '', target)
   }, [auth, location.search, navigate])
 
-  if (authLoading) {
-    return <AuthLoadingScreen />
-  }
-
-  if (!auth?.email) {
-    const path = location.pathname || ''
-    if (path.startsWith('/verify-email') || path.startsWith('/reset-password')) {
-      return <Navigate to="/" replace />
+  let content = <AuthLoadingScreen />
+  if (!authLoading) {
+    if (!auth?.email) {
+      const path = location.pathname || ''
+      content =
+        path.startsWith('/verify-email') || path.startsWith('/reset-password') ? (
+          <Navigate to="/" replace />
+        ) : (
+          <AuthShell
+            adminPortal={isAdminPath(location.pathname)}
+            onAuthenticated={handleAuthenticated}
+          />
+        )
+    } else {
+      content = <Routes><Route path="*" element={<AuthenticatedApp auth={auth} setAuth={setAuth} />} /></Routes>
     }
-    return (
-      <AuthShell
-        adminPortal={isAdminPath(location.pathname)}
-        onAuthenticated={handleAuthenticated}
-      />
-    )
   }
 
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route path="*" element={<AuthenticatedApp auth={auth} setAuth={setAuth} />} />
-      </Routes>
+      <DisplayPreferencesProvider>{content}</DisplayPreferencesProvider>
     </ErrorBoundary>
   )
 }

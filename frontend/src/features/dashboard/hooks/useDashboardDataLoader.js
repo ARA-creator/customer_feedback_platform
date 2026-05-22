@@ -29,6 +29,7 @@ export function useDashboardDataLoader({
   setMetrics,
   setSentimentData,
   setCategoryData,
+  setCategoryNegativeMap,
   setTrendData,
   setResponseMetrics,
   setPeakTimes,
@@ -117,6 +118,7 @@ export function useDashboardDataLoader({
             fill: CHART_PALETTE[i % CHART_PALETTE.length],
           }))
         setCategoryData(categoryChartData)
+        setCategoryNegativeMap(analyticsData.categories_negative || {})
 
         setTrendData(analyticsData.trends || [])
         setResponseMetrics(analyticsData.response_metrics || null)
@@ -226,6 +228,7 @@ export function useDashboardDataLoader({
           setError(formatDashboardLoadError(err, { useDevProxy: USE_DEV_API_PROXY }))
           setSentimentData([])
           setCategoryData([{ name: 'Error', value: 0 }])
+          setCategoryNegativeMap({})
           setRecentFeedback([])
           setPriorityQueue([])
           setProductPulseTrends([])
@@ -270,6 +273,7 @@ export function useDashboardDataLoader({
     setMetrics,
     setSentimentData,
     setCategoryData,
+    setCategoryNegativeMap,
     setTrendData,
     setResponseMetrics,
     setPeakTimes,
