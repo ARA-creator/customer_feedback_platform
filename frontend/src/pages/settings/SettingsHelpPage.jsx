@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
-import { FiChevronRight, FiExternalLink } from 'react-icons/fi'
-import SettingsSubpageShell from '../../shared/components/settings/SettingsSubpageShell'
+import { FiChevronRight } from 'react-icons/fi'
 import { buildHelpGuide } from './helpGuide'
+import { HELP_RESOURCES } from './settingsConfig'
 
 const APP_VERSION = '1.0.0'
 
@@ -39,10 +39,42 @@ export default function SettingsHelpPage({ auth }) {
   const guide = buildHelpGuide(auth)
 
   return (
-    <SettingsSubpageShell
-      title="Help & about"
-      description="How to move around Customer Pulse and where to find each area."
-    >
+    <div className="space-y-5">
+      <div className="card p-6">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Resources</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Links to documentation and support channels configured by your organization.
+        </p>
+        <ul className="mt-4 space-y-2">
+          {HELP_RESOURCES.map((item) => (
+            <li key={item.title}>
+              {item.to ? (
+                <Link
+                  to={item.to}
+                  className="flex items-start gap-2 rounded-lg border border-gray-200 px-3 py-2.5 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900/50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
+                    <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{item.description}</p>
+                  </div>
+                  <FiChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+                </Link>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 px-3 py-2.5 dark:border-gray-700">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
+                  <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{item.description}</p>
+                  {item.placeholder && (
+                    <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-500 italic">
+                      URL not configured — ask your administrator.
+                    </p>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div className="card p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Quick start</h2>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -127,14 +159,7 @@ export default function SettingsHelpPage({ auth }) {
             organization&apos;s policy.
           </p>
         </div>
-        <Link
-          to="/settings"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#009750] hover:text-[#007a42] dark:text-emerald-400"
-        >
-          Back to all settings
-          <FiExternalLink className="h-3.5 w-3.5 rotate-[-45deg]" aria-hidden />
-        </Link>
       </div>
-    </SettingsSubpageShell>
+    </div>
   )
 }

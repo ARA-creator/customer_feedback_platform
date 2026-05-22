@@ -24,7 +24,7 @@ import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
-import SettingsPage from '../pages/settings/SettingsPage'
+import SettingsLayout from '../pages/settings/SettingsLayout'
 import SettingsAccountPage from '../pages/settings/SettingsAccountPage'
 import SettingsDisplayPage from '../pages/settings/SettingsDisplayPage'
 import SettingsHelpPage from '../pages/settings/SettingsHelpPage'
@@ -289,13 +289,15 @@ function AuthenticatedApp({ auth, setAuth }) {
             path="/notifications"
             element={<Notifications isAdminUI={isAdminUI} onNavigate={navigateToView} />}
           />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/settings/account" element={<SettingsAccountPage auth={auth} />} />
-          <Route path="/settings/display" element={<SettingsDisplayPage auth={auth} />} />
-          <Route path="/settings/notifications" element={<SettingsNotificationsPage />} />
-          <Route path="/settings/inbox" element={<SettingsInboxPage />} />
-          <Route path="/settings/security" element={<SettingsSecurityPage auth={auth} />} />
-          <Route path="/settings/help" element={<SettingsHelpPage auth={auth} />} />
+          <Route path="/settings" element={<SettingsLayout auth={auth} />}>
+            <Route index element={<Navigate to="account" replace />} />
+            <Route path="account" element={<SettingsAccountPage auth={auth} />} />
+            <Route path="display" element={<SettingsDisplayPage auth={auth} />} />
+            <Route path="notifications" element={<SettingsNotificationsPage />} />
+            <Route path="inbox" element={<SettingsInboxPage />} />
+            <Route path="security" element={<SettingsSecurityPage auth={auth} />} />
+            <Route path="help" element={<SettingsHelpPage auth={auth} />} />
+          </Route>
           <Route
             path="/reports"
             element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}

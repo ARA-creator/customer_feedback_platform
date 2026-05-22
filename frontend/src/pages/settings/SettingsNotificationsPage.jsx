@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getPreferences, savePreferences } from '../../features/notifications/services/notifications.api'
-import SettingsSubpageShell from '../../shared/components/settings/SettingsSubpageShell'
 import {
   loadNotificationUiPrefs,
   saveNotificationUiPrefs,
@@ -103,10 +102,7 @@ export default function SettingsNotificationsPage() {
   }
 
   return (
-    <SettingsSubpageShell
-      title="Notifications"
-      description="In-app notification types and quiet hours on this device."
-    >
+    <div className="space-y-5">
       <div className="card p-6 space-y-4">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Quiet hours</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -215,6 +211,6 @@ export default function SettingsNotificationsPage() {
           {prefsSaving ? 'Saving…' : 'Save notification preferences'}
         </button>
       </div>
-    </SettingsSubpageShell>
+    </div>
   )
 }

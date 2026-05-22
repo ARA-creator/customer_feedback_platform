@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { authChangePassword } from '../../features/auth/services/auth.api'
 import { ToastStack } from '../../shared/components/ui'
-import SettingsSubpageShell from '../../shared/components/settings/SettingsSubpageShell'
-
 function PasswordField({ id, label, value, onChange, show, onToggle, autoComplete }) {
   return (
     <div>
@@ -89,7 +87,7 @@ export default function SettingsSecurityPage({ auth }) {
   }
 
   return (
-    <SettingsSubpageShell title="Security" description="Manage how you sign in to Customer Pulse.">
+    <div className="space-y-5">
       <ToastStack toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
 
       <div className="card p-6">
@@ -161,6 +159,6 @@ export default function SettingsSecurityPage({ auth }) {
           </>
         )}
       </div>
-    </SettingsSubpageShell>
+    </div>
   )
 }

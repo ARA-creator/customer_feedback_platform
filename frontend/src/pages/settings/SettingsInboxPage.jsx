@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import SettingsSubpageShell from '../../shared/components/settings/SettingsSubpageShell'
 import {
   clearArchivedFeedbackIds,
   getArchivedFeedbackCount,
@@ -33,10 +32,7 @@ export default function SettingsInboxPage() {
   }
 
   return (
-    <SettingsSubpageShell
-      title="Inbox"
-      description="Default filters and local inbox data on this device."
-    >
+    <div className="space-y-5">
       <div className="card p-6 space-y-5">
         <div>
           <label htmlFor="cfp-inbox-default-sentiment" className="text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -97,6 +93,6 @@ export default function SettingsInboxPage() {
           Clear archived list
         </button>
       </div>
-    </SettingsSubpageShell>
+    </div>
   )
 }
