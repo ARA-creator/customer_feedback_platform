@@ -46,6 +46,24 @@ export function getClipboardBackendOrigin() {
   return BACKEND_ORIGIN || normalizeBackendOrigin(undefined)
 }
 
+/**
+ * Base URL for integration webhooks (Twilio, Meta, etc.).
+ * Vercel mounts Flask under /api; local dev proxies /integrations at site root.
+ */
+export function getIntegrationsWebhookBase() {
+  if (USE_DEV_API_PROXY) {
+    return getClipboardBackendOrigin().replace(/\/+$/, '')
+  }
+  if (USE_SAME_ORIGIN_BACKEND) {
+    const o =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin.replace(/\/+$/, '')
+        : ''
+    return o ? `${o}/api` : '/api'
+  }
+  return normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)
+}
+
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: 10000,

@@ -1869,7 +1869,23 @@ def channels_status():
                 is not None
             )
 
+        def _last_seen_like(pattern: str):
+            ts = (
+                db.query(func.max(Feedback.created_at))
+                .filter(Feedback.deleted_at.is_(None))
+                .filter(func.lower(Feedback.source).like(pattern))
+                .scalar()
+            )
+            return ts.isoformat() if ts else None
+
         whatsapp_seen = _seen_like("%whatsapp%")
+        whatsapp_last_seen = _last_seen_like("%whatsapp%")
+        twilio_configured = present(getattr(cfg, "TWILIO_ACCOUNT_SID", "")) and present(
+            getattr(cfg, "TWILIO_AUTH_TOKEN", "")
+        )
+        whatsapp_auto_poll = bool(getattr(cfg, "WHATSAPP_POLL_ENABLED", False)) or (
+            getattr(cfg, "ENV", "development") == "development" and twilio_configured
+        )
         google_forms_seen = _seen_like("%google%")
         x_seen = _seen_like("%x%") or _seen_like("%twitter%")
         tiktok_seen = _seen_like("%tiktok%")
@@ -1879,10 +1895,15 @@ def channels_status():
     finally:
         db.close()
 
-    # "enabled" reflects observed ingestion (connected) rather than env vars present.
+    # "enabled" = at least one ingested feedback row; "configured" = env ready to receive.
     return jsonify(
         {
-            "whatsapp_twilio": {"enabled": whatsapp_seen},
+            "whatsapp_twilio": {
+                "enabled": whatsapp_seen,
+                "configured": twilio_configured,
+                "auto_poll": whatsapp_auto_poll,
+                "last_ingested_at": whatsapp_last_seen,
+            },
             "meta": {"enabled": meta_seen},
             "x": {"enabled": x_seen, "auto_poll": bool(getattr(cfg, "X_POLL_ENABLED", False))},
             "tiktok": {"enabled": tiktok_seen, "auto_poll": bool(getattr(cfg, "TIKTOK_POLL_ENABLED", False))},

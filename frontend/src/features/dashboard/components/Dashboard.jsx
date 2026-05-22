@@ -306,10 +306,10 @@ function Dashboard({
   const sourceTrendColors = useMemo(() => buildSourceTrendColorMap(sourceTrends), [sourceTrends])
 
   useDashboardDataLoader({
-    mode,
+      mode,
     insightsRange,
     insightsProductParams,
-    overviewTimeFilter,
+      overviewTimeFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,
@@ -519,7 +519,7 @@ function Dashboard({
         dashboardAutoRefresh={dashboardAutoRefresh}
         dashboardAutoRefreshKey={DASHBOARD_AUTO_REFRESH_KEY}
         onToggleAutoRefresh={(on) => {
-          setDashboardAutoRefresh(on)
+                    setDashboardAutoRefresh(on)
         }}
         onRefresh={() => reloadDashboardRef.current?.()}
       />
