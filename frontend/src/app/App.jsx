@@ -177,7 +177,10 @@ function AuthenticatedApp({ auth, setAuth }) {
   const navigateToInboxWithPreset = useCallback(
     (preset) => {
       try {
-        sessionStorage.setItem('cfp_inbox_peak_preset', JSON.stringify(preset || {}))
+        const p = preset || {}
+        const isPeak = Number.isFinite(Number(p.dow)) || Number.isFinite(Number(p.hour))
+        const key = isPeak ? 'cfp_inbox_peak_preset' : 'cfp_inbox_anomaly_preset'
+        sessionStorage.setItem(key, JSON.stringify(p))
       } catch {
         // ignore
       }

@@ -126,6 +126,7 @@ function Dashboard({
   const [productPulseTrends, setProductPulseTrends] = useState([])
   const [insuranceTagsBreakdown, setInsuranceTagsBreakdown] = useState({})
   const [insuranceTagsTrends, setInsuranceTagsTrends] = useState([])
+  const [sourceThemeMatrix, setSourceThemeMatrix] = useState({ matrix: {}, sources: [], themes: [] })
   const [sourceTrends, setSourceTrends] = useState({ sources: [], data: [] })
   const [sourcePerformance, setSourcePerformance] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -334,6 +335,7 @@ function Dashboard({
     setSourcePerformance,
     setInsuranceTagsBreakdown,
     setInsuranceTagsTrends,
+    setSourceThemeMatrix,
     setProductPulse,
     setProductPulseTrends,
     setRecentFeedback,
@@ -611,6 +613,8 @@ function Dashboard({
               metrics={metrics}
               productPulseTrendPivot={productPulseTrendPivot}
               insuranceTagsBreakdown={insuranceTagsBreakdown}
+              insuranceTagsTrends={insuranceTagsTrends}
+              sourceThemeMatrix={sourceThemeMatrix}
               categoryData={categoryData}
               sourceTrends={sourceTrends}
               sourceTrendColors={sourceTrendColors}

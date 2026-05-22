@@ -412,12 +412,18 @@ def get_analytics():
         NO_INSURANCE_TAG = "no_insurance_tag"
         insurance_tags_breakdown: Dict[str, Dict[str, int]] = {}
         insurance_trends_map: Dict[str, Dict[str, int]] = {}
+        source_theme_matrix_raw: Dict[str, Dict[str, Dict[str, int]]] = {}
         insurance_tagged_feedback = 0
         insurance_tag_mention_total = 0
         tag_rows = (
             _pf(
                 _apply_created_filter(
-                    db.query(Feedback.created_at, Feedback.sentiment_label, Feedback.channel_metadata)
+                    db.query(
+                        Feedback.created_at,
+                        Feedback.sentiment_label,
+                        Feedback.channel_metadata,
+                        Feedback.source,
+                    )
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
                 )
@@ -426,7 +432,7 @@ def get_analytics():
             .limit(20000)
             .all()
         )
-        for created_at, label, channel_meta in tag_rows:
+        for created_at, label, channel_meta, fb_source in tag_rows:
             if not created_at:
                 continue
             meta = normalize_channel_metadata(None, channel_meta) or {}
@@ -456,6 +462,42 @@ def get_analytics():
             b["total"] += 1
             b[sent_key] += 1
             day_bucket[k] = int(day_bucket.get(k, 0) or 0) + 1
+
+            src_key = _normalize_source_group(fb_source) or "unknown"
+            src_bucket = source_theme_matrix_raw.setdefault(src_key, {})
+            cell = src_bucket.setdefault(k, {"total": 0, "positive": 0, "negative": 0, "neutral": 0})
+            cell["total"] += 1
+            cell[sent_key] += 1
+
+        theme_totals = {k: int(v.get("total", 0) or 0) for k, v in insurance_tags_breakdown.items()}
+        source_totals_matrix: Dict[str, int] = {}
+        for src_key, themes_map in source_theme_matrix_raw.items():
+            source_totals_matrix[src_key] = sum(int(c.get("total", 0) or 0) for c in themes_map.values())
+        top_theme_keys = [
+            k
+            for k, _ in sorted(theme_totals.items(), key=lambda x: x[1], reverse=True)[:8]
+            if theme_totals.get(k, 0) > 0
+        ]
+        top_source_keys = [
+            k
+            for k, _ in sorted(source_totals_matrix.items(), key=lambda x: x[1], reverse=True)[:8]
+            if source_totals_matrix.get(k, 0) > 0
+        ]
+        source_theme_matrix: Dict[str, Dict[str, Dict[str, int]]] = {}
+        for src_key in top_source_keys:
+            themes_map = source_theme_matrix_raw.get(src_key) or {}
+            filtered: Dict[str, Dict[str, int]] = {}
+            for theme_key in top_theme_keys:
+                cell = themes_map.get(theme_key)
+                if cell and int(cell.get("total", 0) or 0) > 0:
+                    filtered[theme_key] = {
+                        "total": int(cell.get("total", 0) or 0),
+                        "positive": int(cell.get("positive", 0) or 0),
+                        "negative": int(cell.get("negative", 0) or 0),
+                        "neutral": int(cell.get("neutral", 0) or 0),
+                    }
+            if filtered:
+                source_theme_matrix[src_key] = filtered
 
         insurance_tags_trends: list[Dict[str, Any]] = []
         d = chart_start
@@ -490,6 +532,11 @@ def get_analytics():
                 "insurance_tags_breakdown": insurance_tags_breakdown,
                 "insurance_tags_trends": insurance_tags_trends,
                 "insurance_tags_meta": {"tagged_feedback": insurance_tagged_feedback, "tag_mention_total": insurance_tag_mention_total},
+                "source_theme_matrix": {
+                    "matrix": source_theme_matrix,
+                    "sources": top_source_keys,
+                    "themes": top_theme_keys,
+                },
             }
         )
     except Exception:

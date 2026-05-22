@@ -38,6 +38,7 @@ export function useDashboardDataLoader({
   setSourcePerformance,
   setInsuranceTagsBreakdown,
   setInsuranceTagsTrends,
+  setSourceThemeMatrix,
   setProductPulse,
   setProductPulseTrends,
   setRecentFeedback,
@@ -151,6 +152,16 @@ export function useDashboardDataLoader({
             : {},
         )
         setInsuranceTagsTrends(Array.isArray(analyticsData.insurance_tags_trends) ? analyticsData.insurance_tags_trends : [])
+        const stm = analyticsData.source_theme_matrix
+        setSourceThemeMatrix(
+          stm && typeof stm === 'object'
+            ? {
+                matrix: stm.matrix && typeof stm.matrix === 'object' ? stm.matrix : {},
+                sources: Array.isArray(stm.sources) ? stm.sources : [],
+                themes: Array.isArray(stm.themes) ? stm.themes : [],
+              }
+            : { matrix: {}, sources: [], themes: [] },
+        )
 
         if (mode === 'overview' || mode === 'insights') {
           const rangeDays =
@@ -268,6 +279,7 @@ export function useDashboardDataLoader({
     setSourcePerformance,
     setInsuranceTagsBreakdown,
     setInsuranceTagsTrends,
+    setSourceThemeMatrix,
     setProductPulse,
     setProductPulseTrends,
     setRecentFeedback,

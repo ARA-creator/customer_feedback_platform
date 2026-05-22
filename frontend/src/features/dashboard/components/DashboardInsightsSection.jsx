@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { FiArrowLeft } from 'react-icons/fi'
 import {
   ResponsiveContainer,
@@ -14,18 +15,19 @@ import {
 } from 'recharts'
 import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
-import { formatInsuranceTagChartLabel } from '../utils/dashboardFormatters'
+import { buildPeakPreset } from '../utils/insightsInboxPreset'
+import { buildInsightBrief, buildTopThemes, fmtPct, humanizeSource } from '../utils/insightsMetrics'
+import InsightBriefBanner from './insights/InsightBriefBanner'
+import ThemeLandscapeCard from './insights/ThemeLandscapeCard'
+import ChannelMonitorsCard from './insights/ChannelMonitorsCard'
+import SourceThemeMatrixCard from './insights/SourceThemeMatrixCard'
+import InsightsInvestigateBar from './insights/InsightsInvestigateBar'
+import InsightsSectionCard from './insights/InsightsSectionCard'
 
 function clamp(n, min, max) {
   const x = Number(n)
   if (!Number.isFinite(x)) return min
   return Math.min(max, Math.max(min, x))
-}
-
-function fmtPct(n) {
-  const v = Number(n)
-  if (!Number.isFinite(v)) return '0%'
-  return `${Math.round(v * 100)}%`
 }
 
 function fmtDayLabel(iso) {
@@ -34,15 +36,6 @@ function fmtDayLabel(iso) {
   const parts = s.split('-')
   if (parts.length >= 3) return `${parts[1]}/${parts[2]}`
   return s
-}
-
-function humanizeSource(key) {
-  const s = String(key || '').trim()
-  if (!s) return 'Unknown'
-  if (s === 'google_forms') return 'Google Forms'
-  if (s === 'whatsapp') return 'WhatsApp'
-  if (s === 'email') return 'Email'
-  return s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function StatCard({ label, value, sub, accent = 'emerald' }) {
@@ -63,27 +56,6 @@ function StatCard({ label, value, sub, accent = 'emerald' }) {
   )
 }
 
-function SectionCard({ title, subtitle, right, children }) {
-  return (
-    <div className="card p-4 sm:p-6 bg-white/90 dark:bg-gray-950/75">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 tracking-tight">
-            {title}
-          </h2>
-          {subtitle ? (
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300 max-w-prose">
-              {subtitle}
-            </p>
-          ) : null}
-        </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
-  )
-}
-
 export default function DashboardInsightsSection({
   onNavigateBack,
   onNavigateToInbox,
@@ -99,6 +71,8 @@ export default function DashboardInsightsSection({
   metrics,
   productPulseTrendPivot,
   insuranceTagsBreakdown,
+  insuranceTagsTrends,
+  sourceThemeMatrix,
   categoryData,
   sourceTrends,
   sourceTrendColors,
@@ -109,6 +83,10 @@ export default function DashboardInsightsSection({
   heatmapHover,
   setHeatmapHover,
 }) {
+  const [selectedThemeKey, setSelectedThemeKey] = useState('')
+  const [selectedSourceKey, setSelectedSourceKey] = useState('')
+  const [investigateNegativeOnly, setInvestigateNegativeOnly] = useState(false)
+
   const rangeLabel = `Last ${insightsRange} days`
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const safeTrends = Array.isArray(trendData) ? trendData : []
@@ -144,18 +122,28 @@ export default function DashboardInsightsSection({
     return { totals, totalAll }
   })()
 
-  const topThemes = Object.entries(insuranceTagsBreakdown || {})
-    .map(([k, v]) => ({
-      key: k,
-      label: formatInsuranceTagChartLabel(k),
-      total: Number(v?.total ?? 0) || 0,
-      positive: Number(v?.positive ?? 0) || 0,
-      negative: Number(v?.negative ?? 0) || 0,
-      neutral: Number(v?.neutral ?? 0) || 0,
-    }))
-    .filter((r) => r.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 8)
+  const topThemes = buildTopThemes(insuranceTagsBreakdown, 8)
+
+  const toggleTheme = (key) => {
+    setSelectedThemeKey((prev) => (prev === key ? '' : key))
+  }
+  const toggleSource = (key) => {
+    setSelectedSourceKey((prev) => (prev === key ? '' : key))
+  }
+  const selectCell = (src, theme) => {
+    setSelectedSourceKey(src)
+    setSelectedThemeKey(theme)
+  }
+  const clearSelection = () => {
+    setSelectedThemeKey('')
+    setSelectedSourceKey('')
+    setInvestigateNegativeOnly(false)
+  }
+
+  const peakHeatmapSubtitle =
+    selectedThemeKey || selectedSourceKey
+      ? 'Click a peak cell for time-of-week drill-down. Theme and channel filters apply when you open inbox from Investigate above.'
+      : 'Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume. Click a cell to open inbox for that slot.'
 
   const topIssuesFromCategories = Array.isArray(categoryData)
     ? categoryData
@@ -212,11 +200,21 @@ export default function DashboardInsightsSection({
 
   const exportInsights = () => {
     try {
+      const brief = buildInsightBrief({
+        topThemes,
+        sourcePerformance,
+        metrics,
+        rangeDays: insightsRange,
+      })
       const payload = {
         range_days: insightsRange,
         product_scope: insightsProductKey || 'all',
         generated_at: new Date().toISOString(),
         metrics,
+        brief,
+        selected_theme: selectedThemeKey || null,
+        selected_source: selectedSourceKey || null,
+        source_theme_matrix: sourceThemeMatrix,
         source_totals: sourceTotals,
         sentiment_trend: sentimentSeries,
         top_themes: topThemes,
@@ -347,107 +345,62 @@ export default function DashboardInsightsSection({
         </div>
       </div>
 
-      {/* Executive overview row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard
-          title="Top themes"
-          subtitle="Most common themes in this window. Click peak-time cells below to jump into the inbox."
-        >
-          {loadingState ? (
-            <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
-          ) : topThemes.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">No theme data yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {topThemes.map((t, idx) => {
-                const pct = t.total / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)
-                const bar = clamp(pct, 0, 1)
-                return (
-                  <div key={t.key} className="group">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                        {t.label || 'Theme'}
-                      </p>
-                      <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                        {t.total} · {fmtPct(bar)}
-                      </p>
-                    </div>
-                    <div className="mt-2 h-2.5 rounded-full bg-gray-100 dark:bg-gray-900/60 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-teal-500/80 via-emerald-500/80 to-emerald-600/80 transition-all duration-300 group-hover:brightness-110"
-                        style={{ width: `${Math.max(3, Math.round(bar * 100))}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                      <span>{t.positive} positive</span>
-                      <span>·</span>
-                      <span>{t.neutral} neutral</span>
-                      <span>·</span>
-                      <span>{t.negative} negative</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </SectionCard>
+      <InsightBriefBanner
+        topThemes={topThemes}
+        sourcePerformance={sourcePerformance}
+        metrics={metrics}
+        insightsRange={insightsRange}
+        selectedThemeKey={selectedThemeKey}
+        selectedSourceKey={selectedSourceKey}
+        onSelectTheme={toggleTheme}
+        onSelectSource={toggleSource}
+      />
 
-        <SectionCard
-          title="Source performance"
-          subtitle="Volume and average sentiment by source."
-        >
-          {loadingState ? (
-            <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
-          ) : !Array.isArray(sourcePerformance) || sourcePerformance.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-300">No source performance yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {sourcePerformance
-                .slice()
-                .sort((a, b) => (Number(b?.total ?? 0) || 0) - (Number(a?.total ?? 0) || 0))
-                .slice(0, 6)
-                .map((s) => {
-                  const total = Number(s?.total ?? 0) || 0
-                  const avg = s?.avg_score
-                  const avgVal = Number(avg)
-                  const avgLabel = Number.isFinite(avgVal) ? avgVal.toFixed(2) : '—'
-                  const share = total / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)
-                  return (
-                    <div
-                      key={s.source}
-                      className="rounded-2xl border border-gray-200/70 bg-white/90 px-4 py-3 shadow-sm transition-transform duration-200 hover:-translate-y-[1px] dark:border-white/10 dark:bg-gray-950/70"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {humanizeSource(s.source)}
-                          </p>
-                          <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-                            {total} feedback · {fmtPct(share)} of total
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Avg sentiment</p>
-                          <p className="mt-0.5 text-sm font-semibold text-gray-900 dark:text-gray-100">{avgLabel}</p>
-                        </div>
-                      </div>
-                      <div className="mt-2 h-2 rounded-full bg-gray-100 dark:bg-gray-900/60 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-emerald-500/70 to-teal-500/70"
-                          style={{ width: `${Math.max(3, Math.round(clamp(share, 0, 1) * 100))}%` }}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-            </div>
-          )}
-        </SectionCard>
+      <InsightsInvestigateBar
+        selectedThemeKey={selectedThemeKey}
+        selectedSourceKey={selectedSourceKey}
+        insightsRange={insightsRange}
+        negativeOnly={investigateNegativeOnly}
+        onToggleNegativeOnly={() => setInvestigateNegativeOnly((v) => !v)}
+        onClear={clearSelection}
+        onNavigateToInbox={onNavigateToInbox}
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <ThemeLandscapeCard
+          insuranceTagsBreakdown={insuranceTagsBreakdown}
+          insuranceTagsTrends={insuranceTagsTrends}
+          metrics={metrics}
+          insightsRange={insightsRange}
+          selectedThemeKey={selectedThemeKey}
+          onSelectTheme={toggleTheme}
+          onNavigateToInbox={onNavigateToInbox}
+          loading={loadingState}
+        />
+        <ChannelMonitorsCard
+          sourcePerformance={sourcePerformance}
+          sourceTrends={sourceTrends}
+          metrics={metrics}
+          insightsRange={insightsRange}
+          selectedSourceKey={selectedSourceKey}
+          onSelectSource={toggleSource}
+          onNavigateToInbox={onNavigateToInbox}
+          loading={loadingState}
+        />
       </div>
+
+      <SourceThemeMatrixCard
+        sourceThemeMatrix={sourceThemeMatrix}
+        selectedThemeKey={selectedThemeKey}
+        selectedSourceKey={selectedSourceKey}
+        onSelectCell={selectCell}
+        isDarkMode={isDarkMode}
+        loading={loadingState}
+      />
 
       {/* Charts grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard
+        <InsightsSectionCard
           title="Source trend"
           subtitle="Daily volume by top channels (others grouped)."
           right={
@@ -520,9 +473,9 @@ export default function DashboardInsightsSection({
               </ResponsiveContainer>
             </div>
           )}
-        </SectionCard>
+        </InsightsSectionCard>
 
-        <SectionCard
+        <InsightsSectionCard
           title="Top issues"
           subtitle={
             topIssuesChartRows.source === 'themes'
@@ -579,11 +532,11 @@ export default function DashboardInsightsSection({
               </ResponsiveContainer>
             </div>
           )}
-        </SectionCard>
+        </InsightsSectionCard>
 
-        <SectionCard
+        <InsightsSectionCard
           title="Peak feedback times"
-          subtitle="Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume."
+          subtitle={peakHeatmapSubtitle}
         >
           {analyticsLoading ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
@@ -668,12 +621,7 @@ export default function DashboardInsightsSection({
                               onMouseLeave={() => setHeatmapHover(null)}
                               onClick={() => {
                                 if (!canClick) return
-                                onNavigateToInbox?.({
-                                  mode: 'peak_time',
-                                  dow,
-                                  hour,
-                                  range_days: insightsRange,
-                                })
+                                onNavigateToInbox?.(buildPeakPreset({ dow, hour, rangeDays: insightsRange }))
                               }}
                               role={canClick ? 'button' : undefined}
                               tabIndex={canClick ? 0 : undefined}
@@ -681,12 +629,7 @@ export default function DashboardInsightsSection({
                                 if (!canClick) return
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
-                                  onNavigateToInbox?.({
-                                    mode: 'peak_time',
-                                    dow,
-                                    hour,
-                                    range_days: insightsRange,
-                                  })
+                                  onNavigateToInbox?.(buildPeakPreset({ dow, hour, rangeDays: insightsRange }))
                                 }
                               }}
                             >
@@ -717,7 +660,7 @@ export default function DashboardInsightsSection({
               </div>
             </>
           )}
-        </SectionCard>
+        </InsightsSectionCard>
       </div>
     </div>
   )
