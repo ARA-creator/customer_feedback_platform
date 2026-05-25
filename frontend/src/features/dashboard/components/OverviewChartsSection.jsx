@@ -1,467 +1,462 @@
 import {
-  ResponsiveContainer,
+  LineChart,
+  Line,
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
+  ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
-  Legend,
-  AreaChart,
-  Area,
   CartesianGrid,
+  Tooltip,
 } from 'recharts'
-import { VIRIDIS, SENTIMENT_COLORS } from '../constants/palette'
+import { SENTIMENT_COLORS } from '../constants/palette'
+import { humanizeSource } from '../utils/insightsMetrics'
+import { formatRelativeTime, formatSentimentWord } from '../utils/dashboardFormatters'
+import DashboardChartCard from './overview/DashboardChartCard'
+import AiInsightBar from './overview/AiInsightBar'
+import {
+  buildChannelDonutData,
+  buildTopicsTableRows,
+  sentimentTotals,
+  sentimentLegendItems,
+  formatTrendAxisDate,
+  CHART_TICK,
+  CHART_GRID,
+  CHART_TOOLTIP,
+} from './overview/chartUi'
 
-function SentimentPieTooltip({ active, payload, sentimentData }) {
-  if (active && payload && payload.length) {
-    const data = payload[0]
-    const total = sentimentData.reduce((sum, item) => sum + item.value, 0)
-    const percentage = total > 0 ? Math.round((data.value / total) * 100) : 0
-    return (
-      <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg dark:bg-gray-900 dark:border-gray-700">
-        <p className="text-gray-900 dark:text-gray-100 font-semibold">{data.name}</p>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">Count: {data.value}</p>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">Percentage: {percentage}%</p>
-      </div>
-    )
-  }
-  return null
+function ChartSkeleton({ className = 'h-64' }) {
+  return <div className={`w-full rounded-xl bg-gray-100 animate-pulse dark:bg-white/[0.06] ${className}`} />
 }
 
-function SentimentLegendPills({ sentimentData }) {
-  const total = sentimentData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0)
+function SentimentLegendRow() {
   return (
-    <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5 w-full px-1">
-      {sentimentData.map((entry, index) => {
-        const pct = total > 0 ? Math.round(((Number(entry.value) || 0) / total) * 100) : 0
-        const label = entry.name || 'Unknown'
-        const count = Number(entry.value) || 0
-        const showPct = label !== 'No Data' && label !== 'Error'
-        return (
-          <div
-            key={`legend-${label}-${index}`}
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 text-xs text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200"
-          >
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white/80 dark:ring-gray-950/70"
-              style={{ backgroundColor: entry.color }}
-              aria-hidden
-            />
-            <span className="font-medium text-gray-900 dark:text-gray-100">{label}</span>
-            <span className="text-gray-600 dark:text-gray-300 tabular-nums">
-              {count}
-              {showPct ? ` · ${pct}%` : ''}
-            </span>
-          </div>
-        )
-      })}
+    <div className="mb-3 flex flex-wrap items-center gap-4">
+      {sentimentLegendItems().map(({ label, color }) => (
+        <span key={label} className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+          {label}
+        </span>
+      ))}
     </div>
   )
 }
 
+function sentimentEmoji(label) {
+  const s = String(label || '').toLowerCase()
+  if (s === 'positive') return '😊'
+  if (s === 'negative') return '😞'
+  return '😐'
+}
+
+function categoryPill(category) {
+  const c = String(category || '').toLowerCase()
+  if (c.includes('bug') || c.includes('complaint')) {
+    return 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-200'
+  }
+  if (c.includes('compliment') || c.includes('praise')) {
+    return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'
+  }
+  return 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200'
+}
+
 /**
- * Overview dashboard charts: sentiment pie, insurance tags, product pulse, 30d sentiment trend.
+ * Overview dashboard — mockup-style chart grid + AI insight bar.
  */
 export default function OverviewChartsSection({
   isCx,
   analyticsLoading,
   analyticsDelayPassed,
   sentimentChartHasRealData,
-  categoryChartHasRealData,
   sentimentData,
-  overviewInsuranceTagsCaption,
-  insuranceTagsBarChartData,
-  isDarkMode,
-  productPulse,
+  insuranceTagsBreakdown,
+  isDarkMode: _isDarkMode,
   trendData,
   trendYMax,
   trendAllZero,
   overviewTrendLabels,
-  overviewPeriodContext,
+  sourcePerformance,
+  recentFeedback = [],
   onNavigateToInsights,
+  onOpenFeedback,
+  analyzerLoading,
+  analyzerError,
+  analyzerResult,
+  overviewTimeFilterLabel,
+  onAnalyzerRefresh,
+  onAnalyzerDetails,
+  analyzerRefreshDisabled,
 }) {
   const trendTitle = overviewTrendLabels?.title || 'Sentiment Trend'
-  const trendEmptyMessage =
-    overviewTrendLabels?.empty ||
-    'No feedback for the selected period. The chart shows daily counts at zero for this period.'
+  const channelRows = buildChannelDonutData(sourcePerformance)
+  const channelTotal = channelRows.reduce((s, r) => s + r.value, 0)
+  const topics = buildTopicsTableRows(insuranceTagsBreakdown, { limit: 6 })
+  const sent = sentimentTotals(sentimentData)
+  const gaugeData = [
+    { name: 'positive', value: sent.positivePct || 0, fill: SENTIMENT_COLORS.Positive },
+    { name: 'rest', value: Math.max(0, 100 - (sent.positivePct || 0)), fill: '#e5e7eb' },
+  ]
+  const recent = (Array.isArray(recentFeedback) ? recentFeedback : []).slice(0, 4)
+
+  const priorPositiveShare = (() => {
+    const rows = Array.isArray(trendData) ? trendData : []
+    if (rows.length < 4) return null
+    const mid = Math.floor(rows.length / 2)
+    const first = rows.slice(0, mid)
+    const second = rows.slice(mid)
+    const share = (chunk) => {
+      let p = 0
+      let t = 0
+      for (const d of chunk) {
+        p += Number(d.positive) || 0
+        t += (Number(d.positive) || 0) + (Number(d.negative) || 0) + (Number(d.neutral) || 0)
+      }
+      return t > 0 ? (p / t) * 100 : 0
+    }
+    const a = share(first)
+    const b = share(second)
+    return Math.round(b - a)
+  })()
+
+  const ready = !analyticsLoading && analyticsDelayPassed
+
   return (
-    <>
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Sentiment Distribution */}
-            <div className="card p-4 sm:p-6">
-              <h2
-                className={`text-lg font-semibold text-gray-900 dark:text-gray-100 ${
-                  !analyticsLoading && analyticsDelayPassed && !sentimentChartHasRealData
-                    ? 'mb-1'
-                    : 'mb-6'
-                }`}
-              >
-                Sentiment Distribution
-              </h2>
-              {!analyticsLoading && analyticsDelayPassed && !sentimentChartHasRealData && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  No labeled feedback yet, or counts are zero. Submit or import feedback to see a breakdown.
+    <div className="space-y-6">
+      {/* Row 1: Sentiment trend + Volume by channel */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <DashboardChartCard
+          title={trendTitle}
+          action={
+            <span className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+              Daily
+            </span>
+          }
+        >
+          {!ready ? (
+            <ChartSkeleton className="h-72" />
+          ) : (
+            <>
+              <SentimentLegendRow />
+              {trendAllZero && (
+                <p className="mb-3 text-xs text-amber-800 dark:text-amber-200">
+                  {overviewTrendLabels?.empty || 'No feedback in this period.'}
                 </p>
               )}
-              {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-72 sm:h-80 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
-              ) : sentimentChartHasRealData ? (
-                <div className="flex flex-col items-center">
-                  <div className="w-full max-w-md">
-                    <div className="relative w-full aspect-square">
-                      <div className="absolute inset-0">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={sentimentData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius="58%"
-                              outerRadius="88%"
-                              paddingAngle={2}
-                              dataKey="value"
-                              nameKey="name"
-                              labelLine={false}
-                              stroke={isDarkMode ? 'rgba(3,7,18,0.9)' : '#fff'}
-                              strokeWidth={2}
-                              cornerRadius={10}
-                              isAnimationActive
-                            >
-                              {sentimentData.map((entry, index) => (
-                                <Cell key={`sentiment-${entry.name}-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip
-                              content={(tipProps) => (
-                                <SentimentPieTooltip
-                                  {...tipProps}
-                                  sentimentData={sentimentData}
-                                />
-                              )}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Total
-                          </div>
-                          <div className="mt-0.5 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
-                            {sentimentData.reduce((sum, item) => sum + (Number(item?.value) || 0), 0)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <SentimentLegendPills sentimentData={sentimentData} />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <div className="w-full max-w-md">
-                    <div className="relative w-full aspect-square">
-                      <div
-                        className="absolute inset-[10%] rounded-full border-[14px] border-gray-200 dark:border-gray-700"
-                        aria-hidden
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                            Total
-                          </div>
-                          <div className="mt-0.5 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
-                            0
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Themes (horizontal bars) */}
-            {!isCx && (
-            <div className="card p-4 sm:p-6">
               <div
-                className={`flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between ${
-                  !analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData
-                    ? 'mb-1'
-                    : 'mb-6'
-                }`}
+                className={`h-64 sm:h-72 ${onNavigateToInsights ? 'cursor-pointer' : ''}`}
+                role={onNavigateToInsights ? 'button' : undefined}
+                tabIndex={onNavigateToInsights ? 0 : undefined}
+                onClick={() => onNavigateToInsights?.()}
+                onKeyDown={(e) => {
+                  if (!onNavigateToInsights) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onNavigateToInsights()
+                  }
+                }}
               >
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Themes</h2>
-                <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
-                  {overviewInsuranceTagsCaption.subtitle}
-                </span>
-              </div>
-              {!analyticsLoading && analyticsDelayPassed && !categoryChartHasRealData && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-5">
-                  {overviewInsuranceTagsCaption.empty}
-                </p>
-              )}
-              {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-72 sm:h-80 lg:h-[22rem] bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
-              ) : (
-                <div
-                  style={{
-                    height: `${Math.max(360, Math.min(520, insuranceTagsBarChartData.length * 44 + 80))}px`,
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      layout="vertical"
-                      data={insuranceTagsBarChartData}
-                      margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-                      barCategoryGap="18%"
-                    >
-                      <XAxis
-                        type="number"
-                        tick={{ fill: isDarkMode ? '#e5e7eb' : '#6b7280', fontSize: 12 }}
-                        axisLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                        tickLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                        allowDecimals={false}
-                      />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={128}
-                        tick={{ fill: isDarkMode ? '#f3f4f6' : '#374151', fontSize: 12 }}
-                        axisLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                        tickLine={false}
-                        interval={0}
-                      />
-                      <CartesianGrid
-                        strokeDasharray="4 4"
-                        stroke={isDarkMode ? 'rgba(148,163,184,0.35)' : '#e5e7eb'}
-                        horizontal={false}
-                        vertical
-                      />
-                      <Tooltip
-                        cursor={{
-                          fill: isDarkMode ? 'rgba(111, 191, 115, 0.14)' : 'rgba(111, 191, 115, 0.08)',
-                        }}
-                        contentStyle={{
-                          backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                          border: isDarkMode ? '1px solid rgba(255,255,255,0.10)' : '1px solid #d1d5db',
-                          borderRadius: '8px',
-                          color: isDarkMode ? '#f9fafb' : '#1f2937',
-                          boxShadow: isDarkMode
-                            ? '0 10px 25px rgba(15,23,42,0.35)'
-                            : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        }}
-                        labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#111827', fontSize: 11 }}
-                        formatter={(value) => [value, 'Count']}
-                        labelFormatter={(label) => String(label)}
-                      />
-                      <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={22} maxBarSize={28}>
-                        {insuranceTagsBarChartData.map((entry, cellIdx) => (
-                          <Cell key={`${entry._key || entry.name}-${cellIdx}`} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
-          )}
-          </div>
-
-          {/* Product pulse (volume by product) */}
-          <div className="mt-6 card p-4 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Product breakdown</h2>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {overviewPeriodContext?.productSubtitle || 'Volume by product'}
-              </span>
-            </div>
-            {analyticsLoading || !analyticsDelayPassed ? (
-              <div className="w-full h-64 sm:h-72 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
-            ) : productPulse.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">
-                No product/policy matches in this time window yet.
-              </p>
-            ) : (
-              <div className="mt-4" style={{ height: `${Math.max(280, Math.min(520, productPulse.length * 42 + 120))}px` }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={productPulse} margin={{ top: 8, right: 16, left: 8, bottom: 8 }} barCategoryGap="18%">
-                    <XAxis
-                      type="number"
-                      tick={{ fill: isDarkMode ? '#e5e7eb' : '#6b7280', fontSize: 12 }}
-                      axisLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                      tickLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                      allowDecimals={false}
+                  <LineChart data={trendData} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
+                    <CartesianGrid {...CHART_GRID} vertical={false} />
+                    <XAxis dataKey="date" tick={CHART_TICK} tickFormatter={formatTrendAxisDate} axisLine={false} tickLine={false} />
+                    <YAxis tick={CHART_TICK} allowDecimals={false} domain={[0, trendYMax]} axisLine={false} tickLine={false} width={32} />
+                    <Tooltip {...CHART_TOOLTIP} labelFormatter={formatTrendAxisDate} />
+                    <Line
+                      type="monotone"
+                      dataKey="positive"
+                      name="Positive"
+                      stroke={SENTIMENT_COLORS.Positive}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 4, fill: SENTIMENT_COLORS.Positive, strokeWidth: 0 }}
                     />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      width={160}
-                      tick={{ fill: isDarkMode ? '#f3f4f6' : '#374151', fontSize: 12 }}
-                      axisLine={{ stroke: isDarkMode ? '#374151' : '#e5e7eb' }}
-                      tickLine={false}
-                      interval={0}
+                    <Line
+                      type="monotone"
+                      dataKey="negative"
+                      name="Negative"
+                      stroke={SENTIMENT_COLORS.Negative}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 4, fill: SENTIMENT_COLORS.Negative, strokeWidth: 0 }}
                     />
-                    <CartesianGrid
-                      strokeDasharray="4 4"
-                      stroke={isDarkMode ? 'rgba(148,163,184,0.35)' : '#e5e7eb'}
-                      horizontal={false}
-                      vertical
+                    <Line
+                      type="monotone"
+                      dataKey="neutral"
+                      name="Neutral"
+                      stroke={SENTIMENT_COLORS.Neutral}
+                      strokeWidth={2.5}
+                      dot={false}
+                      activeDot={{ r: 4, fill: SENTIMENT_COLORS.Neutral, strokeWidth: 0 }}
                     />
-                    <Tooltip
-                      cursor={{
-                        fill: isDarkMode ? 'rgba(0,151,80,0.14)' : 'rgba(0,151,80,0.08)',
-                      }}
-                      contentStyle={{
-                        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                        border: isDarkMode ? '1px solid rgba(255,255,255,0.10)' : '1px solid #d1d5db',
-                        borderRadius: '8px',
-                        color: isDarkMode ? '#f9fafb' : '#1f2937',
-                        boxShadow: isDarkMode ? '0 10px 25px rgba(15,23,42,0.35)' : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      }}
-                      labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#111827', fontSize: 11 }}
-                      formatter={(value) => [value, 'Feedback']}
-                      labelFormatter={(label) => String(label)}
-                    />
-                    <Bar dataKey="total" radius={[0, 10, 10, 0]} barSize={22} maxBarSize={28} fill={VIRIDIS.green} />
-                  </BarChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
-            )}
-          </div>
+            </>
+          )}
+        </DashboardChartCard>
 
-          {/* Time-based Analytics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Sentiment Trend (Area Chart) */}
-            <div className="card p-4 sm:p-6 lg:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{trendTitle}</h2>
-                <span className="text-xs text-gray-500 dark:text-gray-400">Daily counts · GMT</span>
-              </div>
-              {analyticsLoading || !analyticsDelayPassed ? (
-                <div className="w-full h-64 sm:h-72 lg:h-80 bg-gray-50 dark:bg-white/[0.04] rounded-xl animate-pulse" />
-              ) : (
-                <div>
-                  {trendAllZero && (
-                    <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                      {trendEmptyMessage}
-                    </p>
-                  )}
-                  <div
-                    className={`h-64 sm:h-72 lg:h-80 ${onNavigateToInsights ? 'cursor-pointer' : ''}`}
-                    role={onNavigateToInsights ? 'button' : undefined}
-                    tabIndex={onNavigateToInsights ? 0 : undefined}
-                    onClick={() => onNavigateToInsights?.()}
-                    onKeyDown={(e) => {
-                      if (!onNavigateToInsights) return
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onNavigateToInsights()
-                      }
-                    }}
-                    aria-label={onNavigateToInsights ? 'Open insights' : undefined}
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart
-                        data={trendData}
-                        margin={{ top: 10, right: 12, left: 4, bottom: 28 }}
-                      >
-                        <defs>
-                          <linearGradient id="trendPositive" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={SENTIMENT_COLORS.Positive} stopOpacity={0.65} />
-                            <stop offset="100%" stopColor={SENTIMENT_COLORS.Positive} stopOpacity={0.05} />
-                          </linearGradient>
-                          <linearGradient id="trendNeutral" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={SENTIMENT_COLORS.Neutral} stopOpacity={0.45} />
-                            <stop offset="100%" stopColor={SENTIMENT_COLORS.Neutral} stopOpacity={0.05} />
-                          </linearGradient>
-                          <linearGradient id="trendNegative" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={SENTIMENT_COLORS.Negative} stopOpacity={0.55} />
-                            <stop offset="100%" stopColor={SENTIMENT_COLORS.Negative} stopOpacity={0.05} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fill: '#6b7280', fontSize: 10 }}
-                          axisLine={{ stroke: '#e5e7eb' }}
-                          tickMargin={8}
-                          interval="preserveStartEnd"
-                          minTickGap={24}
-                          tickFormatter={(v) => {
-                            if (v == null || typeof v !== 'string') return v
-                            const parts = v.split('-')
-                            return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : v
-                          }}
-                        />
-                        <YAxis
-                          tick={{ fill: '#6b7280', fontSize: 11 }}
-                          axisLine={{ stroke: '#e5e7eb' }}
-                          allowDecimals={false}
-                          domain={[0, trendYMax]}
-                          width={36}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#111827',
-                            border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: '10px',
-                            color: '#f9fafb',
-                            boxShadow: '0 10px 25px rgba(15,23,42,0.25)',
-                          }}
-                          labelStyle={{ color: '#e5e7eb', fontSize: 11 }}
-                          labelFormatter={(label) => (label ? String(label) : '')}
-                        />
-                        <Legend />
-                        <Area
-                          type="monotone"
-                          dataKey="positive"
-                          name="Positive"
-                          stroke={SENTIMENT_COLORS.Positive}
-                          strokeWidth={2.2}
-                          fill="url(#trendPositive)"
-                          fillOpacity={trendAllZero ? 0.1 : 0.18}
-                          connectNulls
-                          activeDot={{ r: 4, strokeWidth: 0 }}
-                          isAnimationActive={!trendAllZero}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="neutral"
-                          name="Neutral"
-                          stroke={SENTIMENT_COLORS.Neutral}
-                          strokeWidth={2}
-                          fill="url(#trendNeutral)"
-                          fillOpacity={trendAllZero ? 0.08 : 0.14}
-                          connectNulls
-                          activeDot={{ r: 4, strokeWidth: 0 }}
-                          isAnimationActive={!trendAllZero}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="negative"
-                          name="Negative"
-                          stroke={SENTIMENT_COLORS.Negative}
-                          strokeWidth={2.1}
-                          fill="url(#trendNegative)"
-                          fillOpacity={trendAllZero ? 0.08 : 0.14}
-                          connectNulls
-                          activeDot={{ r: 4, strokeWidth: 0 }}
-                          isAnimationActive={!trendAllZero}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+        <DashboardChartCard
+          title="Volume by Channel"
+          action={
+            <span className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+              All channels
+            </span>
+          }
+        >
+          {!ready ? (
+            <ChartSkeleton className="h-72" />
+          ) : channelRows.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">No channel volume in this period.</p>
+          ) : (
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+              <div className="relative h-52 w-52 shrink-0 sm:h-56 sm:w-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={channelRows}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="58%"
+                      outerRadius="88%"
+                      paddingAngle={2}
+                      stroke="#fff"
+                      strokeWidth={2}
+                    >
+                      {channelRows.map((entry) => (
+                        <Cell key={entry.source} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip {...CHART_TOOLTIP} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {channelTotal.toLocaleString()}
+                  </span>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Total</span>
                 </div>
-              )}
+              </div>
+              <ul className="w-full min-w-0 flex-1 space-y-2.5">
+                {channelRows.map((row) => (
+                  <li key={row.source} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="inline-flex min-w-0 items-center gap-2 text-gray-800 dark:text-gray-200">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.fill }} aria-hidden />
+                      <span className="truncate">{row.name}</span>
+                    </span>
+                    <span className="shrink-0 tabular-nums text-gray-600 dark:text-gray-400">
+                      {row.pct}% <span className="text-gray-400">({row.value})</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
+          )}
+        </DashboardChartCard>
+      </div>
 
+      {/* Row 2: Topics + Recent + Sentiment breakdown */}
+      <div className={`grid grid-cols-1 gap-6 ${isCx ? 'lg:grid-cols-2' : 'xl:grid-cols-3'}`}>
+        {!isCx && (
+          <DashboardChartCard title="Top Feedback Topics">
+            {!ready ? (
+              <ChartSkeleton className="h-56" />
+            ) : topics.length === 0 ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400">No tagged themes in this period.</p>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800">
+                        <th className="pb-2 pr-2 font-semibold">Topic</th>
+                        <th className="pb-2 pr-2 font-semibold">Sentiment</th>
+                        <th className="pb-2 text-right font-semibold">Volume</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {topics.map((row) => (
+                        <tr key={row.key}>
+                          <td className="py-2.5 pr-2 font-medium text-gray-900 dark:text-gray-100">{row.name}</td>
+                          <td className="py-2.5 pr-2">
+                            <div className="flex h-2 w-full max-w-[8rem] overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                              <span
+                                className="h-full bg-[#D96C6C]"
+                                style={{ width: `${row.negPct}%` }}
+                                title={`Negative ${Math.round(row.negPct)}%`}
+                              />
+                              <span
+                                className="h-full bg-[#6FBF73]"
+                                style={{ width: `${row.posPct}%` }}
+                                title={`Positive ${Math.round(row.posPct)}%`}
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.total}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {onNavigateToInsights && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateToInsights()}
+                    className="mt-4 w-full text-center text-xs font-semibold text-[#009750] hover:text-[#007a42] dark:text-emerald-400"
+                  >
+                    View all topics →
+                  </button>
+                )}
+              </>
+            )}
+          </DashboardChartCard>
+        )}
+
+        <DashboardChartCard
+          title="Recent Feedback"
+          action={
+            onNavigateToInsights ? (
+              <button
+                type="button"
+                onClick={() => onNavigateToInsights()}
+                className="text-xs font-semibold text-[#009750] hover:underline dark:text-emerald-400"
+              >
+                View all
+              </button>
+            ) : null
+          }
+          className={isCx ? 'lg:col-span-1' : ''}
+        >
+          {!ready ? (
+            <ChartSkeleton className="h-56" />
+          ) : recent.length === 0 ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">No recent feedback yet.</p>
+          ) : (
+            <ul className="space-y-4">
+              {recent.map((item) => {
+                const msg = String(item.message || item.summary || '').trim()
+                const preview = msg.length > 72 ? `${msg.slice(0, 72)}…` : msg || '—'
+                const sentiment = formatSentimentWord(item.sentiment_label)
+                const cat = item.category || sentiment
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => onOpenFeedback?.(item)}
+                      className="w-full text-left hover:opacity-90"
+                    >
+                      <div className="flex gap-2">
+                        <span className="text-lg leading-none" aria-hidden>
+                          {sentimentEmoji(item.sentiment_label)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{preview}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${categoryPill(cat)}`}
+                            >
+                              {cat || 'Feedback'}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                            {humanizeSource(item.source)} ·{' '}
+                            {item.created_at ? formatRelativeTime(item.created_at) : '—'} · {sentiment}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          {onNavigateToInsights && recent.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onNavigateToInsights()}
+              className="mt-4 w-full text-center text-xs font-semibold text-[#009750] hover:text-[#007a42] dark:text-emerald-400"
+            >
+              View all feedback →
+            </button>
+          )}
+        </DashboardChartCard>
+
+        <DashboardChartCard title="Sentiment Breakdown" className={isCx ? '' : ''}>
+          {!ready ? (
+            <ChartSkeleton className="h-56" />
+          ) : !sentimentChartHasRealData ? (
+            <p className="text-sm text-gray-600 dark:text-gray-400">No sentiment labels yet.</p>
+          ) : (
+            <>
+              <div className="relative mx-auto h-44 w-full max-w-xs">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={gaugeData}
+                      dataKey="value"
+                      cx="50%"
+                      cy="85%"
+                      startAngle={180}
+                      endAngle={0}
+                      innerRadius="55%"
+                      outerRadius="85%"
+                      stroke="none"
+                    >
+                      {gaugeData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-x-0 bottom-6 flex flex-col items-center">
+                  <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">{sent.positivePct}%</span>
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Positive</span>
+                  {priorPositiveShare != null && (
+                    <span
+                      className={`mt-1 text-xs font-medium ${
+                        priorPositiveShare >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                      }`}
+                    >
+                      {priorPositiveShare >= 0 ? '↑' : '↓'} {Math.abs(priorPositiveShare)}% vs earlier in period
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  { label: 'Positive', pct: sent.positivePct, color: SENTIMENT_COLORS.Positive },
+                  { label: 'Negative', pct: sent.negativePct, color: SENTIMENT_COLORS.Negative },
+                  { label: 'Neutral', pct: sent.neutralPct, color: SENTIMENT_COLORS.Neutral },
+                ].map((box) => (
+                  <div
+                    key={box.label}
+                    className="overflow-hidden rounded-lg border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
+                  >
+                    <div className="px-2 py-2 text-center">
+                      <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{box.label}</p>
+                      <p className="text-sm font-bold tabular-nums text-gray-900 dark:text-gray-100">{box.pct}%</p>
                     </div>
-    </>
+                    <div className="h-1 w-full" style={{ backgroundColor: box.color }} aria-hidden />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </DashboardChartCard>
+      </div>
+
+      {/* AI Insight — full width below charts */}
+      <AiInsightBar
+        loading={analyzerLoading}
+        error={analyzerError}
+        result={analyzerResult}
+        timeFilterLabel={overviewTimeFilterLabel}
+        onRefresh={onAnalyzerRefresh}
+        onViewDetails={onAnalyzerDetails}
+        refreshDisabled={analyzerRefreshDisabled}
+      />
+    </div>
   )
 }

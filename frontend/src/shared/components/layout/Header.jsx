@@ -1,4 +1,5 @@
 import { FiMenu, FiMoon, FiRefreshCw, FiSun } from 'react-icons/fi'
+import UserProfileMenu from './UserProfileMenu'
 
 function Header({
   onToggleSidebar,
@@ -7,11 +8,13 @@ function Header({
   showRefresh,
   onRefresh,
   refreshDisabled,
+  user,
+  onSignOut,
 }) {
   return (
     <header className="bg-white/95 border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 shadow-sm dark:bg-gray-950/90 dark:border-gray-800">
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
-        <div className="flex items-center justify-start">
+      <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center md:w-auto">
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -22,11 +25,11 @@ function Header({
           </button>
         </div>
 
-        <h1 className="text-center text-lg sm:text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 truncate px-1">
+        <h1 className="min-w-0 flex-1 text-center text-lg sm:text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 truncate md:text-left">
           Feedback Dashboard
         </h1>
 
-        <div className="flex items-center justify-end gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {showRefresh && (
             <button
               type="button"
@@ -48,6 +51,7 @@ function Header({
           >
             {theme === 'dark' ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
           </button>
+          <UserProfileMenu user={user} onSignOut={onSignOut} />
         </div>
       </div>
     </header>

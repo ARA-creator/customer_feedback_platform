@@ -121,6 +121,8 @@ function AppChrome({
           onToggleTheme={toggleTheme}
           showRefresh={showDashboardRefresh}
           onRefresh={onDashboardRefresh}
+          user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
+          onSignOut={signOut}
         />
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
           <Outlet />

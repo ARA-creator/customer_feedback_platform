@@ -50,7 +50,6 @@ import {
 } from '../utils/dashboardDerived'
 import OverviewMetricCards from './OverviewMetricCards'
 import OverviewChartsSection from './OverviewChartsSection'
-import OverviewSourceChart from './OverviewSourceChart'
 import DashboardInsightsSection from './DashboardInsightsSection'
 import DashboardInboxSection from './DashboardInboxSection'
 import FeedbackDetailModal from './FeedbackDetailModal'
@@ -164,7 +163,6 @@ function Dashboard({
   const isManagement = overviewRole === 'management'
   const isCx = overviewRole === 'cx'
   const isOperations = overviewRole === 'operations'
-  const showSourceChart = !isOperations
   const reloadDashboardRef = useRef(() => {})
   /** Silent refetch (no full-page spinners) — used for optional polling + live SSE. */
   const refreshDashboardSilentRef = useRef(() => {})
@@ -448,23 +446,40 @@ function Dashboard({
     [overviewTimeFilter],
   )
 
-  const handleOpenAnalyzer = async () => {
-    setAnalyzerOpen(true)
+  const loadAnalyzerInsight = async ({ openModal = false } = {}) => {
+    if (openModal) setAnalyzerOpen(true)
     setAnalyzerLoading(true)
     setAnalyzerError(null)
-    setAnalyzerResult(null)
+    if (openModal) setAnalyzerResult(null)
     try {
       const data = await getFeedbackAnalyzer({ time_window: overviewTimeFilter })
       setAnalyzerResult(data)
+      setAnalyzerError(null)
     } catch (err) {
       const msg =
         err?.response?.data?.error || err?.message || 'Could not analyze feedback for this period.'
       setAnalyzerError(msg)
-      pushToast?.('Analyzer failed', msg, 'error')
+      if (openModal) pushToast?.('Analyzer failed', msg, 'error')
     } finally {
       setAnalyzerLoading(false)
     }
   }
+
+  const handleOpenAnalyzer = () => loadAnalyzerInsight({ openModal: true })
+
+  useEffect(() => {
+    if (mode !== 'overview') return undefined
+    if (loading || !analyticsDelayPassed) return undefined
+    let cancelled = false
+    ;(async () => {
+      if (cancelled) return
+      await loadAnalyzerInsight({ openModal: false })
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, overviewTimeFilter, analyticsDelayPassed, loading])
 
   const handleCloseAnalyzer = () => {
     setAnalyzerOpen(false)
@@ -604,18 +619,24 @@ function Dashboard({
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
               sentimentChartHasRealData={sentimentChartHasRealData}
-              categoryChartHasRealData={categoryChartHasRealData}
               sentimentData={sentimentData}
-              overviewInsuranceTagsCaption={overviewInsuranceTagsCaption}
-              insuranceTagsBarChartData={insuranceTagsBarChartData}
+              insuranceTagsBreakdown={insuranceTagsBreakdown}
               isDarkMode={isDarkMode}
-              productPulse={productPulse}
               trendData={trendData}
               trendYMax={trendYMax}
               trendAllZero={trendAllZero}
               overviewTrendLabels={overviewTrendLabels}
-              overviewPeriodContext={overviewPeriodContext}
+              sourcePerformance={sourcePerformance}
+              recentFeedback={recentFeedback}
               onNavigateToInsights={onNavigateToInsights}
+              onOpenFeedback={openFeedbackModal}
+              analyzerLoading={analyzerLoading}
+              analyzerError={analyzerError}
+              analyzerResult={analyzerResult}
+              overviewTimeFilterLabel={overviewTimeFilterLabel}
+              onAnalyzerRefresh={() => loadAnalyzerInsight({ openModal: false })}
+              onAnalyzerDetails={handleOpenAnalyzer}
+              analyzerRefreshDisabled={loading || !analyticsDelayPassed}
             />
           )}
 
@@ -650,15 +671,6 @@ function Dashboard({
             />
           )}
 
-          {mode === 'overview' && showSourceChart && (
-            <OverviewSourceChart
-              analyticsLoading={analyticsLoading}
-              analyticsDelayPassed={analyticsDelayPassed}
-              isDarkMode={isDarkMode}
-              sourcePerformance={sourcePerformance}
-              overviewPeriodContext={overviewPeriodContext}
-            />
-          )}
         </>
       )}
 
