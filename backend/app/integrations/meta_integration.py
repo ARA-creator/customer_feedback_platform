@@ -2,9 +2,28 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def meta_event_dedupe_hash(source: str, channel_metadata: Dict[str, Any]) -> Optional[str]:
+    """
+    Stable hash for Instagram/Facebook webhook dedupe (message_id, comment_id, etc.).
+    """
+    meta = channel_metadata or {}
+    parts = []
+    for key in ("message_id", "comment_id", "thread_id"):
+        val = meta.get(key)
+        if val:
+            parts.append(f"{key}:{val}")
+    entry_id = meta.get("entry_id")
+    if entry_id and not parts:
+        parts.append(f"entry_id:{entry_id}")
+    if not parts:
+        return None
+    raw = f"{source}|{'|'.join(parts)}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def verify_meta_webhook_signature(payload: str, signature: str, app_secret: str) -> bool:

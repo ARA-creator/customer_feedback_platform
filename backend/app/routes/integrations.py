@@ -20,6 +20,7 @@ from ..integrations.web_monitor import (
 )
 from ..integrations.email_integration import fetch_emails, process_email_to_feedback
 from ..integrations.meta_integration import (
+    meta_event_dedupe_hash,
     parse_facebook_webhook,
     parse_instagram_webhook,
     verify_meta_webhook_signature,
@@ -129,6 +130,40 @@ def poll_tiktok_and_ingest(*, access_token: str, base_url: str, query: str, limi
         "items_found": len(items),
         "processed": processed,
     }
+
+
+def _ingest_meta_webhook_payload(feedback_payload: dict) -> bool:
+    """
+    Ingest Instagram/Facebook webhook payload with ExternalIngestedItem dedupe.
+    """
+    source = str(feedback_payload.get("source") or "meta")
+    meta = feedback_payload.get("channel_metadata") or {}
+    h = meta_event_dedupe_hash(source, meta)
+    if not h:
+        return bool(_submit_to_feedback_api(feedback_payload))
+
+    db = SessionLocal()
+    try:
+        exists = db.query(ExternalIngestedItem.id).filter(ExternalIngestedItem.url_hash == h).first()
+        if exists:
+            return True
+
+        dedupe_url = f"meta:{source}:{meta.get('message_id') or meta.get('comment_id') or h[:12]}"
+        db.add(ExternalIngestedItem(source=source, url=dedupe_url, url_hash=h))
+        db.commit()
+
+        result = _submit_to_feedback_api(feedback_payload)
+        if result:
+            return True
+        db.query(ExternalIngestedItem).filter(ExternalIngestedItem.url_hash == h).delete()
+        db.commit()
+        return False
+    except Exception:
+        logger.exception("Meta webhook ingest failed")
+        db.rollback()
+        return False
+    finally:
+        db.close()
 
 
 def _submit_to_feedback_api(payload: dict) -> dict:
@@ -1086,7 +1121,7 @@ def instagram_webhook():
     if not feedback_payload:
         return jsonify({"status": "ok"}), 200
 
-    result = _submit_to_feedback_api(feedback_payload)
+    _ingest_meta_webhook_payload(feedback_payload)
     return jsonify({"status": "ok"}), 200
 
 
@@ -1138,5 +1173,5 @@ def facebook_webhook():
     if not feedback_payload:
         return jsonify({"status": "ok"}), 200
 
-    result = _submit_to_feedback_api(feedback_payload)
+    _ingest_meta_webhook_payload(feedback_payload)
     return jsonify({"status": "ok"}), 200

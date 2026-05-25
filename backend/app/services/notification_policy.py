@@ -141,14 +141,16 @@ def delivery_pref_keys(*, is_admin: bool) -> list[str]:
 
 def get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, bool]:
     """
-    Return saved notification preferences.
+    Return notification preferences for delivery and inbox filtering.
 
-    Until the user saves choices in Settings, all delivery options are off (opt-in).
+    If the user has never saved preferences, use role-based defaults (agents get
+    new_feedback; admins get admin_user_events). After the first save in Settings,
+    only explicitly enabled types are delivered.
     """
     defaults = default_notification_prefs(is_admin=is_admin)
     row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
     if not row or not str(row.prefs or "").strip():
-        return {k: False for k in defaults}
+        return dict(defaults)
 
     base = safe_json_loads(row.prefs) if row.prefs else {}
     out = {k: False for k in defaults}

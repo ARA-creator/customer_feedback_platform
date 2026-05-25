@@ -1889,9 +1889,19 @@ def channels_status():
         google_forms_seen = _seen_like("%google%")
         x_seen = _seen_like("%x%") or _seen_like("%twitter%")
         tiktok_seen = _seen_like("%tiktok%")
-        meta_seen = _seen_like("%instagram%") or _seen_like("%facebook%")
+        instagram_seen = _seen_like("%instagram%")
+        facebook_seen = _seen_like("%facebook%")
+        meta_seen = instagram_seen or facebook_seen
         email_seen = _seen_like("%email%") or present(getattr(cfg, "EMAIL_USERNAME", ""))
         web_seen = _seen_like("%web%") or present(getattr(cfg, "WEB_MONITOR_ENABLED", False))
+
+        meta_configured = present(getattr(cfg, "META_VERIFY_TOKEN", "")) and present(
+            getattr(cfg, "META_APP_SECRET", "")
+        )
+        x_configured = present(getattr(cfg, "X_BEARER_TOKEN", "")) and present(getattr(cfg, "X_QUERY", ""))
+        instagram_last_seen = _last_seen_like("%instagram%")
+        facebook_last_seen = _last_seen_like("%facebook%")
+        x_last_seen = _last_seen_like("%x%") or _last_seen_like("%twitter%")
     finally:
         db.close()
 
@@ -1904,8 +1914,26 @@ def channels_status():
                 "auto_poll": whatsapp_auto_poll,
                 "last_ingested_at": whatsapp_last_seen,
             },
-            "meta": {"enabled": meta_seen},
-            "x": {"enabled": x_seen, "auto_poll": bool(getattr(cfg, "X_POLL_ENABLED", False))},
+            "meta": {
+                "enabled": meta_seen,
+                "configured": meta_configured,
+            },
+            "instagram": {
+                "enabled": instagram_seen,
+                "configured": meta_configured,
+                "last_ingested_at": instagram_last_seen,
+            },
+            "facebook": {
+                "enabled": facebook_seen,
+                "configured": meta_configured,
+                "last_ingested_at": facebook_last_seen,
+            },
+            "x": {
+                "enabled": x_seen,
+                "configured": x_configured,
+                "auto_poll": bool(getattr(cfg, "X_POLL_ENABLED", False)),
+                "last_ingested_at": x_last_seen,
+            },
             "tiktok": {"enabled": tiktok_seen, "auto_poll": bool(getattr(cfg, "TIKTOK_POLL_ENABLED", False))},
             "google_forms": {"enabled": google_forms_seen},
             "web": {"enabled": bool(web_seen)},

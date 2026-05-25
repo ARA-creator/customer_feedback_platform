@@ -41,6 +41,7 @@ export default function SettingsNotificationsPage() {
   const [prefsError, setPrefsError] = useState(null)
   const [prefsSuccess, setPrefsSuccess] = useState(null)
   const [prefs, setPrefs] = useState({})
+  const [hasSavedPreferences, setHasSavedPreferences] = useState(false)
 
   const updateUi = (partial) => {
     setUiPrefs(saveNotificationUiPrefs(partial))
@@ -53,7 +54,10 @@ export default function SettingsNotificationsPage() {
       setPrefsError(null)
       try {
         const data = await getPreferences()
-        if (mounted) setPrefs(data?.prefs || {})
+        if (mounted) {
+          setPrefs(data?.prefs || {})
+          setHasSavedPreferences(Boolean(data?.has_saved_preferences))
+        }
       } catch (e) {
         if (mounted) setPrefsError(e?.response?.data?.error || e?.message || 'Failed to load notification preferences')
       } finally {
@@ -88,6 +92,7 @@ export default function SettingsNotificationsPage() {
       const res = await savePreferences(prefs)
       const saved = res?.prefs || prefs
       setPrefs(saved)
+      setHasSavedPreferences(true)
       setPrefsSuccess('Notification preferences saved.')
       try {
         window.dispatchEvent(new CustomEvent('cfp-notification-prefs-changed', { detail: { prefs: saved } }))
@@ -171,7 +176,13 @@ export default function SettingsNotificationsPage() {
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading preferences…</p>
         ) : (
           <>
-            {allDeliveryOff && (
+            {!hasSavedPreferences && (
+              <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-100">
+                Using default notification settings for your role. Enable <strong>New feedback</strong> (required for
+                email and channel ingest alerts if you are an admin), then save.
+              </p>
+            )}
+            {allDeliveryOff && hasSavedPreferences && (
               <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
                 All notification types are off. You will not receive new in-app notifications until you enable at least
                 one option and save.

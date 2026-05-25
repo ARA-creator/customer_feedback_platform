@@ -1,11 +1,7 @@
 import { useEffect, useState } from 'react'
-import { FiCheckCircle, FiCopy, FiXCircle, FiRefreshCw } from 'react-icons/fi'
-import {
-  getClipboardBackendOrigin,
-  getIntegrationsWebhookBase,
-  USE_DEV_API_PROXY,
-} from '../../../shared/lib/apiClient'
-import { getChannelsStatus } from '../services/channels.api'
+import { FiCheckCircle, FiCopy, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
+import { getIntegrationsWebhookBase, USE_DEV_API_PROXY } from '../../../shared/lib/apiClient'
+import { getChannelsStatus, triggerXPoll } from '../services/channels.api'
 
 function StatusPill({ tone = 'off', label }) {
   const styles =
@@ -31,11 +27,36 @@ function channelTone({ enabled, configured }) {
   return 'off'
 }
 
+function channelLabel({ enabled, configured, name, autoPoll }) {
+  if (enabled) return name
+  if (configured) return `${name} (ready)`
+  if (autoPoll) return `${name} (auto)`
+  return name
+}
+
+function SetupSteps({ title, children }) {
+  return (
+    <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+      <p className="font-semibold">{title}</p>
+      <ol className="mt-2 list-decimal list-inside space-y-1.5 text-xs leading-relaxed">{children}</ol>
+    </div>
+  )
+}
+
+function EnvCode({ children }) {
+  return (
+    <code className="rounded bg-white/80 px-1 dark:bg-black/30">{children}</code>
+  )
+}
+
 export default function Channels() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copiedPath, setCopiedPath] = useState(null)
+  const [xPolling, setXPolling] = useState(false)
+  const [xPollResult, setXPollResult] = useState(null)
+  const [xPollError, setXPollError] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -64,25 +85,26 @@ export default function Channels() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const publicBase = getClipboardBackendOrigin()
   const integrationsBase = getIntegrationsWebhookBase()
   const wa = status?.whatsapp_twilio
+  const ig = status?.instagram
+  const fb = status?.facebook
+  const x = status?.x
 
   const webhooks = [
-    { label: 'WhatsApp (Twilio)', path: '/integrations/whatsapp/twilio', key: 'whatsapp_twilio', method: 'POST' },
-    { label: 'WhatsApp (Meta)', path: '/integrations/whatsapp/meta', key: 'whatsapp_twilio', method: 'POST' },
-    // Note: IG/FB GET is a verification challenge; opening in browser without params will 403.
-    { label: 'Instagram (Meta)', path: '/integrations/instagram/webhook', key: 'meta', method: 'GET/POST' },
-    { label: 'Facebook (Meta)', path: '/integrations/facebook/webhook', key: 'meta', method: 'GET/POST' },
-    { label: 'Google Forms webhook', path: '/integrations/google/forms', key: 'google_forms', method: 'POST' },
-    { label: 'Email poller', path: '/integrations/email/poll', key: 'email', method: 'POST' },
-    { label: 'Web poller', path: '/integrations/web/poll', key: 'web', method: 'POST' },
-    { label: 'X poll trigger', path: '/integrations/x/poll', key: 'x', method: 'POST' },
-    { label: 'TikTok poll trigger', path: '/integrations/tiktok/poll', key: 'tiktok', method: 'POST' },
+    { label: 'WhatsApp (Twilio)', path: '/integrations/whatsapp/twilio', method: 'POST' },
+    { label: 'WhatsApp (Meta)', path: '/integrations/whatsapp/meta', method: 'POST' },
+    { label: 'Instagram (Meta)', path: '/integrations/instagram/webhook', method: 'GET/POST' },
+    { label: 'Facebook (Meta)', path: '/integrations/facebook/webhook', method: 'GET/POST' },
+    { label: 'Google Forms webhook', path: '/integrations/google/forms', method: 'POST' },
+    { label: 'Email poller', path: '/integrations/email/poll', method: 'POST' },
+    { label: 'Web poller', path: '/integrations/web/poll', method: 'POST' },
+    { label: 'X poll trigger', path: '/integrations/x/poll', method: 'POST' },
+    { label: 'TikTok poll trigger', path: '/integrations/tiktok/poll', method: 'POST' },
   ]
 
   const copyUrl = async (path) => {
-    const url = `${publicBase}${path}`
+    const url = `${integrationsBase}${path}`
     try {
       await navigator.clipboard.writeText(url)
       setCopiedPath(path)
@@ -92,6 +114,23 @@ export default function Channels() {
     }
   }
 
+  const runXPoll = async () => {
+    setXPolling(true)
+    setXPollError(null)
+    setXPollResult(null)
+    try {
+      const data = await triggerXPoll({ max_results: 25 })
+      setXPollResult(data)
+      await load()
+    } catch (e) {
+      setXPollError(e?.response?.data?.error || e?.message || 'X poll failed')
+    } finally {
+      setXPolling(false)
+    }
+  }
+
+  const metaNeedsSetup = ig && fb && !ig.enabled && !fb.enabled && !ig.configured
+
   return (
     <div className="p-6 space-y-6">
       <div className="card p-6">
@@ -99,7 +138,7 @@ export default function Channels() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Channels</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Connection health and webhook / poller URLs for your integrations.
+              Connect Instagram, Facebook, and X to ingest customer feedback into the inbox.
             </p>
           </div>
           <button
@@ -113,87 +152,168 @@ export default function Channels() {
         </div>
 
         {loading && <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">Loading status…</p>}
-        {error && (
-          <p className="mt-4 text-sm text-rose-700 dark:text-rose-300">
-            {error}
-          </p>
-        )}
+        {error && <p className="mt-4 text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
         {!loading && !error && status && (
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-950">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">
                 Connection status
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <StatusPill
-                  tone={channelTone({
+                  tone={channelTone({ enabled: !!wa?.enabled, configured: !!wa?.configured })}
+                  label={channelLabel({
                     enabled: !!wa?.enabled,
                     configured: !!wa?.configured,
+                    name: 'WhatsApp',
                   })}
-                  label={
-                    wa?.enabled ? 'WhatsApp' : wa?.configured ? 'WhatsApp (ready)' : 'WhatsApp'
-                  }
-                />
-                <StatusPill tone={status?.meta?.enabled ? 'on' : 'off'} label="Meta (FB/IG)" />
-                <StatusPill
-                  tone={status?.x?.enabled ? 'on' : 'off'}
-                  label={status?.x?.auto_poll ? 'X (auto)' : 'X'}
                 />
                 <StatusPill
-                  tone={status?.tiktok?.enabled ? 'on' : 'off'}
-                  label={status?.tiktok?.auto_poll ? 'TikTok (auto)' : 'TikTok'}
+                  tone={channelTone({ enabled: !!ig?.enabled, configured: !!ig?.configured })}
+                  label={channelLabel({
+                    enabled: !!ig?.enabled,
+                    configured: !!ig?.configured,
+                    name: 'Instagram',
+                  })}
+                />
+                <StatusPill
+                  tone={channelTone({ enabled: !!fb?.enabled, configured: !!fb?.configured })}
+                  label={channelLabel({
+                    enabled: !!fb?.enabled,
+                    configured: !!fb?.configured,
+                    name: 'Facebook',
+                  })}
+                />
+                <StatusPill
+                  tone={channelTone({ enabled: !!x?.enabled, configured: !!x?.configured })}
+                  label={channelLabel({
+                    enabled: !!x?.enabled,
+                    configured: !!x?.configured,
+                    name: 'X',
+                    autoPoll: !!x?.auto_poll,
+                  })}
                 />
                 <StatusPill tone={status?.google_forms?.enabled ? 'on' : 'off'} label="Google Forms" />
                 <StatusPill tone={status?.email?.enabled ? 'on' : 'off'} label="Email" />
                 <StatusPill tone={status?.web?.enabled ? 'on' : 'off'} label="Web" />
               </div>
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                Green = messages ingested. Amber = Twilio credentials set but no WhatsApp messages in the inbox yet.
-                Red = not configured or never received.
+                Green = messages ingested. Amber = credentials set, waiting for first message. Red = not configured.
               </p>
+
+              {metaNeedsSetup && (
+                <SetupSteps title="Connect Instagram &amp; Facebook (Meta)">
+                  <li>
+                    Create a Meta app with the <strong>Webhooks</strong> product in{' '}
+                    <a
+                      href="https://developers.facebook.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                    >
+                      Meta Developer Console
+                    </a>
+                    .
+                  </li>
+                  <li>
+                    Set <EnvCode>META_VERIFY_TOKEN</EnvCode> and <EnvCode>META_APP_SECRET</EnvCode> in{' '}
+                    <EnvCode>.env</EnvCode> (and Vercel env for production), then restart the backend.
+                  </li>
+                  <li>
+                    Register callback URLs below for Instagram and Facebook (use the same verify token in Meta).
+                  </li>
+                  <li>
+                    Subscribe to Page Messenger + feed (Facebook) and Instagram messages + comments. Send a test DM or
+                    comment, then refresh this page. Full checklist: <EnvCode>docs/meta_webhooks_setup.md</EnvCode>.
+                  </li>
+                </SetupSteps>
+              )}
+
+              {x && !x.enabled && !x.configured && (
+                <SetupSteps title="Connect X (Twitter)">
+                  <li>
+                    Create an app in the{' '}
+                    <a
+                      href="https://developer.x.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                    >
+                      X Developer Portal
+                    </a>{' '}
+                    with access to <strong>recent search</strong>.
+                  </li>
+                  <li>
+                    Set <EnvCode>X_BEARER_TOKEN</EnvCode> and <EnvCode>X_QUERY</EnvCode> (e.g. your brand name or
+                    handle) in <EnvCode>.env</EnvCode>.
+                  </li>
+                  <li>
+                    Enable <EnvCode>X_POLL_ENABLED=true</EnvCode> for background polling, or use <strong>Poll now</strong>{' '}
+                    below for a manual pull.
+                  </li>
+                </SetupSteps>
+              )}
+
               {wa && !wa.enabled && (
-                <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-                  <p className="font-semibold">Connect WhatsApp (Twilio)</p>
-                  <ol className="mt-2 list-decimal list-inside space-y-1.5 text-xs leading-relaxed">
-                    <li>
-                      Set <code className="rounded bg-white/80 px-1 dark:bg-black/30">TWILIO_ACCOUNT_SID</code>,{' '}
-                      <code className="rounded bg-white/80 px-1 dark:bg-black/30">TWILIO_AUTH_TOKEN</code>, and
-                      optional{' '}
-                      <code className="rounded bg-white/80 px-1 dark:bg-black/30">TWILIO_WHATSAPP_TO_NUMBER</code>{' '}
-                      in <code className="rounded bg-white/80 px-1 dark:bg-black/30">.env</code> (and Vercel env for
-                      production).
-                    </li>
-                    <li>
-                      In Twilio Console → WhatsApp sandbox or your sender → set the inbound webhook URL below (must
-                      include <code className="rounded bg-white/80 px-1 dark:bg-black/30">/api</code> on Vercel).
-                    </li>
-                    <li>Send a test WhatsApp message to your Twilio number, then refresh this page.</li>
-                  </ol>
-                  {!wa.configured && (
-                    <p className="mt-2 text-xs font-medium">
-                      Twilio credentials are not loaded on this server yet — restart the backend after updating{' '}
-                      <code className="rounded bg-white/80 px-1 dark:bg-black/30">.env</code>.
-                    </p>
-                  )}
-                </div>
+                <SetupSteps title="Connect WhatsApp (Twilio)">
+                  <li>
+                    Set <EnvCode>TWILIO_ACCOUNT_SID</EnvCode>, <EnvCode>TWILIO_AUTH_TOKEN</EnvCode>, and optional{' '}
+                    <EnvCode>TWILIO_WHATSAPP_TO_NUMBER</EnvCode> in <EnvCode>.env</EnvCode>.
+                  </li>
+                  <li>In Twilio Console, set the inbound webhook URL from the table below.</li>
+                  <li>Send a test WhatsApp message, then refresh.</li>
+                </SetupSteps>
               )}
             </div>
+
+            {x?.configured && (
+              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">X — poll now</p>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      Fetches recent tweets matching your <EnvCode>X_QUERY</EnvCode> and ingests new items.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={runXPoll}
+                    disabled={xPolling}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-[#009750] bg-[#009750] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
+                  >
+                    <FiRefreshCw className={`h-4 w-4 ${xPolling ? 'animate-spin' : ''}`} />
+                    {xPolling ? 'Polling…' : 'Poll now'}
+                  </button>
+                </div>
+                {xPollResult && (
+                  <p className="mt-3 text-xs text-emerald-800 dark:text-emerald-200">
+                    {xPollResult.message || 'Poll complete'}
+                    {typeof xPollResult.processed === 'number' ? ` (${xPollResult.processed} new)` : ''}
+                  </p>
+                )}
+                {xPollError && (
+                  <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">{xPollError}</p>
+                )}
+                {x.last_ingested_at && (
+                  <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                    Last ingested: {new Date(x.last_ingested_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
-
       </div>
 
       <div className="card p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Webhook &amp; poller connection</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Webhook &amp; poller URLs</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Paste the full webhook URL into Twilio, Meta, or Google Apps Script. On{' '}
-          <strong className="font-medium">Vercel production</strong>, integration routes are under{' '}
-          <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] dark:bg-gray-800">/api/integrations/...</code>.
-          Local dev uses the integrations base below (Vite proxies to Flask).
+          Paste these into Meta Developer Console, Twilio, or X cron. On <strong className="font-medium">Vercel</strong>,
+          paths are under <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] dark:bg-gray-800">/api/integrations/...</code>.
         </p>
         <p className="mt-3 text-xs font-medium text-gray-700 dark:text-gray-300">
-          Integrations webhook base{' '}
+          Integrations base{' '}
           <span className="font-mono text-[11px] text-gray-600 dark:text-gray-400">
             ({USE_DEV_API_PROXY ? 'dev proxy' : import.meta.env.VITE_BACKEND_ORIGIN ? 'VITE_BACKEND_ORIGIN' : 'same-origin /api'})
           </span>
@@ -245,12 +365,17 @@ export default function Channels() {
           </table>
         </div>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Meta Instagram/Facebook webhooks use <strong className="font-medium">GET</strong> for the verification
-          handshake and <strong className="font-medium">POST</strong> for events — configure both in Meta Developer
-          Console.
+          Instagram and Facebook use <strong className="font-medium">GET</strong> for Meta&apos;s verification handshake and{' '}
+          <strong className="font-medium">POST</strong> for events. X uses polling only (no inbound webhook).
         </p>
+        <a
+          href="/admin/integrations"
+          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#009750] hover:text-[#007a42] dark:text-emerald-400"
+        >
+          View integrations health
+          <FiExternalLink className="h-3.5 w-3.5" aria-hidden />
+        </a>
       </div>
     </div>
   )
 }
-
