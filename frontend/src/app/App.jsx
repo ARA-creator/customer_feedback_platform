@@ -125,7 +125,7 @@ function AppChrome({
         userRole={auth?.role}
         isAdminUser={isAdminUI}
         canAccessWebhooks={permissions.includes('admin.manage_integrations') || String(auth?.role || '').toLowerCase() === 'super_admin'}
-        user={auth || null}
+        user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
       />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
         <Header
@@ -135,7 +135,7 @@ function AppChrome({
           onToggleTheme={toggleTheme}
           showRefresh={showDashboardRefresh}
           onRefresh={onDashboardRefresh}
-          user={auth || null}
+          user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
           onSignOut={signOut}
         />
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
@@ -429,7 +429,7 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
-    const refreshAuth = async () => {
+    ;(async () => {
       try {
         const data = await authMe()
         if (cancelled) return
@@ -437,21 +437,23 @@ function App() {
         else setAuth(null)
       } catch {
         if (!cancelled) setAuth(null)
+      } finally {
+        if (!cancelled) setAuthLoading(false)
       }
-    }
-    ;(async () => {
-      await refreshAuth()
-      if (!cancelled) setAuthLoading(false)
     })()
-    const onAuthUpdated = (e) => {
-      if (e?.detail?.user) setAuth(e.detail.user)
-      else refreshAuth()
-    }
-    window.addEventListener('cfp-auth-updated', onAuthUpdated)
     return () => {
       cancelled = true
-      window.removeEventListener('cfp-auth-updated', onAuthUpdated)
     }
+  }, [])
+
+  useEffect(() => {
+    const onAuthUpdated = (e) => {
+      const user = e?.detail?.user
+      if (!user?.id) return
+      setAuth((prev) => (prev ? { ...prev, ...user } : user))
+    }
+    window.addEventListener('cfp-auth-updated', onAuthUpdated)
+    return () => window.removeEventListener('cfp-auth-updated', onAuthUpdated)
   }, [])
 
   const handleAuthenticated = useCallback(

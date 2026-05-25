@@ -3,6 +3,7 @@ import { FiEdit2 } from 'react-icons/fi'
 import { authUpdateProfile } from '../../../features/auth/services/auth.api'
 import {
   displayNameFromUser,
+  formatJobTitle,
   formatLastActive,
   formatMemberSince,
   formatUserRole,
@@ -19,6 +20,7 @@ export default function AccountInformationCard({ auth }) {
   const displayName = displayNameFromUser(auth)
   const initials = getUserInitialsFromUser(auth)
   const roleLabel = formatUserRole(auth?.role)
+  const jobTitle = formatJobTitle(auth?.role)
   const memberSince = formatMemberSince(auth?.created_at)
   const lastActive = formatLastActive(auth?.last_login_at)
 
@@ -48,13 +50,13 @@ export default function AccountInformationCard({ auth }) {
 
   return (
     <>
-      <div className="card p-6 sm:p-8">
+      <div className="rounded-2xl border border-gray-200/90 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-10">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Account information</h2>
 
-        <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
-          <div className="relative shrink-0 self-start">
+        <div className="mt-10 flex flex-col gap-8 sm:flex-row sm:items-center">
+          <div className="relative shrink-0 self-start sm:self-center">
             <div
-              className="flex h-24 w-24 items-center justify-center rounded-full bg-[#10B981] text-2xl font-bold text-white shadow-sm"
+              className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full bg-[#10B981] text-[1.65rem] font-bold leading-none text-white shadow-sm"
               aria-hidden
             >
               {initials}
@@ -62,38 +64,39 @@ export default function AccountInformationCard({ auth }) {
             <button
               type="button"
               onClick={openEdit}
-              className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-white text-[#10B981] shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/40 dark:border-gray-950 dark:bg-gray-900 dark:hover:bg-gray-800"
-              aria-label="Edit profile photo or name"
+              className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-white text-gray-700 shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/40 dark:border-gray-950 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              aria-label="Edit profile"
               title="Edit profile"
             >
               <FiEdit2 className="h-4 w-4" aria-hidden />
             </button>
           </div>
 
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-2.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h3 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{displayName}</h3>
-              <span className="inline-flex rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+              <span className="inline-flex rounded-full border border-emerald-200/90 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800/80 dark:bg-emerald-950/50 dark:text-emerald-200">
                 {roleLabel}
               </span>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{email}</p>
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{roleLabel}</p>
-            {memberSince ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500">Member since {memberSince}</p>
-            ) : null}
-            <p className="text-sm text-gray-400 dark:text-gray-500">Last active {lastActive}</p>
-          </div>
-        </div>
 
-        <div className="mt-8 flex justify-center sm:justify-start">
-          <button
-            type="button"
-            onClick={openEdit}
-            className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
-          >
-            Edit profile
-          </button>
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400 break-all">{email}</p>
+            <p className="mt-2 text-sm font-medium text-gray-800 dark:text-gray-200">{jobTitle}</p>
+            {memberSince ? (
+              <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">Member since {memberSince}</p>
+            ) : null}
+            <p className="mt-2 text-sm text-gray-400 dark:text-gray-500">Last active {lastActive}</p>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={openEdit}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white px-6 py-2.5 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-900"
+              >
+                Edit profile
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -31,6 +31,13 @@ export function formatUserRole(role) {
   return r.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+/** Job title line under email (mockup uses “Cx Manager” while badge stays “CX Manager”). */
+export function formatJobTitle(role) {
+  const label = formatUserRole(role)
+  if (label === 'CX Manager') return 'Cx Manager'
+  return label
+}
+
 export function displayNameFromUser(user) {
   const full = String(user?.full_name || '').trim()
   if (full) return full.length > 32 ? `${full.slice(0, 29)}…` : full

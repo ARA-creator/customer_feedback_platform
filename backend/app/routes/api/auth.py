@@ -125,6 +125,23 @@ def _ensure_csrf() -> str:
     return str(token)
 
 
+def _serialize_auth_user(db, user: User) -> dict:
+    perms = sorted(_user_permission_keys(db, user.id))
+    created = getattr(user, "created_at", None)
+    last_login = getattr(user, "last_login_at", None)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "full_name": getattr(user, "full_name", None),
+        "permissions": perms,
+        "account_type": getattr(user, "account_type", None),
+        "auth_provider": getattr(user, "auth_provider", None) or "local",
+        "created_at": created.isoformat() if created else None,
+        "last_login_at": last_login.isoformat() if last_login else None,
+    }
+
+
 def _login_response(db, user: User):
     session.clear()
     session["user_id"] = user.id
@@ -137,15 +154,11 @@ def _login_response(db, user: User):
         logger.exception("Login failed: could not update last_login_at")
         db.rollback()
         return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
-    perms = sorted(_user_permission_keys(db, user.id))
     return (
         jsonify(
             {
                 "csrf": csrf,
-                "user": {
-                    **_serialize_auth_user(user, perms),
-                    "account_type": getattr(user, "account_type", None),
-                },
+                "user": _serialize_auth_user(db, user),
             }
         ),
         200,
@@ -240,19 +253,6 @@ def auth_enterprise_callback():
     return redirect(f"{front}{landing}?enterprise_signed_in=1")
 
 
-def _serialize_auth_user(user, perms: list) -> dict:
-    return {
-        "id": user.id,
-        "email": user.email,
-        "full_name": getattr(user, "full_name", None),
-        "role": user.role,
-        "permissions": perms,
-        "auth_provider": getattr(user, "auth_provider", None) or "local",
-        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
-        "last_login_at": user.last_login_at.isoformat() if getattr(user, "last_login_at", None) else None,
-    }
-
-
 @api_bp.route("/auth/me", methods=["GET"])
 def auth_me():
     db = SessionLocal()
@@ -265,13 +265,12 @@ def auth_me():
         blocked = access_block_reason(user)
         if blocked:
             return jsonify({"authenticated": False, "error": blocked}), 401
-        perms = sorted(_user_permission_keys(db, user.id))
         csrf = _ensure_csrf()
         return jsonify(
             {
                 "authenticated": True,
                 "csrf": csrf,
-                "user": _serialize_auth_user(user, perms),
+                "user": _serialize_auth_user(db, user),
             }
         )
     finally:
@@ -282,31 +281,24 @@ def auth_me():
 def auth_update_profile():
     db = SessionLocal()
     try:
-        user = _current_user(db)
-        if not user:
-            return jsonify({"error": "Authentication required"}), 401
-        if _email_verification_enabled() and not getattr(user, "email_verified_at", None):
-            return jsonify({"error": "Email not verified"}), 401
-        blocked = access_block_reason(user)
-        if blocked:
-            return jsonify({"error": blocked}), 401
-
+        user = _require_user(db)
         payload = request.get_json(silent=True) or {}
         if "full_name" in payload:
             raw = payload.get("full_name")
-            full_name = (str(raw).strip() if raw is not None and str(raw).strip() else None)
-            if full_name and len(full_name) > 160:
-                return jsonify({"error": "Name is too long (max 160 characters)."}), 400
-            user.full_name = full_name
-
+            if raw is None:
+                user.full_name = None
+            else:
+                name = str(raw).strip()
+                user.full_name = name[:160] if name else None
         db.commit()
         db.refresh(user)
-        perms = sorted(_user_permission_keys(db, user.id))
-        return jsonify({"ok": True, "user": _serialize_auth_user(user, perms)})
-    except Exception:
+        return jsonify({"ok": True, "user": _serialize_auth_user(db, user)})
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except SQLAlchemyError:
         db.rollback()
-        logger.exception("Failed to update profile")
-        return jsonify({"error": "Failed to update profile"}), 500
+        logger.exception("Profile update failed")
+        return jsonify({"error": "Could not save profile"}), 500
     finally:
         db.close()
 
