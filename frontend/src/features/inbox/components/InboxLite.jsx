@@ -9,7 +9,6 @@ import InboxFilterToolbar from './InboxFilterToolbar'
 import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
-import InboxBulkBar from './InboxBulkBar'
 import {
   computeInboxStats,
   computeTopThemes,
@@ -40,7 +39,7 @@ const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
   a.replace(/_/g, ' ').localeCompare(b.replace(/_/g, ' '), undefined, { sensitivity: 'base' }),
 )
 
-const INBOX_PAGE_SIZE = 8
+const INBOX_PAGE_SIZE = 5
 const READ_IDS_KEY = 'cfp_inbox_read_feedback_ids'
 
 const SENTIMENT_COLORS = {
@@ -271,10 +270,13 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
-  const [listDisplayCount, setListDisplayCount] = useState(INBOX_PAGE_SIZE)
+  const feedCursorRef = useRef(null)
+  const [feedHasMore, setFeedHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const loadMoreSentinelRef = useRef(null)
   const loadMoreCoolDownRef = useRef(false)
   const visibleItemsRef = useRef([])
+  const itemsRef = useRef([])
   const searchInputRef = useRef(null)
 
   useEffect(() => {
@@ -497,51 +499,89 @@ export default function InboxLite({ onNavigate }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const load = async () => {
-    const seq = ++loadSeq.current
-    setLoading(true)
-    setError(null)
-    try {
-      const loc = typeof locationFilter === 'string' ? locationFilter.trim() : ''
-      const params = {
-        source: source === 'all' ? 'all' : source,
-        sentiment,
-        q: q || undefined,
-        limit: 50,
-        sort: sortBy === 'priority' ? 'impact' : 'chronological',
-        insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
-        location: loc || undefined,
-        ...dateParams,
-        dow: peakDow ?? undefined,
-        hour: peakHour ?? undefined,
-        range_days: peakRangeDays ?? undefined,
+  const load = useCallback(
+    async ({ append = false } = {}) => {
+      const seq = ++loadSeq.current
+      if (append) setLoadingMore(true)
+      else {
+        setLoading(true)
+        feedCursorRef.current = null
+        setFeedHasMore(false)
       }
-      const [feed, sc] = await Promise.all([getFeedbackFeed(params), getSourceCounts(params)])
-      if (seq !== loadSeq.current) return
-      setItems(Array.isArray(feed?.items) ? feed.items : [])
-      const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
-      const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
-      const total = Number(sc?.total ?? 0)
-      // Prefer grouped counts (normalized to our channel tabs). Fall back to raw.
-      const base = grouped || raw || {}
-      setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
-      setLastLoadedAt(new Date())
-    } catch (e) {
-      if (seq !== loadSeq.current) return
-      setError(e?.response?.data?.error || e?.message || 'Failed to load inbox')
-      setItems([])
-      setCounts({})
-      setLastLoadedAt(null)
-    } finally {
-      if (seq !== loadSeq.current) return
-      setLoading(false)
-    }
-  }
+      setError(null)
+      try {
+        const loc = typeof locationFilter === 'string' ? locationFilter.trim() : ''
+        const isPriority = sortBy === 'priority'
+        const pageLimit =
+          append && isPriority ? itemsRef.current.length + INBOX_PAGE_SIZE : INBOX_PAGE_SIZE
+        const params = {
+          source: source === 'all' ? 'all' : source,
+          sentiment,
+          q: q || undefined,
+          limit: pageLimit,
+          sort: isPriority ? 'impact' : 'chronological',
+          insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
+          location: loc || undefined,
+          ...dateParams,
+          dow: peakDow ?? undefined,
+          hour: peakHour ?? undefined,
+          range_days: peakRangeDays ?? undefined,
+        }
+        if (append && !isPriority && feedCursorRef.current) {
+          params.cursor_created_at = feedCursorRef.current.cursor_created_at
+          params.cursor_id = feedCursorRef.current.cursor_id
+        }
+        const [feed, sc] = await Promise.all([getFeedbackFeed(params), getSourceCounts(params)])
+        if (seq !== loadSeq.current) return
+        const newItems = Array.isArray(feed?.items) ? feed.items : []
+        if (append && !isPriority) {
+          setItems((prev) => [...prev, ...newItems])
+        } else {
+          setItems(newItems)
+        }
+        feedCursorRef.current = feed?.next_cursor ?? null
+        setFeedHasMore(Boolean(feed?.has_more))
+        if (!append) {
+          const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
+          const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
+          const total = Number(sc?.total ?? 0)
+          const base = grouped || raw || {}
+          setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
+          setLastLoadedAt(new Date())
+        }
+      } catch (e) {
+        if (seq !== loadSeq.current) return
+        if (!append) {
+          setError(e?.response?.data?.error || e?.message || 'Failed to load inbox')
+          setItems([])
+          setCounts({})
+          setLastLoadedAt(null)
+          feedCursorRef.current = null
+          setFeedHasMore(false)
+        }
+      } finally {
+        if (seq !== loadSeq.current) return
+        if (append) setLoadingMore(false)
+        else setLoading(false)
+      }
+    },
+    [
+      source,
+      sentiment,
+      q,
+      insuranceTagFilter,
+      locationFilter,
+      dateParams,
+      peakDow,
+      peakHour,
+      peakRangeDays,
+      sortBy,
+    ],
+  )
 
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, peakDow, peakHour, peakRangeDays, sortBy])
+    load({ append: false })
+  }, [load])
 
   useEffect(() => {
     if (!openFeedbackId) return
@@ -553,8 +593,8 @@ export default function InboxLite({ onNavigate }) {
   }, [openFeedbackId, items])
 
   useEffect(() => {
-    setListDisplayCount(INBOX_PAGE_SIZE)
-  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, folder, peakDow, peakHour, peakRangeDays, items, listTab, sortBy, activeQuickFilter])
+    itemsRef.current = items
+  }, [items])
 
   const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
@@ -583,11 +623,8 @@ export default function InboxLite({ onNavigate }) {
     return sortInboxItems(arr, sortBy)
   }, [visibleItems, activeQuickFilter, listTab, readIds, sortBy])
 
-  const displayedItems = useMemo(
-    () => sortedVisibleItems.slice(0, listDisplayCount),
-    [sortedVisibleItems, listDisplayCount],
-  )
-  const hasMoreToShow = sortedVisibleItems.length > listDisplayCount
+  const displayedItems = sortedVisibleItems
+  const hasMoreToShow = feedHasMore
 
   const inboxItemsForStats = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
@@ -634,8 +671,6 @@ export default function InboxLite({ onNavigate }) {
       return next
     })
   }, [])
-
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   const markIdsRead = useCallback((ids) => {
     setReadIds((prev) => {
@@ -694,7 +729,6 @@ export default function InboxLite({ onNavigate }) {
         const next = idx < 0 ? 0 : Math.min(idx + 1, ids.length - 1)
         const nid = ids[next]
         setListHighlightId(nid)
-        setListDisplayCount((c) => Math.min(sortedVisibleItems.length, Math.max(c, next + 1)))
         queueMicrotask(() => {
           document.querySelector(`[data-feedback-id="${nid}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
         })
@@ -724,12 +758,9 @@ export default function InboxLite({ onNavigate }) {
   }, [sortedVisibleItems, openItem, openFeedback])
 
   const loadNextBatch = useCallback(() => {
-    setListDisplayCount((c) => {
-      const total = visibleItemsRef.current.length
-      if (c >= total) return c
-      return Math.min(c + INBOX_PAGE_SIZE, total)
-    })
-  }, [])
+    if (!feedHasMore || loadingMore || loading) return
+    load({ append: true })
+  }, [feedHasMore, loadingMore, loading, load])
 
   useEffect(() => {
     const el = loadMoreSentinelRef.current
@@ -747,10 +778,10 @@ export default function InboxLite({ onNavigate }) {
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMoreToShow, listDisplayCount, loadNextBatch, sortedVisibleItems.length])
+  }, [hasMoreToShow, loadNextBatch, loadingMore])
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-5 pb-28">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-5">
       <InboxPageIntro />
 
       <InboxFilterToolbar
@@ -864,7 +895,7 @@ export default function InboxLite({ onNavigate }) {
           </div>
           <button
             type="button"
-            onClick={() => load()}
+            onClick={() => load({ append: false })}
             className="inline-flex shrink-0 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
           >
             <FiRefreshCw className="h-4 w-4" aria-hidden />
@@ -879,13 +910,13 @@ export default function InboxLite({ onNavigate }) {
             error={error}
             listTab={listTab}
             onListTabChange={setListTab}
-            allCount={visibleItems.length}
+            allCount={Number(counts?.all ?? inboxCount) || visibleItems.length}
             unreadCount={unreadInboxCount}
             sortBy={sortBy}
             onSortChange={setSortBy}
             displayedItems={displayedItems}
-            visibleCount={sortedVisibleItems.length}
             listHighlightId={listHighlightId}
+            loadingMore={loadingMore}
             selectedIds={selectedIds}
             readIds={readIds}
             archivedIds={archivedIds}
@@ -929,23 +960,6 @@ export default function InboxLite({ onNavigate }) {
           negative7dCount={negative7dCount}
         />
       </div>
-
-      <InboxBulkBar
-        selectedCount={selectedIds.size}
-        onMarkRead={() => {
-          markIdsRead(Array.from(selectedIds))
-          clearSelection()
-        }}
-        onArchive={() => {
-          setArchivedIds((prev) => {
-            const next = new Set(prev)
-            for (const id of selectedIds) next.add(id)
-            return next
-          })
-          clearSelection()
-        }}
-        onClearSelection={clearSelection}
-      />
 
       {/** WhatsApp-style read ticks (brand green) */}
       {/*

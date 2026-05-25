@@ -124,7 +124,7 @@ def apply_notification_visibility_filter(q: Query, *, is_admin: bool, prefs: Opt
 
 def default_notification_prefs(*, is_admin: bool) -> Dict[str, bool]:
     return {
-        "new_feedback": not is_admin,
+        "new_feedback": True,
         "assigned_to_me": True,
         "realtime": True,
         "anomaly_alerts": not is_admin,

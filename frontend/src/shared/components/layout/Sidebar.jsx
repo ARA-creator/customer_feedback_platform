@@ -26,16 +26,7 @@ const RAIL_KEY = 'cfp_sidebar_rail_collapsed'
  * Ref layout uses Enterprise Life #009750 for active items (index.css .sidebar-link-active).
  * Reference mockups often use orange for “active” — we keep brand green; tokens stay semantic.
  */
-function getInitials(email) {
-  const local = String(email || '').split('@')[0] || 'U'
-  return local.slice(0, 2).toUpperCase()
-}
-
-function displayNameFromEmail(email) {
-  if (!email) return 'User'
-  const local = String(email).split('@')[0] || 'User'
-  return local.length > 24 ? `${local.slice(0, 21)}…` : local
-}
+import { displayNameFromUser, getUserInitialsFromUser } from '../../lib/userDisplay'
 
 function NavButton({
   active,
@@ -181,8 +172,8 @@ function Sidebar({
   }, [])
 
   const userEmail = userProp?.email || ''
-  const userLabel = useMemo(() => displayNameFromEmail(userEmail), [userEmail])
-  const initials = useMemo(() => getInitials(userEmail), [userEmail])
+  const userLabel = useMemo(() => displayNameFromUser(userProp), [userProp])
+  const initials = useMemo(() => getUserInitialsFromUser(userProp), [userProp])
 
   const c = railCollapsed
   /** Agent-only: Overview + Inbox. Admin / super_admin cannot use those surfaces (see App.jsx). */

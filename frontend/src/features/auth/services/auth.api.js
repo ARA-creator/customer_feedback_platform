@@ -28,6 +28,11 @@ export const authLogout = async () => {
   return response.data
 }
 
+export const authUpdateProfile = async ({ full_name } = {}) => {
+  const response = await api.patch('/auth/profile', { full_name })
+  return response.data
+}
+
 export const authChangePassword = async ({ current_password, new_password, confirm_password }) => {
   const response = await api.post('/auth/change-password', {
     current_password,

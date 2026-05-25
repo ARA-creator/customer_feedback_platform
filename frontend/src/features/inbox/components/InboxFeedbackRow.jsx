@@ -89,20 +89,34 @@ export default function InboxFeedbackRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold leading-snug text-gray-900 dark:text-gray-100 line-clamp-1">
+          <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-gray-900 dark:text-gray-100 line-clamp-1 pr-2">
             {title}
           </p>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral}`}
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral}`}
+              >
+                {sentiment}
+              </span>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_STYLES[priority.tone]}`}
+              >
+                {priority.label}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onArchiveToggle?.()
+              }}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              title={isArchived ? 'Unarchive' : 'Archive'}
+              aria-label={isArchived ? 'Unarchive' : 'Archive'}
             >
-              {sentiment}
-            </span>
-            <span
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_STYLES[priority.tone]}`}
-            >
-              {priority.label}
-            </span>
+              <FiArchive className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -128,19 +142,6 @@ export default function InboxFeedbackRow({
           </span>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onArchiveToggle?.()
-        }}
-        className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-700 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-        title={isArchived ? 'Unarchive' : 'Archive'}
-        aria-label={isArchived ? 'Unarchive' : 'Archive'}
-      >
-        <FiArchive className="h-4 w-4" />
-      </button>
     </div>
   )
 }

@@ -10,7 +10,8 @@ export function useNotificationPrefs() {
     const p = prefs && typeof prefs === 'object' ? prefs : {}
     setDeliveryPrefs({
       ...p,
-      // Default live toasts on unless the user explicitly saved realtime: false
+      // Default on unless the user explicitly saved false
+      new_feedback: p.new_feedback !== false && (p.new_feedback === true || p.new_feedback === undefined),
       realtime: p.realtime !== false && (p.realtime === true || p.realtime === undefined),
     })
   }

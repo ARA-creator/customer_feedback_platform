@@ -13,8 +13,8 @@ export default function InboxListPanel({
   sortBy,
   onSortChange,
   displayedItems,
-  visibleCount,
   listHighlightId,
+  loadingMore = false,
   selectedIds,
   readIds,
   archivedIds,
@@ -116,16 +116,17 @@ export default function InboxListPanel({
                 SourceIcon={SourceIcon}
               />
             ))}
-            {hasMoreToShow && (
+            {(hasMoreToShow || loadingMore) && (
               <>
                 <div ref={loadMoreSentinelRef} className="h-2 w-full" aria-hidden />
                 <div className="flex justify-center pt-2 pb-2">
                   <button
                     type="button"
                     onClick={onLoadMore}
-                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-[#009750] shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900"
+                    disabled={loadingMore}
+                    className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-[#009750] shadow-sm hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900"
                   >
-                    Load more feedback
+                    {loadingMore ? 'Loading…' : 'Load more feedback'}
                   </button>
                 </div>
               </>
@@ -134,11 +135,6 @@ export default function InboxListPanel({
         )}
       </div>
 
-      {!loading && !error && displayedItems.length > 0 && visibleCount > displayedItems.length ? (
-        <p className="mt-2 text-center text-xs text-gray-400">
-          Showing {displayedItems.length} of {visibleCount}
-        </p>
-      ) : null}
     </div>
   )
 }

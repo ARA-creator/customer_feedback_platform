@@ -293,7 +293,7 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                 .filter(or_(User.suspended_at.is_(None), User.suspended_at == None))  # noqa: E711
                 .all()
             )
-            created_for: list[int] = []
+            created_rows: list[tuple[int, Notification]] = []
             for u in users:
                 try:
                     perms_u = _user_permission_keys(db, u.id)
@@ -323,12 +323,13 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                         meta=_safe_json_dumps(meta),
                     )
                     db.add(n)
-                    created_for.append(u.id)
+                    db.flush()
+                    created_rows.append((int(u.id), n))
                 except Exception:
                     continue
-            if created_for:
+            if created_rows:
                 db.commit()
-                for uid in created_for:
+                for uid, row in created_rows:
                     try:
                         unread = (
                             db.query(func.count(Notification.id))
@@ -337,17 +338,11 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                             .scalar()
                             or 0
                         )
-                        last = (
-                            db.query(Notification)
-                            .filter(Notification.user_id == uid)
-                            .order_by(desc(Notification.created_at), desc(Notification.id))
-                            .first()
-                        )
                         _notif_publish(
                             uid,
                             {
                                 "type": "notification.created",
-                                "notification": _serialize_notification(last) if last else None,
+                                "notification": _serialize_notification(row),
                                 "unread": int(unread),
                             },
                         )

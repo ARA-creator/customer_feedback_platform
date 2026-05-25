@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiChevronDown, FiLogOut, FiSettings, FiBell } from 'react-icons/fi'
 import { pathForView } from '../../../app/routes'
-import { displayNameFromEmail, formatUserRole, getUserInitials } from '../../lib/userDisplay'
+import { displayNameFromUser, formatUserRole, getUserInitialsFromUser } from '../../lib/userDisplay'
 
 export default function UserProfileMenu({ user, onSignOut }) {
   const navigate = useNavigate()
@@ -11,8 +11,8 @@ export default function UserProfileMenu({ user, onSignOut }) {
   const [open, setOpen] = useState(false)
 
   const email = user?.email || ''
-  const name = displayNameFromEmail(email)
-  const initials = getUserInitials(email)
+  const name = displayNameFromUser(user)
+  const initials = getUserInitialsFromUser(user)
   const roleLabel = formatUserRole(user?.role)
 
   useEffect(() => {

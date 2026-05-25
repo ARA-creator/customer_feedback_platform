@@ -7,6 +7,7 @@ import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
 import { useNotificationPrefs } from '../features/notifications/hooks/useNotificationPrefs'
 import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
+import { useLiveNotificationToasts } from '../features/notifications/hooks/useLiveNotificationToasts'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminIntegrations from '../features/admin/components/AdminIntegrations'
@@ -124,7 +125,7 @@ function AppChrome({
         userRole={auth?.role}
         isAdminUser={isAdminUI}
         canAccessWebhooks={permissions.includes('admin.manage_integrations') || String(auth?.role || '').toLowerCase() === 'super_admin'}
-        user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
+        user={auth || null}
       />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
         <Header
@@ -134,7 +135,7 @@ function AppChrome({
           onToggleTheme={toggleTheme}
           showRefresh={showDashboardRefresh}
           onRefresh={onDashboardRefresh}
-          user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
+          user={auth || null}
           onSignOut={signOut}
         />
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
@@ -194,6 +195,31 @@ function AuthenticatedApp({ auth, setAuth }) {
 
   const { realtimeEnabled, deliveryPrefs, loaded: notificationPrefsLoaded } = useNotificationPrefs()
 
+  const pushLiveToast = useCallback((n) => {
+    const id = `${Date.now()}-${Math.random()}`
+    setLiveToasts((prev) => [
+      {
+        id,
+        title: n.title || 'New notification',
+        body: n.body || '',
+        href: n.href || 'notifications',
+      },
+      ...prev,
+    ].slice(0, 3))
+    if (notificationSoundsEnabled()) {
+      playNotificationBeep()
+    }
+    window.setTimeout(() => {
+      setLiveToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 6500)
+  }, [])
+
+  const { handleStreamEvent } = useLiveNotificationToasts({
+    enabled: notificationPrefsLoaded && realtimeEnabled,
+    deliveryPrefs,
+    onToast: (n) => pushLiveToast(n),
+  })
+
   const navigateToInboxWithPreset = useCallback(
     (preset) => {
       try {
@@ -211,30 +237,8 @@ function AuthenticatedApp({ auth, setAuth }) {
 
   useEffect(() => {
     if (!notificationPrefsLoaded || !realtimeEnabled) return undefined
-    const cleanup = connectNotificationsStream((evt) => {
-      if (evt?.type !== 'notification.created' || !evt?.notification) return
-      if (isQuietHoursActive(loadNotificationUiPrefs())) return
-      if (!shouldShowLiveToast(evt.notification, deliveryPrefs)) return
-      const n = evt.notification
-      const id = `${Date.now()}-${Math.random()}`
-      setLiveToasts((prev) => [
-        {
-          id,
-          title: n.title || 'New notification',
-          body: n.body || '',
-          href: n.href || 'notifications',
-        },
-        ...prev,
-      ].slice(0, 3))
-      if (notificationSoundsEnabled()) {
-        playNotificationBeep()
-      }
-      window.setTimeout(() => {
-        setLiveToasts((prev) => prev.filter((t) => t.id !== id))
-      }, 6500)
-    })
-    return cleanup
-  }, [notificationPrefsLoaded, realtimeEnabled, deliveryPrefs])
+    return connectNotificationsStream(handleStreamEvent)
+  }, [notificationPrefsLoaded, realtimeEnabled, handleStreamEvent])
 
   if (!isAdminUI && isAdminPath(location.pathname)) {
     return <Navigate to="/" replace />
@@ -425,7 +429,7 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
+    const refreshAuth = async () => {
       try {
         const data = await authMe()
         if (cancelled) return
@@ -433,12 +437,20 @@ function App() {
         else setAuth(null)
       } catch {
         if (!cancelled) setAuth(null)
-      } finally {
-        if (!cancelled) setAuthLoading(false)
       }
+    }
+    ;(async () => {
+      await refreshAuth()
+      if (!cancelled) setAuthLoading(false)
     })()
+    const onAuthUpdated = (e) => {
+      if (e?.detail?.user) setAuth(e.detail.user)
+      else refreshAuth()
+    }
+    window.addEventListener('cfp-auth-updated', onAuthUpdated)
     return () => {
       cancelled = true
+      window.removeEventListener('cfp-auth-updated', onAuthUpdated)
     }
   }, [])
 
