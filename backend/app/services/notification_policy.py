@@ -157,6 +157,9 @@ def get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, boo
     for k in delivery_pref_keys(is_admin=is_admin):
         if k in base:
             out[k] = bool(base[k])
+    # Live toasts default on unless the user explicitly saved realtime: false
+    if "realtime" not in base:
+        out["realtime"] = bool(defaults.get("realtime", True))
     return out
 
 

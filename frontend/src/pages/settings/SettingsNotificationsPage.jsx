@@ -158,7 +158,8 @@ export default function SettingsNotificationsPage() {
       <div className="card p-6">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Notification types</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Choose which events create in-app notifications for your account.
+          Choose which events create in-app notifications for your account. Read notifications from earlier months
+          are cleared from your list at the start of each calendar month.
         </p>
 
         {prefsError && (

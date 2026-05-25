@@ -3,11 +3,16 @@ import { getPreferences } from '../services/notifications.api'
 
 /** Cached notification prefs for realtime toasts and UI gating. */
 export function useNotificationPrefs() {
-  const [realtimeEnabled, setRealtimeEnabled] = useState(false)
+  const [deliveryPrefs, setDeliveryPrefs] = useState({ realtime: true })
   const [loaded, setLoaded] = useState(false)
 
   const applyPrefs = (prefs) => {
-    setRealtimeEnabled(Boolean(prefs?.realtime))
+    const p = prefs && typeof prefs === 'object' ? prefs : {}
+    setDeliveryPrefs({
+      ...p,
+      // Default live toasts on unless the user explicitly saved realtime: false
+      realtime: p.realtime !== false && (p.realtime === true || p.realtime === undefined),
+    })
   }
 
   useEffect(() => {
@@ -18,7 +23,7 @@ export function useNotificationPrefs() {
         if (!mounted) return
         applyPrefs(data?.prefs || {})
       } catch {
-        if (mounted) applyPrefs({})
+        if (mounted) applyPrefs({ realtime: true })
       } finally {
         if (mounted) setLoaded(true)
       }
@@ -33,5 +38,7 @@ export function useNotificationPrefs() {
     }
   }, [])
 
-  return { realtimeEnabled, loaded }
+  const realtimeEnabled = Boolean(deliveryPrefs?.realtime)
+
+  return { realtimeEnabled, deliveryPrefs, loaded }
 }

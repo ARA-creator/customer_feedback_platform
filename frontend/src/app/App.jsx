@@ -32,6 +32,7 @@ import SettingsInboxPage from '../pages/settings/SettingsInboxPage'
 import SettingsNotificationsPage from '../pages/settings/SettingsNotificationsPage'
 import SettingsSecurityPage from '../pages/settings/SettingsSecurityPage'
 import { isQuietHoursActive, loadNotificationUiPrefs } from '../shared/lib/notificationUiPreferences'
+import { shouldShowLiveToast } from '../features/notifications/utils/toastPolicy'
 import { notificationSoundsEnabled } from '../shared/lib/displayPreferences'
 import {
   defaultPathForUser,
@@ -179,7 +180,7 @@ function AuthenticatedApp({ auth, setAuth }) {
     })()
   }, [location.pathname, navigate, setAuth])
 
-  const { realtimeEnabled } = useNotificationPrefs()
+  const { realtimeEnabled, deliveryPrefs, loaded: notificationPrefsLoaded } = useNotificationPrefs()
 
   const navigateToInboxWithPreset = useCallback(
     (preset) => {
@@ -197,10 +198,11 @@ function AuthenticatedApp({ auth, setAuth }) {
   )
 
   useEffect(() => {
-    if (!realtimeEnabled) return undefined
+    if (!notificationPrefsLoaded || !realtimeEnabled) return undefined
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type !== 'notification.created' || !evt?.notification) return
       if (isQuietHoursActive(loadNotificationUiPrefs())) return
+      if (!shouldShowLiveToast(evt.notification, deliveryPrefs)) return
       const n = evt.notification
       const id = `${Date.now()}-${Math.random()}`
       setLiveToasts((prev) => [
@@ -220,7 +222,7 @@ function AuthenticatedApp({ auth, setAuth }) {
       }, 6500)
     })
     return cleanup
-  }, [realtimeEnabled])
+  }, [notificationPrefsLoaded, realtimeEnabled, deliveryPrefs])
 
   if (!isAdminUI && isAdminPath(location.pathname)) {
     return <Navigate to="/" replace />

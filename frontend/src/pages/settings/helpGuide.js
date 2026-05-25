@@ -161,6 +161,10 @@ export function buildHelpGuide(auth) {
       title: 'Inbox keyboard shortcuts',
       body: 'With the list focused (click outside search), press J and K to move, Enter to open, and Esc to clear. Press ⌘K (Ctrl+K on Windows) to focus search.',
     },
+    {
+      title: 'Notifications',
+      body: 'Enable Live toast alerts under Settings → Notifications to see pop-ups while signed in. Read notifications from previous months are archived automatically at the start of each month.',
+    },
   ]
 
   if (isAdmin) {

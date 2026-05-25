@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from queue import Empty, Queue
 
 from datetime import datetime, timedelta, timezone
@@ -29,6 +30,7 @@ from ...security import decrypt_text, encrypt_text, hash_email
 from ...sentiment_analyzer import analyze_sentiment
 from ...services.insurance_tags import categorize_insurance_tags
 from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
+from ...services.notification_maintenance import archive_read_notifications_before_month, current_month_start_utc
 from ...services.notification_policy import (
     apply_notification_visibility_filter,
     get_notification_prefs,
@@ -58,6 +60,12 @@ from ._helpers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_notification_month_visibility(q):
+    """Hide read notifications from before the current calendar month (UTC)."""
+    month_start = current_month_start_utc()
+    return q.filter(or_(Notification.read_at.is_(None), Notification.read_at >= month_start))
 
 
 def _exclude_removed_sources(q):
@@ -347,6 +355,7 @@ def notifications_list():
 
         q = db.query(Notification).filter(Notification.user_id == user.id)
         q = apply_notification_visibility_filter(q, is_admin=is_admin, prefs=prefs)
+        q = _apply_notification_month_visibility(q)
         if unread_only:
             q = q.filter(Notification.read_at.is_(None))
         if cursor:
@@ -487,6 +496,33 @@ def notifications_preferences():
         return jsonify({"ok": True, "prefs": next_prefs})
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
+    finally:
+        db.close()
+
+
+@api_bp.route("/notifications/monthly-archive", methods=["GET", "POST"])
+def notifications_monthly_archive():
+    """
+    Archive (delete) read notifications from before the current UTC month.
+    Intended for Vercel Cron / external scheduler on the 1st of each month.
+    Requires Authorization: Bearer <CRON_SECRET> on GET.
+    """
+    if request.method == "GET":
+        cron_secret = (os.getenv("CRON_SECRET") or "").strip()
+        if not cron_secret:
+            return jsonify({"error": "Configure CRON_SECRET to enable scheduled archive."}), 503
+        auth = (request.headers.get("Authorization") or "").strip()
+        if auth != f"Bearer {cron_secret}":
+            return jsonify({"error": "Unauthorized"}), 401
+
+    db = SessionLocal()
+    try:
+        deleted = archive_read_notifications_before_month(db)
+        return jsonify({"ok": True, "archived": deleted})
+    except Exception:
+        db.rollback()
+        logger.exception("Failed monthly notification archive")
+        return jsonify({"error": "Internal server error"}), 500
     finally:
         db.close()
 
