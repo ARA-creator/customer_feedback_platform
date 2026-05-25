@@ -623,12 +623,12 @@ function Dashboard({
               insuranceTagsBreakdown={insuranceTagsBreakdown}
               isDarkMode={isDarkMode}
               trendData={trendData}
-              trendYMax={trendYMax}
               trendAllZero={trendAllZero}
               overviewTrendLabels={overviewTrendLabels}
               sourcePerformance={sourcePerformance}
               recentFeedback={recentFeedback}
               onNavigateToInsights={onNavigateToInsights}
+              onNavigateToInbox={onNavigateToInbox}
               onOpenFeedback={openFeedbackModal}
               analyzerLoading={analyzerLoading}
               analyzerError={analyzerError}

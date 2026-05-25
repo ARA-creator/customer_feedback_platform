@@ -33,6 +33,92 @@ export function formatTrendAxisDate(value) {
   }
 }
 
+/** Mockup-style channel colors (falls back to chart palette). */
+export function channelFillColor(source, index = 0) {
+  const key = String(source || '')
+    .trim()
+    .toLowerCase()
+  const map = {
+    web_form: '#5ec962',
+    google_forms: '#5ec962',
+    email: '#2F855A',
+    mobile_app: '#E6C76B',
+    app: '#E6C76B',
+    chat: '#4A90D9',
+    live_chat: '#4A90D9',
+    whatsapp: '#21918c',
+    instagram: '#C13584',
+    facebook: '#4267B2',
+    x: '#1DA1F2',
+    twitter: '#1DA1F2',
+    other: '#d1d5db',
+  }
+  return map[key] || CHART_PALETTE[index % CHART_PALETTE.length]
+}
+
+export const TREND_PERCENT_Y_DOMAIN = [0, 100]
+export const TREND_PERCENT_Y_TICKS = [0, 25, 50, 75, 100]
+
+export const TREND_GRANULARITY_OPTIONS = [
+  { id: 'daily', label: 'Daily' },
+  { id: 'weekly', label: 'Weekly' },
+  { id: 'monthly', label: 'Monthly' },
+]
+
+function weekStartKey(dateStr) {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+/** Sum daily buckets into weekly or monthly series (counts). */
+export function aggregateTrendSeries(rows, granularity = 'daily') {
+  const list = Array.isArray(rows) ? rows : []
+  if (granularity === 'daily' || list.length === 0) return list
+
+  const map = new Map()
+  for (const row of list) {
+    const date = row?.date
+    if (!date) continue
+    const key =
+      granularity === 'monthly'
+        ? `${String(date).slice(0, 7)}-01`
+        : weekStartKey(date)
+    const cur = map.get(key) || { date: key, positive: 0, negative: 0, neutral: 0, total: 0 }
+    cur.positive += Number(row.positive) || 0
+    cur.negative += Number(row.negative) || 0
+    cur.neutral += Number(row.neutral) || 0
+    cur.total += Number(row.total) || 0
+    map.set(key, cur)
+  }
+  return [...map.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)))
+}
+
+/** Per-day (or bucket) sentiment share 0–100 for mockup-style trend lines. */
+export function toTrendPercentSeries(rows) {
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const p = Number(row.positive) || 0
+    const n = Number(row.negative) || 0
+    const u = Number(row.neutral) || 0
+    const t = p + n + u
+    if (t <= 0) {
+      return { ...row, positive: 0, negative: 0, neutral: 0 }
+    }
+    return {
+      ...row,
+      positive: Math.round((p / t) * 100),
+      negative: Math.round((n / t) * 100),
+      neutral: Math.round((u / t) * 100),
+    }
+  })
+}
+
 export function buildChannelDonutData(sourcePerformance) {
   const rows = Array.isArray(sourcePerformance) ? sourcePerformance : []
   const sorted = [...rows]
@@ -47,7 +133,7 @@ export function buildChannelDonutData(sourcePerformance) {
   const total = sorted.reduce((s, r) => s + r.value, 0)
   return sorted.map((r, i) => ({
     ...r,
-    fill: CHART_PALETTE[i % CHART_PALETTE.length],
+    fill: channelFillColor(r.source, i),
     pct: total > 0 ? Math.round((r.value / total) * 100) : 0,
   }))
 }
@@ -99,4 +185,48 @@ export function sentimentLegendItems() {
     { label: 'Negative', color: SENTIMENT_COLORS.Negative },
     { label: 'Neutral', color: SENTIMENT_COLORS.Neutral },
   ]
+}
+
+function formatGaugeDateLabel(value) {
+  if (value == null) return ''
+  try {
+    const d = new Date(value)
+    if (Number.isNaN(d.getTime())) {
+      const parts = String(value).split('-')
+      if (parts.length >= 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        return `${months[Number(parts[1]) - 1] || 'Jan'} ${Number(parts[2])}`
+      }
+      return String(value)
+    }
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${months[d.getMonth()]} ${d.getDate()}`
+  } catch {
+    return String(value)
+  }
+}
+
+/** Date range under gauge, e.g. "Apr 11 – May 11". */
+export function getSentimentGaugePeriodLabel(trendData) {
+  const rows = Array.isArray(trendData) ? trendData.filter((d) => d?.date) : []
+  if (rows.length === 0) return null
+  if (rows.length === 1) return formatGaugeDateLabel(rows[0].date)
+  return `${formatGaugeDateLabel(rows[0].date)} – ${formatGaugeDateLabel(rows[rows.length - 1].date)}`
+}
+
+/** Positive share delta: second half of period vs first half (percentage points). */
+export function computePositiveShareDelta(trendData) {
+  const rows = Array.isArray(trendData) ? trendData : []
+  if (rows.length < 4) return null
+  const mid = Math.floor(rows.length / 2)
+  const share = (chunk) => {
+    let p = 0
+    let t = 0
+    for (const d of chunk) {
+      p += Number(d.positive) || 0
+      t += (Number(d.positive) || 0) + (Number(d.negative) || 0) + (Number(d.neutral) || 0)
+    }
+    return t > 0 ? (p / t) * 100 : 0
+  }
+  return Math.round(share(rows.slice(mid)) - share(rows.slice(0, mid)))
 }
