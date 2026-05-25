@@ -129,8 +129,13 @@ function Sidebar({
         if (!mounted) return
         const n = Number(res?.unread ?? 0)
         setNotificationsUnread(Number.isFinite(n) && n >= 0 ? n : 0)
-      } catch {
-        // ignore
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Sidebar.jsx:mount',message:'sidebar_unread_count',data:{unread:n,realtime:res?.realtime_enabled},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
+      } catch (err) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Sidebar.jsx:mount',message:'sidebar_unread_error',data:{error:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
       }
     })()
     return () => {

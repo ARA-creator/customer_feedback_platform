@@ -327,6 +327,20 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                     created_rows.append((int(u.id), n))
                 except Exception:
                     continue
+            from ...services.agent_debug_log import agent_debug_log
+
+            # #region agent log
+            agent_debug_log(
+                "integrations.py:_submit_to_feedback_api",
+                "notifications_on_ingest",
+                {
+                    "feedbackId": feedback.id,
+                    "usersTotal": len(users),
+                    "createdCount": len(created_rows),
+                },
+                "H2",
+            )
+            # #endregion
             if created_rows:
                 db.commit()
                 for uid, row in created_rows:

@@ -326,6 +326,16 @@ def notifications_unread_count():
         perms = _user_permission_keys(db, user.id)
         is_admin = _is_admin_ui(user, perms)
         prefs = _get_notification_prefs(db, user.id, is_admin=is_admin)
+        from ...services.notification_policy import allowed_notification_types
+        from ...services.agent_debug_log import agent_debug_log
+
+        raw_unread = (
+            db.query(func.count(Notification.id))
+            .filter(Notification.user_id == user.id)
+            .filter(Notification.read_at.is_(None))
+            .scalar()
+            or 0
+        )
         q = (
             db.query(func.count(Notification.id))
             .filter(Notification.user_id == user.id)
@@ -333,6 +343,27 @@ def notifications_unread_count():
         )
         q = apply_notification_visibility_filter(q, is_admin=is_admin, prefs=prefs)
         unread = q.scalar() or 0
+        # #region agent log
+        agent_debug_log(
+            "feedback.py:notifications_unread_count",
+            "unread_count_computed",
+            {
+                "userId": user.id,
+                "isAdmin": is_admin,
+                "prefs": {
+                    "new_feedback": bool(prefs.get("new_feedback")),
+                    "assigned_to_me": bool(prefs.get("assigned_to_me")),
+                    "anomaly_alerts": bool(prefs.get("anomaly_alerts")),
+                    "realtime": bool(prefs.get("realtime")),
+                    "admin_user_events": bool(prefs.get("admin_user_events")),
+                },
+                "allowedTypes": allowed_notification_types(prefs, is_admin=is_admin),
+                "rawUnread": int(raw_unread),
+                "filteredUnread": int(unread),
+            },
+            "H1",
+        )
+        # #endregion
         return jsonify({"unread": int(unread), "realtime_enabled": prefs_allow(prefs, "realtime")})
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
@@ -365,6 +396,28 @@ def notifications_list():
         has_more = len(rows) > limit
         rows = rows[:limit]
         next_cursor = rows[-1].id if has_more and rows else None
+
+        from ...services.notification_policy import allowed_notification_types
+        from ...services.agent_debug_log import agent_debug_log
+
+        raw_total = (
+            db.query(func.count(Notification.id)).filter(Notification.user_id == user.id).scalar() or 0
+        )
+        # #region agent log
+        agent_debug_log(
+            "feedback.py:notifications_list",
+            "notifications_list_computed",
+            {
+                "userId": user.id,
+                "isAdmin": is_admin,
+                "allowedTypes": allowed_notification_types(prefs, is_admin=is_admin),
+                "rawTotal": int(raw_total),
+                "returnedCount": len(rows),
+                "unreadOnly": unread_only,
+            },
+            "H3",
+        )
+        # #endregion
 
         return jsonify(
             {

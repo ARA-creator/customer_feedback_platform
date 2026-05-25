@@ -143,9 +143,11 @@ def get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, boo
     """
     Return notification preferences for delivery and inbox filtering.
 
-    If the user has never saved preferences, use role-based defaults (agents get
-    new_feedback; admins get admin_user_events). After the first save in Settings,
-    only explicitly enabled types are delivered.
+    If the user has never saved preferences, use role-based defaults.
+
+    After a save, keys present in stored JSON override defaults; keys omitted from an
+    older partial save keep defaults (fixes empty inbox/badge when only ``realtime``
+    was stored).
     """
     defaults = default_notification_prefs(is_admin=is_admin)
     row = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).first()
@@ -153,13 +155,10 @@ def get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, boo
         return dict(defaults)
 
     base = safe_json_loads(row.prefs) if row.prefs else {}
-    out = {k: False for k in defaults}
+    out = dict(defaults)
     for k in delivery_pref_keys(is_admin=is_admin):
         if k in base:
             out[k] = bool(base[k])
-    # Live toasts default on unless the user explicitly saved realtime: false
-    if "realtime" not in base:
-        out["realtime"] = bool(defaults.get("realtime", True))
     return out
 
 

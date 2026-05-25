@@ -7,6 +7,7 @@ import {
   getPreferences,
   markRead,
   markUnread,
+  publishUnreadCount,
 } from '../services/notifications.api'
 import { ADMIN_NOTIFICATION_HREFS } from '../../../app/routes'
 import { EmptyState, LastUpdated, NotificationListSkeleton } from '../../../shared/components/ui'
@@ -39,17 +40,6 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
 
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
   const [deliveryPrefs, setDeliveryPrefs] = useState(null)
-
-  const itemAllowedByPrefs = (n) => {
-    const p = deliveryPrefs
-    if (!p) return true
-    const t = String(n?.type || '').toLowerCase()
-    if (t === 'admin_user_event') return Boolean(p.admin_user_events)
-    if (t === 'new_feedback') return Boolean(p.new_feedback)
-    if (t === 'assigned_to_me') return Boolean(p.assigned_to_me)
-    if (t === 'anomaly_alert' || t === 'anomaly') return Boolean(p.anomaly_alerts)
-    return false
-  }
 
   useEffect(() => {
     let mounted = true
@@ -91,9 +81,18 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
         setItems((prev) => [...prev, ...(Array.isArray(list?.items) ? list.items : [])])
       }
       setNextCursor(list?.next_cursor || null)
-      setUnread(Number(c?.unread ?? 0) || 0)
+      const unreadN = Number(c?.unread ?? 0) || 0
+      setUnread(unreadN)
       setLastLoadedAt(new Date())
+      publishUnreadCount(unreadN)
+      // #region agent log
+      const apiItems = Array.isArray(list?.items) ? list.items : []
+      fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:load',message:'notifications_loaded',data:{apiItemCount:apiItems.length,unread:Number(c?.unread??0),types:apiItems.slice(0,5).map((x)=>x?.type)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
     } catch (e) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:load',message:'notifications_load_error',data:{error:String(e?.response?.data?.error||e?.message||e)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       setError(e?.response?.data?.error || e?.message || 'Failed to load notifications')
       setLastLoadedAt(null)
     } finally {
@@ -122,11 +121,17 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       items.filter((n) => {
         const t = String(n?.type || '').toLowerCase()
         if (ADMIN_NOTIFICATION_TYPES.has(t) && !isAdminUI) return false
-        if (deliveryPrefs && !itemAllowedByPrefs(n)) return false
         return true
       }),
-    [items, isAdminUI, deliveryPrefs],
+    [items, isAdminUI],
   )
+
+  useEffect(() => {
+    if (loading) return
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:visibleItems',message:'visible_items_computed',data:{itemsLen:items.length,visibleLen:visibleItems.length,deliveryPrefs:deliveryPrefs?{new_feedback:!!deliveryPrefs.new_feedback,assigned_to_me:!!deliveryPrefs.assigned_to_me,anomaly_alerts:!!deliveryPrefs.anomaly_alerts,realtime:!!deliveryPrefs.realtime}:null,unread},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+  }, [loading, items.length, visibleItems.length, deliveryPrefs, unread])
 
   const unreadItems = useMemo(() => visibleItems.filter((x) => !x?.read_at), [visibleItems])
   const selectedCount = useMemo(() => selectedIds.size, [selectedIds])
