@@ -35,6 +35,7 @@ CASES = [
     ("I regret taking this insurance policy.", "negative"),
     ("The branch staff were rude and unprofessional.", "negative"),
     ("My refund has still not been processed.", "negative"),
+    ("Dear Enterprise, Please pay my refunds for me asap.", "negative"),
     ("I am disappointed with how my complaint was handled.", "negative"),
     ("The claims officer keeps giving conflicting information.", "negative"),
     ("This is the worst claims experience I have ever had.", "negative"),

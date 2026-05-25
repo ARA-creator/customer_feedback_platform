@@ -44,6 +44,9 @@ _PHRASE_WEIGHTS: list[tuple[re.Pattern[str], float]] = [
     (re.compile(r"\b(no response|nobody is responding|stopped responding|still have no resolution)\b", re.I), -0.60),
     (re.compile(r"\b(cancelled without|policy (?:lapsed|cancelled)|misleading terms)\b", re.I), -0.55),
     (re.compile(r"\b(refund (?:has )?still not been processed|premium increase is too high)\b", re.I), -0.50),
+    (re.compile(r"\b(?:please\s+)?pay\s+(?:my\s+)?refunds?\b", re.I), -0.58),
+    (re.compile(r"\b(?:outstanding|owed|unpaid)\s+refunds?\b", re.I), -0.55),
+    (re.compile(r"\brefunds?\s+(?:for\s+me\s+)?(?:asap|urgent(?:ly)?|immediately)\b", re.I), -0.50),
     (re.compile(r"\b(rude|unprofessional|worst|regret taking|disappointed|frustrating and slow)\b", re.I), -0.45),
     (re.compile(r"\b(report to regulator|report(?:ing)? to (?:nic|regulator))\b", re.I), -0.60),
 
@@ -81,6 +84,13 @@ _SERVICE_COMPLAINT_SHADE = re.compile(
     r"complain(?:t|ing)?\s+about\s+(?:your|the)\s+service)\b",
     re.I,
 )
+# Demands for owed refunds/reimbursements — not polite procedural satisfaction.
+_REFUND_PAYMENT_DEMAND = re.compile(
+    r"\b(?:please\s+)?(?:pay|process|credit|transfer|send)\s+(?:my\s+)?(?:refunds?|reimbursements?)\b"
+    r"|\brefunds?\s+(?:still\s+)?(?:not\s+)?(?:paid|processed|credited)\b"
+    r"|\b(?:outstanding|owed|unpaid)\s+refunds?\b",
+    re.I,
+)
 
 
 def _procedural_request_compensation(text: str) -> float:
@@ -88,7 +98,7 @@ def _procedural_request_compensation(text: str) -> float:
     t = (text or "").strip()
     if not t or not _PROCEDURAL_POLITE.search(t):
         return 0.0
-    if _SERVICE_COMPLAINT_SHADE.search(t):
+    if _SERVICE_COMPLAINT_SHADE.search(t) or _REFUND_PAYMENT_DEMAND.search(t):
         return 0.0
     return 0.48
 
@@ -198,6 +208,8 @@ _VADER_LEXICON_UPDATES = {
     "nonrenewal": -1.8,
     "cancellation": -1.4,
     "complaint": -1.8,
+    "refund": -1.6,
+    "refunds": -1.6,
     "escalation": -1.6,
     "breach": -2.0,
     "badfaith": -2.6,

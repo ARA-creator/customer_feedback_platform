@@ -48,3 +48,8 @@ Future improvement:
 ## Data maintenance (Postgres)
 
 Repo-root scripts such as **`scripts/data/hard_delete_feedback.py`** load **`DATABASE_URL`** from the root **`.env`** (same as the API). Usage, notification-only modes, and **`--confirm`** values are documented under **Permanently delete feedback (hard delete)** in the [root README](../README.md#permanently-delete-feedback-hard-delete).
+
+
+cd ~/customer_feedback_platform
+source .venv/bin/activate
+python scripts/data/reprocess_sentiment.py
