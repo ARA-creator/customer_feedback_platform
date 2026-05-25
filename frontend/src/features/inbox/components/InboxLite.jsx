@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FiAlertCircle, FiArchive, FiCalendar, FiEye, FiInbox, FiRefreshCw, FiSearch, FiX } from 'react-icons/fi'
+import { FiAlertCircle, FiArchive, FiEye, FiInbox, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe } from 'react-icons/fi'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
-import { EmptyState, InboxListSkeleton, LastUpdated, PageIntro } from '../../../shared/components/ui'
+import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
+import InboxFilterToolbar from './InboxFilterToolbar'
 
 const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
@@ -249,6 +250,7 @@ export default function InboxLite({ onNavigate }) {
   const loadMoreSentinelRef = useRef(null)
   const loadMoreCoolDownRef = useRef(false)
   const visibleItemsRef = useRef([])
+  const searchInputRef = useRef(null)
 
   useEffect(() => {
     listHighlightRef.current = listHighlightId
@@ -417,6 +419,51 @@ export default function InboxLite({ onNavigate }) {
     return Number.isFinite(n) ? n : 0
   }, [counts, source])
 
+  const sentimentOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All sentiments' },
+      ...SENTIMENT_FILTER_OPTIONS.map((s) => ({
+        value: s,
+        label: s.charAt(0).toUpperCase() + s.slice(1),
+      })),
+    ],
+    [],
+  )
+
+  const themeOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All themes' },
+      ...INSURANCE_TAG_OPTIONS.map((t) => ({
+        value: t,
+        label: t.replace(/_/g, ' '),
+      })),
+    ],
+    [],
+  )
+
+  const dateRangeOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All time' },
+      { value: 'yesterday', label: 'Yesterday' },
+      { value: '7d', label: 'Last 7 days' },
+      { value: '14d', label: 'Last 2 weeks' },
+      { value: '30d', label: 'Last month' },
+      { value: 'custom', label: 'Custom…' },
+    ],
+    [],
+  )
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const load = async () => {
     const seq = ++loadSeq.current
     setLoading(true)
@@ -573,191 +620,37 @@ export default function InboxLite({ onNavigate }) {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageIntro
-          title="Feedback inbox"
-          subtitle="Review every message in one place—sentiment, channel, and the primary product we detected."
-          hint="Tip: with the list focused (click outside search), press J and K to move, Enter to open, Esc to clear."
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <div
-            className="inline-flex rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
-            role="tablist"
-            aria-label="Inbox folders"
-          >
-            {[
-              { key: 'inbox', label: 'Inbox', Icon: FiInbox, count: inboxCount },
-              { key: 'archive', label: 'Archive', Icon: FiArchive, count: archiveCount },
-            ].map(({ key, label, Icon, count }) => {
-              const active = folder === key
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setFolder(key)}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${
-                    active
-                      ? 'bg-[#009750] text-white'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
-                  role="tab"
-                  aria-selected={active}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{label}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] ${
-                      active ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
-                    }`}
-                  >
-                    {Number.isFinite(count) ? count : 0}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+      <InboxFilterToolbar
+        searchDraft={qDraft}
+        onSearchDraftChange={setQDraft}
+        onSearchSubmit={() => setQ(qDraft.trim())}
+        searchInputRef={searchInputRef}
+        sentiment={sentiment}
+        onSentimentChange={setSentiment}
+        sentimentOptions={sentimentOptions}
+        source={source}
+        onSourceChange={setSource}
+        sourceTabs={sourceTabs}
+        counts={counts}
+        selectedSourceLabel={selectedSourceLabel}
+        selectedSourceCount={selectedSourceCount}
+        formatSourceLabel={formatSourceLabel}
+        SourceIcon={SourceIcon}
+        insuranceTagFilter={insuranceTagFilter}
+        onInsuranceTagChange={setInsuranceTagFilter}
+        themeOptions={themeOptions}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+        dateRangeOptions={dateRangeOptions}
+        folder={folder}
+        onFolderChange={setFolder}
+        inboxCount={inboxCount}
+        archiveCount={archiveCount}
+        onRefresh={load}
+        loading={loading}
+      />
 
-          <div className="flex flex-col items-end gap-1">
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-              Refresh
-            </button>
-            {!loading && lastLoadedAt ? <LastUpdated at={lastLoadedAt} /> : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-4 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
-          <div className="flex w-full sm:flex-[2] min-w-0 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2 text-sm text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
-            <FiSearch className="h-4 w-4 text-gray-400" />
-            <input
-              value={qDraft}
-              onChange={(e) => setQDraft(e.target.value)}
-              placeholder="Search feedback…"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  setQ(qDraft.trim())
-                }
-              }}
-              className="w-full min-w-0 bg-transparent outline-none placeholder:text-gray-400 text-gray-800 dark:text-gray-100"
-            />
-          </div>
-          <select
-            value={sentiment}
-            onChange={(e) => setSentiment(e.target.value)}
-            className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          >
-            <option value="all">All sentiments</option>
-            {SENTIMENT_FILTER_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </option>
-            ))}
-          </select>
-
-          <details className="relative w-full sm:w-auto">
-            <summary
-              className="list-none inline-flex w-full sm:w-auto min-h-[44px] cursor-pointer select-none items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40"
-              aria-label="Filter by channel"
-              title="Filter by channel"
-            >
-              <SourceIcon source={source} />
-              <span className="max-w-[12rem] truncate">{selectedSourceLabel}</span>
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                {selectedSourceCount}
-              </span>
-              <span className="ml-1 text-gray-400" aria-hidden>
-                ▾
-              </span>
-            </summary>
-            <div
-              className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
-              role="menu"
-              aria-label="Channel options"
-            >
-              <div className="max-h-72 overflow-y-auto p-1">
-                {sourceTabs.map((k) => {
-                  const label = formatSourceLabel(k)
-                  const n = Number(counts?.[k] ?? counts?.[k.toLowerCase()] ?? 0)
-                  const count = Number.isFinite(n) ? n : 0
-                  const active = source === k
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={active}
-                      onClick={() => {
-                        setSource(k)
-                        // close the <details>
-                        try {
-                          document.activeElement?.closest?.('details')?.removeAttribute?.('open')
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${
-                        active
-                          ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
-                          : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900'
-                      }`}
-                      title={label}
-                    >
-                      {k !== 'all' ? <SourceIcon source={k} /> : <span className="inline-block h-3.5 w-3.5" aria-hidden />}
-                      <span className="min-w-0 flex-1 truncate">{label}</span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          active
-                            ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </details>
-
-          <select
-            value={insuranceTagFilter}
-            onChange={(e) => setInsuranceTagFilter(e.target.value)}
-            className="w-full sm:w-auto min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-            title="Filter by theme"
-            aria-label="Theme"
-          >
-            <option value="all">All themes</option>
-            {INSURANCE_TAG_OPTIONS.map((t) => (
-              <option key={t} value={t}>
-                {t.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
-
-          <div className="inline-flex w-full sm:w-auto items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-            <FiCalendar className="h-4 w-4 text-gray-500" />
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="bg-transparent outline-none"
-            >
-              <option value="all">All time</option>
-              <option value="yesterday">Yesterday</option>
-              <option value="7d">Last 7 days</option>
-              <option value="14d">Last 2 weeks</option>
-              <option value="30d">Last month</option>
-              <option value="custom">Custom…</option>
-            </select>
-          </div>
-
+      <div className="space-y-3">
           {peakDow != null && peakHour != null && (
             <button
               type="button"
@@ -789,7 +682,6 @@ export default function InboxLite({ onNavigate }) {
               <span className="text-amber-800/80 dark:text-amber-200/70">×</span>
             </button>
           ) : null}
-        </div>
 
         {dateRange === 'custom' && (
           <div className="flex flex-wrap items-end gap-3">

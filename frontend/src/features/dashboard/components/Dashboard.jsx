@@ -585,9 +585,6 @@ function Dashboard({
               <OverviewTimeFilterRow
                 value={overviewTimeFilter}
                 onChange={setOverviewTimeFilter}
-                onAnalyzer={handleOpenAnalyzer}
-                analyzerDisabled={loading || !analyticsDelayPassed}
-                analyzerLoading={analyzerLoading}
                 onExportCsv={handleExportCsv}
                 exportDisabled={loading || !analyticsDelayPassed}
                 isAdminUser={isAdminUser}
@@ -626,6 +623,7 @@ function Dashboard({
               trendAllZero={trendAllZero}
               overviewTrendLabels={overviewTrendLabels}
               sourcePerformance={sourcePerformance}
+              productPulse={productPulse}
               recentFeedback={recentFeedback}
               onNavigateToInsights={onNavigateToInsights}
               onNavigateToInbox={onNavigateToInbox}

@@ -157,6 +157,10 @@ export function buildHelpGuide(auth) {
       title: 'Customer 360',
       body: 'From an inbox message with a customer key, use View customer to see history for that customer (agents only).',
     },
+    {
+      title: 'Inbox keyboard shortcuts',
+      body: 'With the list focused (click outside search), press J and K to move, Enter to open, and Esc to clear. Press ⌘K (Ctrl+K on Windows) to focus search.',
+    },
   ]
 
   if (isAdmin) {

@@ -186,10 +186,19 @@ export function useDashboardDataLoader({
           if (!cancelled) {
             const items = Array.isArray(pulse?.items) ? pulse.items : []
             setProductPulse(
-              items.slice(0, 12).map((r) => ({
-                name: r.product_group || r.product_prefix || 'Unknown',
-                total: Number(r.total || 0),
-              })),
+              items.slice(0, 12).map((r) => {
+                const prefix = String(r.product_prefix || '').trim()
+                const rawG = r.product_group
+                const group = rawG == null ? '' : String(rawG)
+                const g = group.trim()
+                const p = prefix
+                const name = g || p || 'Unknown'
+                return {
+                  key: `${prefix}|${group}`,
+                  name,
+                  total: Number(r.total || 0),
+                }
+              }),
             )
           }
         } else {

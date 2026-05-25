@@ -138,6 +138,41 @@ export function buildChannelDonutData(sourcePerformance) {
   }))
 }
 
+/** Top products by primary policy match volume (overview Product Breakdown card). */
+export function buildProductBreakdownRows(productPulse, { limit = 5, filterKey = 'all' } = {}) {
+  const list = (Array.isArray(productPulse) ? productPulse : []).filter((r) => (Number(r?.total) || 0) > 0)
+  const allTotal = list.reduce((s, r) => s + (Number(r.total) || 0), 0)
+
+  let filtered = list
+  if (filterKey && filterKey !== 'all') {
+    filtered = list.filter((r) => r.key === filterKey)
+  }
+
+  const sorted = [...filtered].sort((a, b) => (Number(b.total) || 0) - (Number(a.total) || 0)).slice(0, limit)
+  const max = sorted.reduce((m, r) => Math.max(m, Number(r.total) || 0), 0) || 1
+
+  return sorted.map((r) => {
+    const total = Number(r.total) || 0
+    return {
+      key: r.key,
+      name: r.name,
+      total,
+      sharePct: allTotal > 0 ? Math.round((total / allTotal) * 100) : 0,
+      barPct: max > 0 ? Math.round((total / max) * 100) : 0,
+    }
+  })
+}
+
+export function buildProductFilterOptions(productPulse) {
+  const list = Array.isArray(productPulse) ? productPulse : []
+  return [
+    { id: 'all', label: 'All products' },
+    ...list
+      .filter((r) => r.key && r.key !== '|')
+      .map((r) => ({ id: r.key, label: r.name })),
+  ]
+}
+
 export function buildTopicsTableRows(insuranceTagsBreakdown, { limit = 6 } = {}) {
   const b = insuranceTagsBreakdown && typeof insuranceTagsBreakdown === 'object' ? insuranceTagsBreakdown : {}
   return Object.entries(b)

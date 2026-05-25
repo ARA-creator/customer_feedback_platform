@@ -5,7 +5,13 @@ import RecentFeedbackCard from './overview/RecentFeedbackCard'
 import TopFeedbackTopicsCard from './overview/TopFeedbackTopicsCard'
 import SentimentTrendCard from './overview/SentimentTrendCard'
 import VolumeByChannelCard from './overview/VolumeByChannelCard'
-import { buildChannelDonutData, buildTopicsTableRows } from './overview/chartUi'
+import ProductBreakdownCard from './overview/ProductBreakdownCard'
+import {
+  buildChannelDonutData,
+  buildProductBreakdownRows,
+  buildProductFilterOptions,
+  buildTopicsTableRows,
+} from './overview/chartUi'
 
 /**
  * Overview dashboard — mockup-style chart grid + AI insight bar.
@@ -22,6 +28,7 @@ export default function OverviewChartsSection({
   trendAllZero,
   overviewTrendLabels,
   sourcePerformance,
+  productPulse = [],
   recentFeedback = [],
   onNavigateToInsights,
   onNavigateToInbox,
@@ -37,6 +44,7 @@ export default function OverviewChartsSection({
   const trendTitle = overviewTrendLabels?.title || 'Sentiment Trend'
   const allChannelRows = buildChannelDonutData(sourcePerformance)
   const [channelFilter, setChannelFilter] = useState('all')
+  const [productFilter, setProductFilter] = useState('all')
 
   useEffect(() => {
     if (channelFilter === 'all') return
@@ -59,22 +67,36 @@ export default function OverviewChartsSection({
   }, [allChannelRows, channelFilter])
 
   const channelTotal = channelRows.reduce((s, r) => s + r.value, 0)
+  const productFilterOptions = useMemo(() => buildProductFilterOptions(productPulse), [productPulse])
+  const productRows = useMemo(
+    () => buildProductBreakdownRows(productPulse, { limit: 5, filterKey: productFilter }),
+    [productPulse, productFilter],
+  )
+
+  useEffect(() => {
+    if (productFilter === 'all') return
+    if (!productPulse.some((r) => r.key === productFilter)) {
+      setProductFilter('all')
+    }
+  }, [productPulse, productFilter])
+
   const topics = buildTopicsTableRows(insuranceTagsBreakdown, { limit: 5 })
   const ready = !analyticsLoading && analyticsDelayPassed
 
   return (
     <div className="space-y-6">
-      {/* Row 1: Sentiment trend + Volume by channel */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <SentimentTrendCard
-          ready={ready}
-          trendTitle={trendTitle}
-          trendData={trendData}
-          trendAllZero={trendAllZero}
-          overviewTrendLabels={overviewTrendLabels}
-          onNavigateToInsights={onNavigateToInsights}
-        />
+      {/* Row 1: Sentiment trend */}
+      <SentimentTrendCard
+        ready={ready}
+        trendTitle={trendTitle}
+        trendData={trendData}
+        trendAllZero={trendAllZero}
+        overviewTrendLabels={overviewTrendLabels}
+        onNavigateToInsights={onNavigateToInsights}
+      />
 
+      {/* Row 2: Volume by channel + Product breakdown */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <VolumeByChannelCard
           ready={ready}
           channelRows={channelRows}
@@ -83,9 +105,18 @@ export default function OverviewChartsSection({
           onChannelFilterChange={setChannelFilter}
           channelFilterOptions={channelFilterOptions}
         />
+
+        <ProductBreakdownCard
+          ready={ready}
+          rows={productRows}
+          productFilter={productFilter}
+          onProductFilterChange={setProductFilter}
+          productFilterOptions={productFilterOptions}
+          onViewAllProducts={onNavigateToInsights ? () => onNavigateToInsights() : undefined}
+        />
       </div>
 
-      {/* Row 2: Topics + Recent + Sentiment breakdown */}
+      {/* Row 3: Topics + Recent + Sentiment breakdown */}
       <div className={`grid grid-cols-1 gap-6 ${isCx ? 'lg:grid-cols-2' : 'xl:grid-cols-3'}`}>
         {!isCx && (
           <TopFeedbackTopicsCard
