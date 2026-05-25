@@ -138,8 +138,8 @@ export function buildHelpGuide(auth) {
 
   const tips = [
     {
-      title: 'Time filters',
-      body: 'On Overview, pick Today, This week, or All time so every chart and KPI uses the same window.',
+      title: 'Overview filters',
+      body: 'On Overview, use the time pills (Today, This week, All time, etc.) and sentiment pills (All, Positive, Negative, Neutral) together—every chart and KPI updates for both.',
     },
     {
       title: 'Header controls',

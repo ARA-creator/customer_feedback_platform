@@ -94,9 +94,19 @@ def get_analytics():
                 q = q.filter(Feedback.created_at < filter_to)
             return q
 
+        sentiment_arg = (request.args.get("sentiment") or "").strip().lower()
+
+        def _apply_sentiment_filter(q):
+            if sentiment_arg in ("positive", "negative", "neutral"):
+                return q.filter(func.lower(Feedback.sentiment_label) == sentiment_arg)
+            return q
+
+        def _apply_feedback_filters(q):
+            return _apply_sentiment_filter(_apply_created_filter(q))
+
         sentiment_counts = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(Feedback.sentiment_label, func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None))
                 )
             )
@@ -107,7 +117,7 @@ def get_analytics():
 
         category_counts = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -122,7 +132,7 @@ def get_analytics():
 
         category_negative_counts = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -139,7 +149,7 @@ def get_analytics():
         day_col = func.date(Feedback.created_at)
         daily_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(
                         day_col.label("day"),
                         Feedback.sentiment_label,
@@ -205,7 +215,7 @@ def get_analytics():
             count = len(rows)
             return round(total_hours / count, 2) if count > 0 else None
 
-        base_age_query = _pf(_apply_created_filter(db.query(Feedback.created_at).filter(Feedback.deleted_at.is_(None))))
+        base_age_query = _pf(_apply_feedback_filters(db.query(Feedback.created_at).filter(Feedback.deleted_at.is_(None))))
         base_age_query = base_age_query.filter(~func.lower(Feedback.source).in_(["api", "web"]))
         avg_age_all = _avg_age_hours(base_age_query)
         high_priority_age_query = base_age_query.filter(Feedback.priority.isnot(None)).filter(Feedback.priority >= 100)
@@ -214,7 +224,7 @@ def get_analytics():
 
         recent_times = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(Feedback.created_at, Feedback.sentiment_label)
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -254,7 +264,7 @@ def get_analytics():
 
         total_feedback = (
             _pf(
-                _apply_created_filter(db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None)))
+                _apply_feedback_filters(db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None)))
             )
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
             .scalar()
@@ -265,7 +275,7 @@ def get_analytics():
         neutral_count = sum(count for label, count in sentiment_counts if label == "neutral")
         high_priority_count = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None), Feedback.priority >= 100)
                 )
             )
@@ -276,7 +286,7 @@ def get_analytics():
 
         score_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(Feedback.sentiment_score)
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(Feedback.sentiment_score.isnot(None))
@@ -303,7 +313,7 @@ def get_analytics():
 
         category_trend_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(func.date(Feedback.created_at).label("day"), Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -322,7 +332,7 @@ def get_analytics():
 
         source_trend_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(func.date(Feedback.created_at).label("day"), Feedback.source, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -370,7 +380,7 @@ def get_analytics():
 
         source_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(
                         Feedback.source,
                         func.count(Feedback.id).label("total"),
@@ -406,7 +416,7 @@ def get_analytics():
 
         rating_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(func.date(Feedback.created_at).label("day"), func.avg(cast(Feedback.rating, Float)), func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -431,7 +441,7 @@ def get_analytics():
         insurance_tag_mention_total = 0
         tag_rows = (
             _pf(
-                _apply_created_filter(
+                _apply_feedback_filters(
                     db.query(
                         Feedback.created_at,
                         Feedback.sentiment_label,
@@ -701,6 +711,7 @@ def feedback_analyzer():
         user = _require_user(db)
         perms = _user_permission_keys(db, user.id)
         time_window = (request.args.get("time_window") or "all").strip().lower()
+        sentiment = (request.args.get("sentiment") or "").strip().lower()
         # Lazy import: google-genai is heavy; keep it off the app cold-start path.
         from ...services.feedback_analyzer import run_feedback_analyzer
 
@@ -709,6 +720,7 @@ def feedback_analyzer():
             user=user,
             perms=perms,
             time_window=time_window,
+            sentiment=sentiment,
             scope_feedback_query=_scope_feedback_query,
         )
         return jsonify(result), 200
@@ -747,6 +759,7 @@ def product_pulse():
 
         source = str(request.args.get("source") or "").strip()
         location = str(request.args.get("location") or "").strip()
+        sentiment_arg = (request.args.get("sentiment") or "").strip().lower()
 
         q = (
             db.query(
@@ -780,6 +793,9 @@ def product_pulse():
         pfx = (request.args.get("product_prefix") or "").strip()
         pgf = request.args.get("product_group")
         q = _apply_product_match_arg_filters(q, pfx, pgf)
+
+        if sentiment_arg in ("positive", "negative", "neutral"):
+            q = q.filter(func.lower(Feedback.sentiment_label) == sentiment_arg)
 
         q = q.group_by(
             FeedbackPolicyMatch.product_prefix,

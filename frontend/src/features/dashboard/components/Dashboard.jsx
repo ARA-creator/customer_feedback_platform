@@ -179,6 +179,7 @@ function Dashboard({
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
   const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => getDefaultOverviewPeriod())
+  const [overviewSentimentFilter, setOverviewSentimentFilter] = useState('all')
 
   useEffect(() => {
     const onPrefsChanged = (e) => {
@@ -330,6 +331,7 @@ function Dashboard({
     insightsRange,
     insightsProductParams,
       overviewTimeFilter,
+    overviewSentimentFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,
@@ -452,7 +454,11 @@ function Dashboard({
     setAnalyzerError(null)
     if (openModal) setAnalyzerResult(null)
     try {
-      const data = await getFeedbackAnalyzer({ time_window: overviewTimeFilter })
+      const analyzerParams = { time_window: overviewTimeFilter }
+      if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
+        analyzerParams.sentiment = overviewSentimentFilter
+      }
+      const data = await getFeedbackAnalyzer(analyzerParams)
       setAnalyzerResult(data)
       setAnalyzerError(null)
     } catch (err) {
@@ -479,7 +485,7 @@ function Dashboard({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, overviewTimeFilter, analyticsDelayPassed, loading])
+  }, [mode, overviewTimeFilter, overviewSentimentFilter, analyticsDelayPassed, loading])
 
   const handleCloseAnalyzer = () => {
     setAnalyzerOpen(false)
@@ -585,6 +591,8 @@ function Dashboard({
               <OverviewTimeFilterRow
                 value={overviewTimeFilter}
                 onChange={setOverviewTimeFilter}
+                sentimentValue={overviewSentimentFilter}
+                onSentimentChange={setOverviewSentimentFilter}
                 onExportCsv={handleExportCsv}
                 exportDisabled={loading || !analyticsDelayPassed}
                 isAdminUser={isAdminUser}

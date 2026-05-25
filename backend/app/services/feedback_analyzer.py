@@ -45,6 +45,7 @@ def gather_analyzer_context(
     user: User,
     perms: set[str],
     time_window: str,
+    sentiment: str = "",
     scope_feedback_query,
 ) -> Dict[str, Any]:
     now = datetime.now(tz=timezone.utc)
@@ -62,6 +63,9 @@ def gather_analyzer_context(
     )
     base = scope_feedback_query(db, base, user=user, perms=perms)
     scoped = _apply_time_filter(base, filter_from, filter_to)
+    sent = (sentiment or "").strip().lower()
+    if sent in ("positive", "negative", "neutral"):
+        scoped = scoped.filter(func.lower(Feedback.sentiment_label) == sent)
 
     total = scoped.count() or 0
 
@@ -299,6 +303,7 @@ def run_feedback_analyzer(
     user: User,
     perms: set[str],
     time_window: str,
+    sentiment: str = "",
     scope_feedback_query,
 ) -> Dict[str, Any]:
     context = gather_analyzer_context(
@@ -306,6 +311,7 @@ def run_feedback_analyzer(
         user=user,
         perms=perms,
         time_window=time_window,
+        sentiment=sentiment,
         scope_feedback_query=scope_feedback_query,
     )
     total = int(context["metrics"].get("total_feedback") or 0)

@@ -9,6 +9,7 @@ export function useDashboardDataLoader({
   insightsRange,
   insightsProductParams,
   overviewTimeFilter,
+  overviewSentimentFilter = 'all',
   isAdminUser,
   dashboardAutoRefresh,
 
@@ -61,11 +62,16 @@ export function useDashboardDataLoader({
       }
 
       try {
+        const overviewAnalyticsParams = { time_window: overviewTimeFilter }
+        if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
+          overviewAnalyticsParams.sentiment = overviewSentimentFilter
+        }
+
         const analyticsData =
           mode === 'insights'
             ? await getAnalytics({ range_days: insightsRange, ...insightsProductParams })
             : mode === 'overview'
-              ? await getAnalytics({ time_window: overviewTimeFilter })
+              ? await getAnalytics(overviewAnalyticsParams)
               : await getAnalytics()
 
         if (cancelled) return
@@ -181,7 +187,7 @@ export function useDashboardDataLoader({
           const pulseParams =
             mode === 'insights'
               ? { range_days: rangeDays, ...insightsProductParams }
-              : { time_window: overviewTimeFilter }
+              : { ...overviewAnalyticsParams }
           const pulse = await getProductPulse(pulseParams).catch(() => ({ items: [] }))
           if (!cancelled) {
             const items = Array.isArray(pulse?.items) ? pulse.items : []
@@ -266,6 +272,7 @@ export function useDashboardDataLoader({
     insightsRange,
     insightsProductParams,
     overviewTimeFilter,
+    overviewSentimentFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,
