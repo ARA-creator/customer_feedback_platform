@@ -2,6 +2,7 @@ import { FiMenu, FiMoon, FiRefreshCw, FiSun } from 'react-icons/fi'
 import UserProfileMenu from './UserProfileMenu'
 
 function Header({
+  title = 'Feedback Dashboard',
   onToggleSidebar,
   theme,
   onToggleTheme,
@@ -26,7 +27,7 @@ function Header({
         </div>
 
         <h1 className="min-w-0 flex-1 text-center text-lg sm:text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 truncate md:text-left">
-          Feedback Dashboard
+          {title}
         </h1>
 
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">

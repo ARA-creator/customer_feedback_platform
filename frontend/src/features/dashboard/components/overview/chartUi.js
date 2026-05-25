@@ -249,19 +249,29 @@ export function getSentimentGaugePeriodLabel(trendData) {
   return `${formatGaugeDateLabel(rows[0].date)} – ${formatGaugeDateLabel(rows[rows.length - 1].date)}`
 }
 
-/** Positive share delta: second half of period vs first half (percentage points). */
-export function computePositiveShareDelta(trendData) {
+function _sentimentShareInChunk(chunk, field) {
+  let part = 0
+  let total = 0
+  for (const d of chunk) {
+    part += Number(d[field]) || 0
+    total += (Number(d.positive) || 0) + (Number(d.negative) || 0) + (Number(d.neutral) || 0)
+  }
+  return total > 0 ? (part / total) * 100 : 0
+}
+
+/** Share delta for a sentiment: second half of period vs first half (percentage points). */
+export function computeSentimentShareDelta(trendData, sentimentKey = 'positive') {
+  const key = String(sentimentKey || 'positive').toLowerCase()
+  const field = key === 'negative' || key === 'neutral' ? key : 'positive'
   const rows = Array.isArray(trendData) ? trendData : []
   if (rows.length < 4) return null
   const mid = Math.floor(rows.length / 2)
-  const share = (chunk) => {
-    let p = 0
-    let t = 0
-    for (const d of chunk) {
-      p += Number(d.positive) || 0
-      t += (Number(d.positive) || 0) + (Number(d.negative) || 0) + (Number(d.neutral) || 0)
-    }
-    return t > 0 ? (p / t) * 100 : 0
-  }
-  return Math.round(share(rows.slice(mid)) - share(rows.slice(0, mid)))
+  const later = _sentimentShareInChunk(rows.slice(mid), field)
+  const earlier = _sentimentShareInChunk(rows.slice(0, mid), field)
+  return Math.round(later - earlier)
+}
+
+/** @deprecated Use computeSentimentShareDelta(trendData, 'positive') */
+export function computePositiveShareDelta(trendData) {
+  return computeSentimentShareDelta(trendData, 'positive')
 }

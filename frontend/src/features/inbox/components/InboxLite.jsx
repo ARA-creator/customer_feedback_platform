@@ -6,6 +6,17 @@ import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbac
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
 import InboxFilterToolbar from './InboxFilterToolbar'
+import InboxPageIntro from './InboxPageIntro'
+import InboxSidebar from './InboxSidebar'
+import InboxListPanel from './InboxListPanel'
+import InboxBulkBar from './InboxBulkBar'
+import {
+  computeInboxStats,
+  computeTopThemes,
+  isHighPriority,
+  needsResponse,
+  sortInboxItems,
+} from '../utils/inboxDerivedStats'
 
 const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
@@ -29,7 +40,8 @@ const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
   a.replace(/_/g, ' ').localeCompare(b.replace(/_/g, ' '), undefined, { sensitivity: 'base' }),
 )
 
-const INBOX_PAGE_SIZE = 5
+const INBOX_PAGE_SIZE = 8
+const READ_IDS_KEY = 'cfp_inbox_read_feedback_ids'
 
 const SENTIMENT_COLORS = {
   positive: '#6FBF73',
@@ -246,6 +258,19 @@ export default function InboxLite({ onNavigate }) {
     }
   })
   const [folder, setFolder] = useState('inbox') // inbox | archive
+  const [listTab, setListTab] = useState('unread') // unread | all
+  const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
+  const [activeQuickFilter, setActiveQuickFilter] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(() => new Set())
+  const [readIds, setReadIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem(READ_IDS_KEY)
+      const arr = raw ? JSON.parse(raw) : []
+      return new Set(Array.isArray(arr) ? arr : [])
+    } catch {
+      return new Set()
+    }
+  })
   const [listDisplayCount, setListDisplayCount] = useState(INBOX_PAGE_SIZE)
   const loadMoreSentinelRef = useRef(null)
   const loadMoreCoolDownRef = useRef(false)
@@ -263,6 +288,14 @@ export default function InboxLite({ onNavigate }) {
       // ignore
     }
   }, [archivedIds])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(READ_IDS_KEY, JSON.stringify(Array.from(readIds)))
+    } catch {
+      // ignore
+    }
+  }, [readIds])
 
   useEffect(() => {
     const onClear = () => setArchivedIds(new Set())
@@ -475,6 +508,7 @@ export default function InboxLite({ onNavigate }) {
         sentiment,
         q: q || undefined,
         limit: 50,
+        sort: sortBy === 'priority' ? 'impact' : 'chronological',
         insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
         location: loc || undefined,
         ...dateParams,
@@ -507,20 +541,20 @@ export default function InboxLite({ onNavigate }) {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, peakDow, peakHour, peakRangeDays])
+  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, peakDow, peakHour, peakRangeDays, sortBy])
 
   useEffect(() => {
     if (!openFeedbackId) return
     const it = (items || []).find((x) => Number(x?.id) === Number(openFeedbackId))
     if (it) {
-      setOpenItem(it)
+      openFeedback(it)
       setOpenFeedbackId(null)
     }
   }, [openFeedbackId, items])
 
   useEffect(() => {
     setListDisplayCount(INBOX_PAGE_SIZE)
-  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, folder, peakDow, peakHour, peakRangeDays, items])
+  }, [source, sentiment, q, insuranceTagFilter, locationFilter, dateParams, folder, peakDow, peakHour, peakRangeDays, items, listTab, sortBy, activeQuickFilter])
 
   const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
@@ -535,13 +569,110 @@ export default function InboxLite({ onNavigate }) {
     return { visibleItems: filtered, inboxCount: i, archiveCount: a }
   }, [items, archivedIds, folder])
 
-  const displayedItems = useMemo(
-    () => visibleItems.slice(0, listDisplayCount),
-    [visibleItems, listDisplayCount],
-  )
-  const hasMoreToShow = visibleItems.length > listDisplayCount
+  const sortedVisibleItems = useMemo(() => {
+    let arr = visibleItems
+    if (activeQuickFilter === 'unread' || listTab === 'unread') {
+      arr = arr.filter((it) => !readIds.has(it?.id))
+    }
+    if (activeQuickFilter === 'high_priority') {
+      arr = arr.filter(isHighPriority)
+    }
+    if (activeQuickFilter === 'needs_response') {
+      arr = arr.filter(needsResponse)
+    }
+    return sortInboxItems(arr, sortBy)
+  }, [visibleItems, activeQuickFilter, listTab, readIds, sortBy])
 
-  visibleItemsRef.current = visibleItems
+  const displayedItems = useMemo(
+    () => sortedVisibleItems.slice(0, listDisplayCount),
+    [sortedVisibleItems, listDisplayCount],
+  )
+  const hasMoreToShow = sortedVisibleItems.length > listDisplayCount
+
+  const inboxItemsForStats = useMemo(() => {
+    const arr = Array.isArray(items) ? items : []
+    return arr.filter((it) => !archivedIds.has(it?.id))
+  }, [items, archivedIds])
+
+  const sidebarStats = useMemo(
+    () => computeInboxStats(inboxItemsForStats, { readIds, folder: 'inbox' }),
+    [inboxItemsForStats, readIds],
+  )
+
+  const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 5), [inboxItemsForStats])
+
+  const unreadInboxCount = useMemo(
+    () => inboxItemsForStats.filter((it) => !readIds.has(it?.id)).length,
+    [inboxItemsForStats, readIds],
+  )
+
+  const needsResponseCount = useMemo(
+    () => inboxItemsForStats.filter(needsResponse).length,
+    [inboxItemsForStats],
+  )
+
+  const highPriorityCount = useMemo(
+    () => inboxItemsForStats.filter(isHighPriority).length,
+    [inboxItemsForStats],
+  )
+
+  const negative7dCount = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return inboxItemsForStats.filter((it) => {
+      if (String(it?.sentiment_label || '').toLowerCase() !== 'negative') return false
+      const t = new Date(it?.created_at).getTime()
+      return Number.isFinite(t) && t >= cutoff
+    }).length
+  }, [inboxItemsForStats])
+
+  const toggleSelected = useCallback((id) => {
+    if (!id) return
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  const markIdsRead = useCallback((ids) => {
+    setReadIds((prev) => {
+      const next = new Set(prev)
+      for (const id of ids) next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleQuickFilter = useCallback((id) => {
+    if (id === 'clear') {
+      setActiveQuickFilter(null)
+      return
+    }
+    if (id === 'clear_themes') {
+      setInsuranceTagFilter('all')
+      return
+    }
+    if (id === 'negative_7d') {
+      setSentiment('negative')
+      setDateRange('7d')
+      setActiveQuickFilter('negative_7d')
+      return
+    }
+    setActiveQuickFilter(id)
+    if (id === 'unread') setListTab('unread')
+  }, [])
+
+  const openFeedback = useCallback(
+    (it) => {
+      if (it?.id) markIdsRead([it.id])
+      setOpenItem(it)
+    },
+    [markIdsRead],
+  )
+
+  visibleItemsRef.current = sortedVisibleItems
 
   useEffect(() => {
     setListHighlightId(null)
@@ -553,8 +684,8 @@ export default function InboxLite({ onNavigate }) {
       const t = e.target
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
       if (openItem) return
-      if (!visibleItems.length) return
-      const ids = visibleItems.map((x) => x.id)
+      if (!sortedVisibleItems.length) return
+      const ids = sortedVisibleItems.map((x) => x.id)
       const cur = listHighlightRef.current
       let idx = cur != null ? ids.indexOf(cur) : -1
 
@@ -563,7 +694,7 @@ export default function InboxLite({ onNavigate }) {
         const next = idx < 0 ? 0 : Math.min(idx + 1, ids.length - 1)
         const nid = ids[next]
         setListHighlightId(nid)
-        setListDisplayCount((c) => Math.min(visibleItems.length, Math.max(c, next + 1)))
+        setListDisplayCount((c) => Math.min(sortedVisibleItems.length, Math.max(c, next + 1)))
         queueMicrotask(() => {
           document.querySelector(`[data-feedback-id="${nid}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
         })
@@ -581,8 +712,8 @@ export default function InboxLite({ onNavigate }) {
         const id = listHighlightRef.current
         if (id == null) return
         e.preventDefault()
-        const it = visibleItems.find((x) => x.id === id)
-        if (it) setOpenItem(it)
+        const it = sortedVisibleItems.find((x) => x.id === id)
+        if (it) openFeedback(it)
       }
       if (e.key === 'Escape') {
         setListHighlightId(null)
@@ -590,7 +721,7 @@ export default function InboxLite({ onNavigate }) {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [visibleItems, openItem])
+  }, [sortedVisibleItems, openItem, openFeedback])
 
   const loadNextBatch = useCallback(() => {
     setListDisplayCount((c) => {
@@ -616,10 +747,12 @@ export default function InboxLite({ onNavigate }) {
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMoreToShow, listDisplayCount, loadNextBatch, visibleItems.length])
+  }, [hasMoreToShow, listDisplayCount, loadNextBatch, sortedVisibleItems.length])
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-5 pb-28">
+      <InboxPageIntro />
+
       <InboxFilterToolbar
         searchDraft={qDraft}
         onSearchDraftChange={setQDraft}
@@ -717,11 +850,6 @@ export default function InboxLite({ onNavigate }) {
         )}
       </div>
 
-      {loading && (
-        <div className="card p-4 sm:p-6">
-          <InboxListSkeleton rows={5} />
-        </div>
-      )}
       {!loading && error && (
         <div
           className="card p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-rose-200 bg-rose-50/80 dark:border-rose-900/40 dark:bg-rose-950/20"
@@ -744,149 +872,80 @@ export default function InboxLite({ onNavigate }) {
           </button>
         </div>
       )}
-      {!loading && !error && visibleItems.length === 0 && (
-        <EmptyState
-          icon={FiInbox}
-          title="No feedback matches these filters"
-          description="Try widening the date range, switching channel, clearing search, or resetting sentiment to see more items."
-          primaryAction={{
-            label: 'Clear search',
-            onClick: () => {
+      <div className="flex gap-6">
+        <div className="min-w-0 flex-1 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-5">
+          <InboxListPanel
+            loading={loading}
+            error={error}
+            listTab={listTab}
+            onListTabChange={setListTab}
+            allCount={visibleItems.length}
+            unreadCount={unreadInboxCount}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            displayedItems={displayedItems}
+            visibleCount={sortedVisibleItems.length}
+            listHighlightId={listHighlightId}
+            selectedIds={selectedIds}
+            readIds={readIds}
+            archivedIds={archivedIds}
+            onOpenItem={openFeedback}
+            onToggleSelected={toggleSelected}
+            onArchiveToggle={(id) => {
+              setArchivedIds((prev) => {
+                const next = new Set(prev)
+                if (next.has(id)) next.delete(id)
+                else next.add(id)
+                return next
+              })
+            }}
+            formatRelativeTime={formatRelativeTime}
+            SourceIcon={SourceIcon}
+            hasMoreToShow={hasMoreToShow}
+            loadMoreSentinelRef={loadMoreSentinelRef}
+            onLoadMore={loadNextBatch}
+            onClearFilters={() => {
               setQDraft('')
               setQ('')
-            },
-          }}
-          secondaryAction={{
-            label: 'All channels & sentiments',
-            onClick: () => {
               setSource('all')
               setSentiment('all')
               setInsuranceTagFilter('all')
               setDateRange('all')
-              setPeakDow(null)
-              setPeakHour(null)
-              setPeakRangeDays(null)
-              setLocationFilter('')
-            },
-          }}
-        />
-      )}
-
-      {!loading && !error && visibleItems.length > 0 && (
-        <div className="space-y-3">
-          {displayedItems.map((it) => {
-            const isArchived = archivedIds.has(it.id)
-            const insuranceTags =
-              it?.insurance_tags ||
-              it?.channel_metadata?.insurance_tags ||
-              []
-            const insuranceTagsList = Array.isArray(insuranceTags) ? insuranceTags : []
-            const pol = getPolicySummary(it)
-            return (
-            <div
-              key={it.id}
-              data-feedback-id={it.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                setOpenItem(it)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') setOpenItem(it)
-              }}
-              className={`relative w-full text-left rounded-2xl border bg-white p-4 shadow-sm hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 ${
-                listHighlightId === it.id
-                  ? 'border-[#009750] ring-2 ring-[#009750]/35 ring-offset-2 ring-offset-[#f0f4f1] dark:ring-offset-gray-950'
-                  : 'border-gray-200 dark:border-gray-700'
-              }`}
-              aria-label="Open feedback details"
-              aria-current={listHighlightId === it.id ? 'true' : undefined}
-            >
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <SentimentPill label={it.sentiment_label} />
-                <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                  {(it.source_group || it.source || 'source').replace(/_/g, ' ')}
-                </span>
-                {pol?.labelLeft && pol?.labelRight ? (
-                  <span
-                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
-                    title={policyMatchHelp(pol.primary?.policy_masked, pol.needsReview)}
-                  >
-                    Primary product · {pol.labelLeft} · {pol.labelRight}
-                    {pol.extra ? ` +${pol.extra}` : ''}
-                  </span>
-                ) : null}
-                {pol?.needsReview ? (
-                  <span
-                    className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
-                    title="Ambiguous or low-confidence match—open the card to confirm the primary product."
-                  >
-                    Needs review
-                  </span>
-                ) : null}
-                {insuranceTagsList.slice(0, 3).map((t) => (
-                  <span
-                    key={`${it.id}-${t}`}
-                    className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    title="Theme"
-                  >
-                    {String(t).replace(/_/g, ' ')}
-                  </span>
-                ))}
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {it.created_at ? formatRelativeTime(it.created_at) : ''}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setArchivedIds((prev) => {
-                      const next = new Set(prev)
-                      if (next.has(it.id)) next.delete(it.id)
-                      else next.add(it.id)
-                      return next
-                    })
-                  }}
-                  className={`ml-auto inline-flex min-h-[40px] sm:min-h-[32px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
-                    isArchived
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-200'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
-                  title={isArchived ? 'Unarchive' : 'Archive'}
-                >
-                  <FiArchive className="h-3.5 w-3.5" />
-                  {isArchived ? 'Unarchive' : 'Archive'}
-                </button>
-              </div>
-              <p className="mt-3 max-h-[140px] overflow-hidden text-sm font-medium leading-6 text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
-                {it.message || it.message_preview || 'No message'}
-              </p>
-              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                {it.customer_label || it.customer_id || 'Unknown customer'}
-              </p>
-            </div>
-            )
-          })}
-          {hasMoreToShow && (
-            <>
-              <div
-                ref={loadMoreSentinelRef}
-                className="h-2 w-full shrink-0"
-                aria-hidden
-              />
-              <div className="flex justify-center pt-2">
-                <button
-                  type="button"
-                  onClick={loadNextBatch}
-                  className="text-sm font-semibold text-[#009750] hover:underline focus:outline-none focus:ring-2 focus:ring-[#009750]/40 rounded"
-                >
-                  Load more
-                </button>
-              </div>
-            </>
-          )}
+              setActiveQuickFilter(null)
+              setListTab('all')
+            }}
+          />
         </div>
-      )}
+
+        <InboxSidebar
+          items={inboxItemsForStats}
+          stats={sidebarStats}
+          topThemes={topThemes}
+          activeQuickFilter={activeQuickFilter}
+          onQuickFilter={handleQuickFilter}
+          unreadCount={unreadInboxCount}
+          needsResponseCount={needsResponseCount}
+          highPriorityCount={highPriorityCount}
+          negative7dCount={negative7dCount}
+        />
+      </div>
+
+      <InboxBulkBar
+        selectedCount={selectedIds.size}
+        onMarkRead={() => {
+          markIdsRead(Array.from(selectedIds))
+          clearSelection()
+        }}
+        onArchive={() => {
+          setArchivedIds((prev) => {
+            const next = new Set(prev)
+            for (const id of selectedIds) next.add(id)
+            return next
+          })
+          clearSelection()
+        }}
+        onClearSelection={clearSelection}
+      />
 
       {/** WhatsApp-style read ticks (brand green) */}
       {/*

@@ -75,6 +75,16 @@ function playNotificationBeep() {
   }
 }
 
+const HEADER_TITLES = {
+  overview: 'Feedback Dashboard',
+  inbox: 'Feedback Inbox',
+  insights: 'Insights',
+  notifications: 'Notifications',
+  settings: 'Settings',
+  customer: 'Customer 360',
+  reports: 'Reports',
+}
+
 function AppChrome({
   auth,
   isAdminUI,
@@ -88,6 +98,7 @@ function AppChrome({
   const { resolvedTheme, toggleTheme } = useDisplayPreferences()
   const location = useLocation()
   const currentView = viewFromPathname(location.pathname)
+  const headerTitle = HEADER_TITLES[currentView] || 'Feedback Dashboard'
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
@@ -117,6 +128,7 @@ function AppChrome({
       />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-10">
         <Header
+          title={headerTitle}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           theme={resolvedTheme}
           onToggleTheme={toggleTheme}
