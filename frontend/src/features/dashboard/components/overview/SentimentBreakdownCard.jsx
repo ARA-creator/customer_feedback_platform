@@ -59,7 +59,7 @@ function SentimentTrendComparison({ sentimentId, delta, periodLabel, accentColor
   return (
     <div className="mt-2 flex justify-center px-1">
       <p
-        className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-full border border-gray-100 bg-gray-50/90 px-3 py-1.5 text-center text-xs shadow-sm dark:border-gray-800 dark:bg-gray-900/60 sm:text-sm"
+        className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-full border border-gray-100 bg-gray-50/90 px-3 py-1.5 text-center text-xs shadow-sm dark:border-gray-800 dark:bg-gray-900/60"
         style={{ boxShadow: `0 1px 2px rgba(15,23,42,0.04), 0 0 0 1px ${accentColor}18` }}
       >
         {delta != null ? (
@@ -105,10 +105,10 @@ function SentimentStatCard({ pct, label, accentColor, active, onSelect }) {
         <div className="h-1 w-full shrink-0" style={{ backgroundColor: accentColor }} aria-hidden />
       ) : null}
       <div className={`flex flex-col items-center justify-center px-2 ${active ? 'pb-4 pt-4' : 'pb-4 pt-5'}`}>
-        <p className="text-2xl font-bold leading-none tabular-nums tracking-tight text-gray-900 dark:text-gray-100">
+        <p className="text-2xl font-bold leading-none tabular-nums tracking-tight text-gray-900 sm:text-3xl dark:text-gray-100">
           {pct}%
         </p>
-        <p className="mt-2 text-sm font-normal text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="mt-2 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
       </div>
       <div className="h-2 w-full shrink-0" style={{ backgroundColor: accentColor }} aria-hidden />
     </button>
@@ -171,10 +171,10 @@ export default function SentimentBreakdownCard({
             </div>
 
             <div className="pointer-events-none absolute left-1/2 top-[42%] w-full max-w-[10rem] -translate-x-1/2 -translate-y-1/2 text-center">
-              <p className="text-[2.75rem] font-bold leading-none tracking-tight text-gray-900 dark:text-gray-100">
+              <p className="text-3xl font-bold leading-none tabular-nums tracking-tight text-gray-900 sm:text-4xl dark:text-gray-100">
                 {gaugePct}%
               </p>
-              <p className="mt-1.5 text-sm font-normal text-gray-500 dark:text-gray-400">{selected.label}</p>
+              <p className="mt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">{selected.label}</p>
             </div>
           </div>
 

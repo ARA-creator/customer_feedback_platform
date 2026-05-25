@@ -92,30 +92,32 @@ export default function InboxFeedbackRow({
           <p className="min-w-0 flex-1 text-sm font-semibold leading-snug text-gray-900 dark:text-gray-100 line-clamp-1 pr-2">
             {title}
           </p>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral}`}
-              >
-                {sentiment}
-              </span>
-              <span
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_STYLES[priority.tone]}`}
-              >
-                {priority.label}
-              </span>
-            </div>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral}`}
+            >
+              {sentiment}
+            </span>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_STYLES[priority.tone]}`}
+            >
+              {priority.label}
+            </span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 onArchiveToggle?.()
               }}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              className={`inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border transition-colors ${
+                isArchived
+                  ? 'border-emerald-200/80 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                  : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+              }`}
               title={isArchived ? 'Unarchive' : 'Archive'}
               aria-label={isArchived ? 'Unarchive' : 'Archive'}
             >
-              <FiArchive className="h-4 w-4" />
+              <FiArchive className="h-3.5 w-3.5" aria-hidden />
             </button>
           </div>
         </div>
