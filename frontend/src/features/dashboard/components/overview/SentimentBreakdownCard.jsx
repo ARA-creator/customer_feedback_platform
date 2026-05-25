@@ -8,35 +8,34 @@ import { computePositiveShareDelta, getSentimentGaugePeriodLabel, sentimentTotal
 const GAUGE_TRACK = '#e8eaed'
 
 const SENTIMENT_OPTIONS = [
-  { id: 'positive', label: 'Positive', pctKey: 'positivePct', color: SENTIMENT_COLORS.Positive },
-  { id: 'negative', label: 'Negative', pctKey: 'negativePct', color: SENTIMENT_COLORS.Negative },
-  { id: 'neutral', label: 'Neutral', pctKey: 'neutralPct', color: SENTIMENT_COLORS.Neutral },
+  { id: 'positive', label: 'Positive', pctKey: 'positivePct', color: SENTIMENT_COLORS.Positive, gauge: '#22c55e' },
+  { id: 'negative', label: 'Negative', pctKey: 'negativePct', color: SENTIMENT_COLORS.Negative, gauge: SENTIMENT_COLORS.Negative },
+  { id: 'neutral', label: 'Neutral', pctKey: 'neutralPct', color: SENTIMENT_COLORS.Neutral, gauge: SENTIMENT_COLORS.Neutral },
 ]
 
 function ChartSkeleton({ className = 'h-64' }) {
   return <div className={`w-full rounded-xl bg-gray-100 animate-pulse dark:bg-white/[0.06] ${className}`} />
 }
 
-function StatBox({ pct, label, color, active, onSelect }) {
+function SentimentStatCard({ pct, label, accentColor, active, onSelect }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full flex-col overflow-hidden rounded-xl border bg-white text-left transition-shadow focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 dark:bg-gray-950 dark:focus-visible:ring-offset-gray-950 ${
-        active
-          ? 'border-gray-300 shadow-md ring-2 ring-offset-1 dark:border-gray-600'
-          : 'border-gray-200 hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:hover:border-gray-600'
-      }`}
-      style={active ? { boxShadow: `0 0 0 1px ${color}33`, borderColor: `${color}66` } : undefined}
       aria-pressed={active}
+      className={`flex w-full flex-col overflow-hidden rounded-xl border bg-white text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/35 dark:bg-gray-950 ${
+        active
+          ? 'border-gray-300 shadow-sm dark:border-gray-600'
+          : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
+      }`}
     >
-      <div className="flex flex-col items-center justify-center px-2 py-4 text-center">
-        <p className="text-xl font-bold tabular-nums leading-none text-gray-900 dark:text-gray-100 sm:text-2xl">
+      <div className="flex flex-col items-center justify-center px-2 pb-4 pt-5">
+        <p className="text-2xl font-bold leading-none tabular-nums tracking-tight text-gray-900 dark:text-gray-100">
           {pct}%
         </p>
-        <p className="mt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="mt-2 text-sm font-normal text-gray-500 dark:text-gray-400">{label}</p>
       </div>
-      <div className="h-1.5 w-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
+      <div className="h-2 w-full shrink-0" style={{ backgroundColor: accentColor }} aria-hidden />
     </button>
   )
 }
@@ -51,8 +50,9 @@ export default function SentimentBreakdownCard({
   const sent = sentimentTotals(sentimentData)
   const selected = SENTIMENT_OPTIONS.find((o) => o.id === selectedId) || SENTIMENT_OPTIONS[0]
   const gaugePct = sent[selected.pctKey] || 0
+  const gaugeFill = selected.gauge || selected.color
   const gaugeData = [
-    { name: 'value', value: gaugePct, fill: selected.color },
+    { name: 'value', value: gaugePct, fill: gaugeFill },
     { name: 'rest', value: Math.max(0, 100 - gaugePct), fill: GAUGE_TRACK },
   ]
   const delta = selectedId === 'positive' ? computePositiveShareDelta(trendData) : null
@@ -67,10 +67,11 @@ export default function SentimentBreakdownCard({
         <p className="text-sm text-gray-600 dark:text-gray-400">No sentiment labels yet.</p>
       ) : (
         <div className="flex flex-col">
-          <div className="relative mx-auto w-full max-w-[320px]">
-            <div className="h-[11rem] w-full sm:h-[12rem]">
+          {/* Gauge + in-arc labels */}
+          <div className="relative mx-auto w-full max-w-[300px]">
+            <div className="h-[10.5rem] w-full sm:h-[11.5rem]">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart margin={{ top: 0, right: 4, left: 4, bottom: 0 }}>
+                <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <Pie
                     data={gaugeData}
                     dataKey="value"
@@ -78,11 +79,11 @@ export default function SentimentBreakdownCard({
                     cy="100%"
                     startAngle={180}
                     endAngle={0}
-                    innerRadius="56%"
+                    innerRadius="54%"
                     outerRadius="100%"
                     paddingAngle={0}
                     stroke="none"
-                    cornerRadius={10}
+                    cornerRadius={12}
                   >
                     {gaugeData.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
@@ -91,46 +92,48 @@ export default function SentimentBreakdownCard({
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            {/* Centered inside the hollow of the semi-circle arc */}
-            <div
-              className="pointer-events-none absolute left-1/2 flex w-[52%] max-w-[9rem] -translate-x-1/2 flex-col items-center text-center"
-              style={{ top: '36%' }}
-            >
-              <p className="text-4xl font-bold leading-none tracking-tight text-gray-900 dark:text-gray-100 sm:text-[2.75rem]">
+
+            <div className="pointer-events-none absolute left-1/2 top-[42%] w-full max-w-[10rem] -translate-x-1/2 -translate-y-1/2 text-center">
+              <p className="text-[2.75rem] font-bold leading-none tracking-tight text-gray-900 dark:text-gray-100">
                 {gaugePct}%
               </p>
-              <p className="mt-1 text-sm font-normal text-gray-500 dark:text-gray-400">{selected.label}</p>
-              {showComparison && (
-                <p className="mt-2 flex flex-wrap items-center justify-center gap-1 text-xs">
-                  {delta != null && (
-                    <span
-                      className={`inline-flex items-center gap-0.5 font-semibold ${
-                        delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                      }`}
-                    >
-                      {delta >= 0 ? (
-                        <FiTrendingUp className="h-3.5 w-3.5" aria-hidden />
-                      ) : (
-                        <FiTrendingDown className="h-3.5 w-3.5" aria-hidden />
-                      )}
-                      {Math.abs(delta)}%
-                    </span>
-                  )}
-                  {periodLabel && (
-                    <span className="text-gray-400 dark:text-gray-500">vs {periodLabel}</span>
-                  )}
-                </p>
-              )}
+              <p className="mt-1.5 text-sm font-normal text-gray-500 dark:text-gray-400">{selected.label}</p>
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          {/* Trend — directly under gauge, outside the arc */}
+          {showComparison ? (
+            <p className="mt-1 flex flex-wrap items-center justify-center gap-1 text-center text-xs sm:text-sm">
+              {delta != null ? (
+                <span
+                  className={`inline-flex items-center gap-0.5 font-semibold ${
+                    delta >= 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-400'
+                  }`}
+                >
+                  {delta >= 0 ? (
+                    <FiTrendingUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  ) : (
+                    <FiTrendingDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  )}
+                  {Math.abs(delta)}%
+                </span>
+              ) : null}
+              {periodLabel ? (
+                <span className="font-normal text-gray-400 dark:text-gray-500">vs {periodLabel}</span>
+              ) : null}
+            </p>
+          ) : (
+            <div className="mt-1 h-5" aria-hidden />
+          )}
+
+          {/* Category filters */}
+          <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
             {SENTIMENT_OPTIONS.map((opt) => (
-              <StatBox
+              <SentimentStatCard
                 key={opt.id}
                 pct={sent[opt.pctKey]}
                 label={opt.label}
-                color={opt.color}
+                accentColor={opt.color}
                 active={selectedId === opt.id}
                 onSelect={() => setSelectedId(opt.id)}
               />
