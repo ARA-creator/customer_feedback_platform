@@ -51,7 +51,7 @@ export default function AdminOverview({ auth, onNavigate }) {
       <div className="card p-6">
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-200">
-            <FiShield className="h-6 w-6" />
+            <FiActivity className="h-6 w-6" />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Admin overview</h1>
