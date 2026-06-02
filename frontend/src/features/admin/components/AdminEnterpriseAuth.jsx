@@ -174,7 +174,13 @@ export default function AdminEnterpriseAuth() {
         {loading ? (
           <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
         ) : (
-          <div className="mt-6 space-y-5 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-950">
+          <form
+            className="mt-6 space-y-5 rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-950"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!busy) run('save')
+            }}
+          >
             {source && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Effective config source: <strong>{source}</strong>
@@ -346,15 +352,14 @@ export default function AdminEnterpriseAuth() {
                 {busy ? 'Working…' : 'Test connection'}
               </button>
               <button
-                type="button"
+                type="submit"
                 disabled={busy}
-                onClick={() => run('save')}
                 className="rounded-lg bg-[#009750] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
               >
                 {busy ? 'Saving…' : 'Save settings'}
               </button>
             </div>
-          </div>
+          </form>
         )}
       </div>
     </div>

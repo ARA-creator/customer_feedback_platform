@@ -1679,14 +1679,46 @@ def admin_set_user_scope(user_id: int):
         db.close()
 
 
-def _email_from_audit_meta(meta: Any) -> Optional[str]:
+def _email_from_audit_meta(meta: Any, *, role: str = "target") -> Optional[str]:
     if not isinstance(meta, dict):
         return None
-    raw = meta.get("email") or meta.get("target_email")
-    if raw is None:
-        return None
-    s = str(raw).strip()
-    return s or None
+    if role == "actor":
+        keys = ("actor_email", "actor", "actor_email_address")
+    else:
+        keys = ("email", "target_email", "user_email", "email_address")
+    for key in keys:
+        raw = meta.get(key)
+        if raw is None:
+            continue
+        s = str(raw).strip()
+        if s:
+            return s
+    return None
+
+
+def _user_ids_referenced_by_audit_row(row: AuditLog, meta: dict) -> List[int]:
+    ids: List[int] = []
+    seen: set[int] = set()
+
+    def add(value: Any) -> None:
+        uid = None
+        try:
+            if value is not None:
+                uid = int(value)
+        except (TypeError, ValueError):
+            return
+        if uid <= 0 or uid in seen:
+            return
+        seen.add(uid)
+        ids.append(uid)
+
+    add(row.actor_user_id)
+    if row.target_type == "user":
+        add(row.target_id)
+    if isinstance(meta, dict):
+        for key in ("user_id", "actor_user_id", "target_user_id"):
+            add(meta.get(key))
+    return ids
 
 
 def _lookup_user_emails(db, user_ids: List[int]) -> Dict[int, str]:
@@ -1730,19 +1762,23 @@ def _serialize_audit_entry(db, row: AuditLog, users_by_id: Optional[Dict[int, st
         return str(u.email).strip() if u and u.email else None
 
     actor_email = email_for_user_id(row.actor_user_id) if row.actor_user_id else None
+    if not actor_email:
+        actor_email = _email_from_audit_meta(meta, role="actor")
     actor_display = actor_email or (f"User #{row.actor_user_id}" if row.actor_user_id else "System")
 
     target_email: Optional[str] = None
     if row.target_type == "user" and row.target_id:
         try:
             target_uid = int(row.target_id)
-            target_email = email_for_user_id(target_uid) or _email_from_audit_meta(meta)
+            target_email = email_for_user_id(target_uid) or _email_from_audit_meta(meta, role="target")
+            if not target_email:
+                target_email = email_for_user_id(meta.get("user_id") if isinstance(meta, dict) else None)
         except (TypeError, ValueError):
-            target_email = _email_from_audit_meta(meta)
+            target_email = _email_from_audit_meta(meta, role="target")
             if not target_email and row.target_id and "@" in str(row.target_id):
                 target_email = str(row.target_id).strip()
     else:
-        target_email = _email_from_audit_meta(meta)
+        target_email = _email_from_audit_meta(meta, role="target")
 
     target_display = _format_audit_target_display(row, meta, target_email)
 
@@ -1784,13 +1820,10 @@ def admin_audit_logs():
         rows = q.order_by(desc(AuditLog.created_at), desc(AuditLog.id)).limit(limit).all()
         user_ids: List[int] = []
         for r in rows:
-            if r.actor_user_id:
-                user_ids.append(int(r.actor_user_id))
-            if r.target_type == "user" and r.target_id:
-                try:
-                    user_ids.append(int(r.target_id))
-                except (TypeError, ValueError):
-                    pass
+            meta = safe_json_loads(r.meta) if r.meta else {}
+            if not isinstance(meta, dict):
+                meta = {}
+            user_ids.extend(_user_ids_referenced_by_audit_row(r, meta))
         users_by_id = _lookup_user_emails(db, user_ids)
         return jsonify(
             {

@@ -106,6 +106,58 @@ def _impact_score_for(feedback: Feedback, meta: Dict[str, Any]) -> int:
     return score_feedback(feedback=feedback, meta=meta).get("impact_score", 0)
 
 
+def _coerce_user_id(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        uid = int(value)
+    except (TypeError, ValueError):
+        return None
+    return uid if uid > 0 else None
+
+
+def _user_email_by_id(db, user_id: Optional[int]) -> Optional[str]:
+    uid = _coerce_user_id(user_id)
+    if uid is None:
+        return None
+    row = db.query(User.email).filter(User.id == uid).first()
+    if not row or not row.email:
+        return None
+    s = str(row.email).strip()
+    return s or None
+
+
+def _prepare_audit_log_payload(
+    db,
+    *,
+    actor_user_id: Optional[int],
+    target_type: str,
+    target_id: Optional[str],
+    meta: Optional[Dict[str, Any]],
+) -> Tuple[Optional[int], Dict[str, Any]]:
+    """Resolve actor from API session and enrich meta with actor/target emails."""
+    merged: Dict[str, Any] = dict(meta or {})
+
+    user = _current_user(db)
+    if user:
+        resolved_actor_id = int(user.id)
+        if user.email:
+            merged.setdefault("actor_email", str(user.email).strip())
+    else:
+        resolved_actor_id = _coerce_user_id(actor_user_id)
+        if resolved_actor_id is not None:
+            actor_email = _user_email_by_id(db, resolved_actor_id)
+            if actor_email:
+                merged.setdefault("actor_email", actor_email)
+
+    if target_type == "user" and target_id is not None and not merged.get("email"):
+        target_user_email = _user_email_by_id(db, _coerce_user_id(target_id))
+        if target_user_email:
+            merged["email"] = target_user_email
+
+    return resolved_actor_id, merged
+
+
 def _append_audit_log(
     db,
     *,
@@ -116,13 +168,20 @@ def _append_audit_log(
     meta: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Stage an audit row on the current session (caller commits)."""
+    resolved_actor_id, merged_meta = _prepare_audit_log_payload(
+        db,
+        actor_user_id=actor_user_id,
+        target_type=target_type,
+        target_id=target_id,
+        meta=meta,
+    )
     db.add(
         AuditLog(
-            actor_user_id=actor_user_id,
+            actor_user_id=resolved_actor_id,
             action=action,
             target_type=target_type,
             target_id=str(target_id) if target_id is not None else None,
-            meta=json.dumps(meta or {}),
+            meta=json.dumps(merged_meta),
         )
     )
 

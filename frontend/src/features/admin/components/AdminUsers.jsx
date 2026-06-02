@@ -66,7 +66,9 @@ export default function AdminUsers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userScope])
 
-  const createUser = async () => {
+  const createUser = async (e) => {
+    e?.preventDefault?.()
+    if (saving || !email.trim() || !password || password.length < 12) return
     setSaving(true)
     setError(null)
     try {
@@ -214,16 +216,25 @@ export default function AdminUsers() {
           </div>
         )}
 
-        <div className="mt-6 rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+        <form
+          className="mt-6 rounded-2xl border border-gray-200 p-4 dark:border-gray-800"
+          onSubmit={createUser}
+        >
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create user</h2>
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
             <input
+              type="email"
+              name="email"
+              autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email@example.com"
               className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             />
             <input
+              type="password"
+              name="new-password"
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="password (12+ chars)"
@@ -254,15 +265,14 @@ export default function AdminUsers() {
           </div>
           <div className="mt-3 flex justify-end">
             <button
-              type="button"
-              onClick={createUser}
+              type="submit"
               disabled={saving || !email.trim() || !password || password.length < 12}
               className="inline-flex min-h-[40px] items-center rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900"
             >
               {saving ? 'Saving…' : 'Create user'}
             </button>
           </div>
-        </div>
+        </form>
 
         <div className="mt-6">
           <div className="flex flex-wrap items-center justify-between gap-3">

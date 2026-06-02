@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiArrowLeft, FiPlus, FiTrash2 } from 'react-icons/fi'
 import { createReportSchedule, deleteReportSchedule, listReportSchedules } from '../services/reports.api'
+import { REPORT_FIELD_CLASSES, REPORT_LABEL_CLASSES } from '../reportFieldClasses'
 
 const CADENCES = [
   { id: 'daily', label: 'Daily' },
@@ -104,29 +105,29 @@ export default function ScheduleReport({ onBack, embedded = false }) {
       )}
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
           {error}
         </div>
       )}
 
       <div className="card p-6">
-        <h2 className="text-sm font-semibold text-gray-900">Create schedule</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create schedule</h2>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-600">Name</label>
+            <label className={REPORT_LABEL_CLASSES}>Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
               placeholder="Weekly summary"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Cadence</label>
+            <label className={REPORT_LABEL_CLASSES}>Cadence</label>
             <select
               value={cadence}
               onChange={(e) => setCadence(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
             >
               {CADENCES.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -136,38 +137,38 @@ export default function ScheduleReport({ onBack, embedded = false }) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Time</label>
+            <label className={REPORT_LABEL_CLASSES}>Time</label>
             <input
               type="time"
               value={timeOfDay}
               onChange={(e) => setTimeOfDay(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Timezone</label>
+            <label className={REPORT_LABEL_CLASSES}>Timezone</label>
             <input
               value={timezone}
               onChange={(e) => setTimezone(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
               placeholder="UTC"
             />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-600">Recipients (comma-separated)</label>
+            <label className={REPORT_LABEL_CLASSES}>Recipients (comma-separated)</label>
             <input
               value={recipients}
               onChange={(e) => setRecipients(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
               placeholder="cx@enterprise-life.com, ops@enterprise-life.com"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Format</label>
+            <label className={REPORT_LABEL_CLASSES}>Format</label>
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={REPORT_FIELD_CLASSES}
             >
               <option value="csv">CSV</option>
               <option value="pdf">PDF</option>
@@ -188,28 +189,31 @@ export default function ScheduleReport({ onBack, embedded = false }) {
       </div>
 
       <div className="card p-6">
-        <h2 className="text-sm font-semibold text-gray-900">Saved schedules</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Saved schedules</h2>
         {loading ? (
-          <p className="mt-3 text-sm text-gray-600">Loading…</p>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">Loading…</p>
         ) : schedules.length === 0 ? (
-          <p className="mt-3 text-sm text-gray-600">No schedules yet.</p>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">No schedules yet.</p>
         ) : (
           <div className="mt-4 space-y-3">
             {schedules.map((s) => (
-              <div key={s.id} className="rounded-xl border border-gray-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3">
+              <div
+                key={s.id}
+                className="rounded-xl border border-gray-200 bg-white p-4 flex flex-wrap items-center justify-between gap-3 dark:border-gray-800 dark:bg-gray-950"
+              >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{s.name}</p>
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{s.name}</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
                     {String(s.cadence).toUpperCase()} · {s.time_of_day || '—'} {s.timezone || 'UTC'} · {s.format?.toUpperCase()}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 break-all">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 break-all">
                     Recipients: {(s.recipients || []).join(', ') || '—'}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => remove(s.id)}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                 >
                   <FiTrash2 className="h-4 w-4" />
                   Delete
