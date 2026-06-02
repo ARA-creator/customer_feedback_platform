@@ -19,6 +19,10 @@ import {
   FiDownload,
 } from 'react-icons/fi'
 import { connectNotificationsStream, getUnreadCount } from '../../../features/notifications/services/notifications.api'
+import {
+  NOTIFICATIONS_UNREAD_KEY,
+  readNotificationsUnreadFromStorage,
+} from '../../../shared/lib/crossTabSync'
 
 const RAIL_KEY = 'cfp_sidebar_rail_collapsed'
 
@@ -129,13 +133,8 @@ function Sidebar({
         if (!mounted) return
         const n = Number(res?.unread ?? 0)
         setNotificationsUnread(Number.isFinite(n) && n >= 0 ? n : 0)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Sidebar.jsx:mount',message:'sidebar_unread_count',data:{unread:n,realtime:res?.realtime_enabled},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
-      } catch (err) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Sidebar.jsx:mount',message:'sidebar_unread_error',data:{error:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-        // #endregion
+      } catch {
+        // ignore — badge refreshes on stream / visibility
       }
     })()
     return () => {
@@ -157,8 +156,25 @@ function Sidebar({
     const onVis = () => {
       if (document.visibilityState === 'visible') refreshUnread()
     }
+    const onUnreadEvent = (e) => {
+      const fromDetail = Number(e?.detail?.unread)
+      if (Number.isFinite(fromDetail) && fromDetail >= 0) {
+        applyUnreadFromServer(fromDetail)
+        return
+      }
+      refreshUnread()
+    }
+    const onStorage = (ev) => {
+      if (ev.key !== NOTIFICATIONS_UNREAD_KEY) return
+      const cached = readNotificationsUnreadFromStorage()
+      if (cached != null) applyUnreadFromServer(cached)
+    }
+    const cached = readNotificationsUnreadFromStorage()
+    if (cached != null) applyUnreadFromServer(cached)
+
     document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('cfp-notifications-unread', refreshUnread)
+    window.addEventListener('cfp-notifications-unread', onUnreadEvent)
+    window.addEventListener('storage', onStorage)
 
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type === 'notification.unread_count' && Number.isFinite(Number(evt.unread))) {
@@ -172,7 +188,8 @@ function Sidebar({
     return () => {
       cleanup()
       document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('cfp-notifications-unread', refreshUnread)
+      window.removeEventListener('cfp-notifications-unread', onUnreadEvent)
+      window.removeEventListener('storage', onStorage)
     }
   }, [applyUnreadFromServer])
 
@@ -190,8 +207,8 @@ function Sidebar({
   const initials = useMemo(() => getInitials(userEmail), [userEmail])
 
   const c = railCollapsed
-  /** Agent-only: Overview + Inbox. Admin / super_admin cannot use those surfaces (see App.jsx). */
-  const showAgentDashboardNav = !isAdminUI
+  /** Overview + Inbox — available in separate tabs alongside Admin (same session). */
+  const showAgentDashboardNav = true
 
   return (
     <aside

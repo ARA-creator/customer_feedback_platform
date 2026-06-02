@@ -37,7 +37,6 @@ import { notificationSoundsEnabled } from '../shared/lib/displayPreferences'
 import {
   defaultPathForUser,
   isAdminPath,
-  isDashboardAgentPath,
   userCanApproveReplies,
   userCanViewReports,
   userIsAdminUI,
@@ -243,10 +242,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     return <Navigate to="/" replace />
   }
 
-  if (isAdminUI && isDashboardAgentPath(location.pathname)) {
-    return <Navigate to="/admin" replace />
-  }
-
   if (location.pathname === '/admin/channels' && !canAccessWebhooks) {
     return <Navigate to="/admin" replace />
   }
@@ -269,41 +264,27 @@ function AuthenticatedApp({ auth, setAuth }) {
           <Route
             path="/"
             element={
-              isAdminUI ? (
-                <Navigate to="/admin" replace />
-              ) : (
-                <DashboardOverviewPage
-                  userRole={auth?.role}
-                  onNavigateToInsights={() => navigateToView('insights')}
-                  onNavigateToInbox={navigateToInboxWithPreset}
-                  registerRefresh={registerDashboardRefresh}
-                />
-              )
+              <DashboardOverviewPage
+                userRole={auth?.role}
+                onNavigateToInsights={() => navigateToView('insights')}
+                onNavigateToInbox={navigateToInboxWithPreset}
+                registerRefresh={registerDashboardRefresh}
+              />
             }
           />
           <Route
             path="/insights"
             element={
-              isAdminUI ? (
-                <Navigate to="/admin" replace />
-              ) : (
-                <DashboardInsightsPage
-                  userRole={auth?.role}
-                  onNavigateBack={() => navigateToView('overview')}
-                  onNavigateToInbox={navigateToInboxWithPreset}
-                  registerRefresh={registerDashboardRefresh}
-                />
-              )
+              <DashboardInsightsPage
+                userRole={auth?.role}
+                onNavigateBack={() => navigateToView(isAdminUI ? 'admin_overview' : 'overview')}
+                onNavigateToInbox={navigateToInboxWithPreset}
+                registerRefresh={registerDashboardRefresh}
+              />
             }
           />
-          <Route
-            path="/inbox"
-            element={isAdminUI ? <Navigate to="/admin" replace /> : <InboxPage onNavigate={navigateToView} />}
-          />
-          <Route
-            path="/customer"
-            element={isAdminUI ? <Navigate to="/admin" replace /> : <Customer360 onNavigate={navigateToView} />}
-          />
+          <Route path="/inbox" element={<InboxPage onNavigate={navigateToView} />} />
+          <Route path="/customer" element={<Customer360 onNavigate={navigateToView} />} />
           <Route
             path="/notifications"
             element={<Notifications isAdminUI={isAdminUI} onNavigate={navigateToView} />}

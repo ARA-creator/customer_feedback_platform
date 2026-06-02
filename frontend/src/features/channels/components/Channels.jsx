@@ -65,15 +65,6 @@ function channelLabel({ enabled, configured, name, autoPoll }) {
   return name
 }
 
-function SetupSteps({ title, children }) {
-  return (
-    <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/80 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-      <p className="font-semibold">{title}</p>
-      <ol className="mt-2 list-decimal list-inside space-y-1.5 text-xs leading-relaxed">{children}</ol>
-    </div>
-  )
-}
-
 function EnvCode({ children }) {
   return (
     <code className="rounded bg-white/80 px-1 dark:bg-black/30">{children}</code>
@@ -176,8 +167,6 @@ export default function Channels() {
     }
   }
 
-  const metaNeedsSetup = ig && fb && !ig.enabled && !fb.enabled && !ig.configured
-
   return (
     <div className="p-6 space-y-6">
       <div className="card p-6">
@@ -245,74 +234,6 @@ export default function Channels() {
                 <StatusPill tone={status?.email?.enabled ? 'on' : 'off'} label="Email" />
                 <StatusPill tone={status?.web?.enabled ? 'on' : 'off'} label="Web" />
               </div>
-              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                Green = messages ingested. Amber = credentials set, waiting for first message. Red = not configured.
-                Use the ingest switches below to pause a channel without removing credentials.
-              </p>
-
-              {metaNeedsSetup && (
-                <SetupSteps title="Connect Instagram &amp; Facebook (Meta)">
-                  <li>
-                    Create a Meta app with the <strong>Webhooks</strong> product in{' '}
-                    <a
-                      href="https://developers.facebook.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium underline"
-                    >
-                      Meta Developer Console
-                    </a>
-                    .
-                  </li>
-                  <li>
-                    Set <EnvCode>META_VERIFY_TOKEN</EnvCode> and <EnvCode>META_APP_SECRET</EnvCode> in{' '}
-                    <EnvCode>.env</EnvCode> (and Vercel env for production), then restart the backend.
-                  </li>
-                  <li>
-                    Register Instagram and Facebook webhook callbacks in Meta (use the same verify token for both).
-                  </li>
-                  <li>
-                    Subscribe to Page Messenger + feed (Facebook) and Instagram messages + comments. Send a test DM or
-                    comment, then refresh this page. Full checklist: <EnvCode>docs/meta_webhooks_setup.md</EnvCode>.
-                  </li>
-                </SetupSteps>
-              )}
-
-              {x && !x.enabled && !x.configured && (
-                <SetupSteps title="Connect X (Twitter)">
-                  <li>
-                    Create an app in the{' '}
-                    <a
-                      href="https://developer.x.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium underline"
-                    >
-                      X Developer Portal
-                    </a>{' '}
-                    with access to <strong>recent search</strong>.
-                  </li>
-                  <li>
-                    Set <EnvCode>X_BEARER_TOKEN</EnvCode> and <EnvCode>X_QUERY</EnvCode> (e.g. your brand name or
-                    handle) in <EnvCode>.env</EnvCode>.
-                  </li>
-                  <li>
-                    Enable <EnvCode>X_POLL_ENABLED=true</EnvCode> for background polling, or use <strong>Poll now</strong>{' '}
-                    below for a manual pull.
-                  </li>
-                </SetupSteps>
-              )}
-
-              {wa && !wa.enabled && (
-                <SetupSteps title="Connect WhatsApp (Twilio)">
-                  <li>
-                    Set <EnvCode>TWILIO_ACCOUNT_SID</EnvCode>, <EnvCode>TWILIO_AUTH_TOKEN</EnvCode>, and optional{' '}
-                    <EnvCode>TWILIO_WHATSAPP_TO_NUMBER</EnvCode> in <EnvCode>.env</EnvCode>.
-                  </li>
-                  <li>In Twilio Console, point the inbound WhatsApp webhook at your deployed API.</li>
-                  <li>Send a test WhatsApp message, then refresh.</li>
-                </SetupSteps>
-              )}
             </div>
 
             {x?.configured && (

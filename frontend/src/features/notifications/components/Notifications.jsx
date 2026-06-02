@@ -85,14 +85,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       setUnread(unreadN)
       setLastLoadedAt(new Date())
       publishUnreadCount(unreadN)
-      // #region agent log
-      const apiItems = Array.isArray(list?.items) ? list.items : []
-      fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:load',message:'notifications_loaded',data:{apiItemCount:apiItems.length,unread:Number(c?.unread??0),types:apiItems.slice(0,5).map((x)=>x?.type)},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
     } catch (e) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:load',message:'notifications_load_error',data:{error:String(e?.response?.data?.error||e?.message||e)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       setError(e?.response?.data?.error || e?.message || 'Failed to load notifications')
       setLastLoadedAt(null)
     } finally {
@@ -125,13 +118,6 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       }),
     [items, isAdminUI],
   )
-
-  useEffect(() => {
-    if (loading) return
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/f31118e8-e97e-4fd2-81f6-b3323a08b3c7',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f06d8e'},body:JSON.stringify({sessionId:'f06d8e',location:'Notifications.jsx:visibleItems',message:'visible_items_computed',data:{itemsLen:items.length,visibleLen:visibleItems.length,deliveryPrefs:deliveryPrefs?{new_feedback:!!deliveryPrefs.new_feedback,assigned_to_me:!!deliveryPrefs.assigned_to_me,anomaly_alerts:!!deliveryPrefs.anomaly_alerts,realtime:!!deliveryPrefs.realtime}:null,unread},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
-    // #endregion
-  }, [loading, items.length, visibleItems.length, deliveryPrefs, unread])
 
   const unreadItems = useMemo(() => visibleItems.filter((x) => !x?.read_at), [visibleItems])
   const selectedCount = useMemo(() => selectedIds.size, [selectedIds])

@@ -303,12 +303,22 @@ export default function InboxLite({ onNavigate }) {
 
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key !== READ_IDS_KEY) return
-      try {
-        const arr = e.newValue ? JSON.parse(e.newValue) : []
-        setReadIds(new Set(Array.isArray(arr) ? arr : []))
-      } catch {
-        // ignore
+      if (e.key === READ_IDS_KEY) {
+        try {
+          const arr = e.newValue ? JSON.parse(e.newValue) : []
+          setReadIds(new Set(Array.isArray(arr) ? arr : []))
+        } catch {
+          // ignore
+        }
+        return
+      }
+      if (e.key === 'cfp_archived_feedback_ids') {
+        try {
+          const arr = e.newValue ? JSON.parse(e.newValue) : []
+          setArchivedIds(new Set(Array.isArray(arr) ? arr : []))
+        } catch {
+          // ignore
+        }
       }
     }
     window.addEventListener('storage', onStorage)

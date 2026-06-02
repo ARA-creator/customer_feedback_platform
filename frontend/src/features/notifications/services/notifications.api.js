@@ -1,4 +1,5 @@
 import { api, USE_DEV_API_PROXY, getBackendOrigin } from '../../../shared/lib/apiClient'
+import { publishNotificationsUnread } from '../../../shared/lib/crossTabSync'
 
 export async function getNotifications({ cursor, unreadOnly, limit } = {}) {
   const params = {}
@@ -15,12 +16,7 @@ export async function getUnreadCount() {
 }
 
 export function publishUnreadCount(unread) {
-  if (typeof window === 'undefined') return
-  try {
-    window.dispatchEvent(new CustomEvent('cfp-notifications-unread', { detail: { unread } }))
-  } catch {
-    // ignore
-  }
+  publishNotificationsUnread(unread)
 }
 
 export async function markRead({ ids, all } = {}) {
