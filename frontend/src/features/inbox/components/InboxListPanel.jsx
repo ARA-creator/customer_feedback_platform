@@ -27,6 +27,7 @@ export default function InboxListPanel({
   loadMoreSentinelRef,
   onLoadMore,
   onClearFilters,
+  prefetchingUnread = false,
 }) {
   return (
     <div className="min-w-0 flex-1">
@@ -85,7 +86,7 @@ export default function InboxListPanel({
       </div>
 
       <div className="mt-4 space-y-2">
-        {loading ? (
+        {loading || prefetchingUnread ? (
           <InboxListSkeleton rows={5} />
         ) : error ? null : displayedItems.length === 0 ? (
           <EmptyState

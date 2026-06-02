@@ -40,7 +40,7 @@ const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
   a.replace(/_/g, ' ').localeCompare(b.replace(/_/g, ' '), undefined, { sensitivity: 'base' }),
 )
 
-const INBOX_PAGE_SIZE = 5
+const INBOX_PAGE_SIZE = 25
 const READ_IDS_KEY = 'cfp_inbox_read_feedback_ids'
 
 const SENTIMENT_COLORS = {
@@ -674,6 +674,12 @@ export default function InboxLite({ onNavigate }) {
     return arr.filter((it) => !archivedIds.has(it?.id))
   }, [items, archivedIds])
 
+  const totalInboxCount = useMemo(() => {
+    const server = Number(counts?.all)
+    if (Number.isFinite(server) && server >= 0) return server
+    return inboxCount
+  }, [counts?.all, inboxCount])
+
   const unreadInboxCount = useMemo(
     () =>
       computeStableUnreadCount({
@@ -684,6 +690,30 @@ export default function InboxLite({ onNavigate }) {
       }),
     [counts?.all, scopedInboxIds, readIds, inboxItemsForStats],
   )
+
+  const unreadTabActive = listTab === 'unread' || activeQuickFilter === 'unread'
+
+  const loadedUnreadOnPage = useMemo(
+    () => visibleItems.filter((it) => !readIds.has(it?.id)).length,
+    [visibleItems, readIds],
+  )
+
+  /** Unread tab filters client-side; paginate until unread rows appear or feed ends. */
+  useEffect(() => {
+    if (!unreadTabActive) return
+    if (loading || loadingMore) return
+    if (!feedHasMore) return
+    if (loadedUnreadOnPage > 0) return
+    if (items.length === 0) return
+    load({ append: true })
+  }, [unreadTabActive, loadedUnreadOnPage, feedHasMore, loading, loadingMore, items.length, load])
+
+  const prefetchingUnread =
+    unreadTabActive &&
+    !loading &&
+    displayedItems.length === 0 &&
+    items.length > 0 &&
+    (loadingMore || feedHasMore)
 
   const sidebarStats = useMemo(
     () => ({
@@ -860,7 +890,7 @@ export default function InboxLite({ onNavigate }) {
         dateRangeOptions={dateRangeOptions}
         folder={folder}
         onFolderChange={setFolder}
-        inboxCount={inboxCount}
+        inboxCount={totalInboxCount}
         archiveCount={archiveCount}
         onRefresh={load}
         loading={loading}
@@ -962,7 +992,8 @@ export default function InboxLite({ onNavigate }) {
             error={error}
             listTab={listTab}
             onListTabChange={setListTab}
-            allCount={Number(counts?.all ?? inboxCount) || visibleItems.length}
+            allCount={totalInboxCount}
+            prefetchingUnread={prefetchingUnread}
             unreadCount={unreadInboxCount}
             sortBy={sortBy}
             onSortChange={setSortBy}

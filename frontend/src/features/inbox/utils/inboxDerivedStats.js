@@ -36,15 +36,26 @@ export function needsResponse(item) {
  */
 export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItems }) {
   const totalN = Number(total)
-  if (Number.isFinite(totalN) && totalN > 0 && scopedIds?.size) {
-    let readKnown = 0
-    for (const id of scopedIds) {
-      if (readIds?.has?.(id)) readKnown += 1
+  const scoped = scopedIds?.size ? scopedIds : null
+  if (Number.isFinite(totalN) && totalN >= 0 && scoped) {
+    // Full feed loaded for current filters — exact unread from scoped ids.
+    if (scoped.size >= totalN) {
+      let unread = 0
+      for (const id of scoped) {
+        if (!readIds?.has?.(id)) unread += 1
+      }
+      return unread
     }
-    const known = scopedIds.size
-    const unreadKnown = known - readKnown
-    const unreadUnknown = Math.max(0, totalN - known)
-    return unreadUnknown + unreadKnown
+    if (totalN > 0) {
+      let readKnown = 0
+      for (const id of scoped) {
+        if (readIds?.has?.(id)) readKnown += 1
+      }
+      const known = scoped.size
+      const unreadKnown = known - readKnown
+      const unreadUnknown = Math.max(0, totalN - known)
+      return unreadUnknown + unreadKnown
+    }
   }
   const arr = Array.isArray(loadedItems) ? loadedItems : []
   return arr.filter((it) => !readIds?.has?.(it?.id)).length
