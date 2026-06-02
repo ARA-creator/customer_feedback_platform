@@ -4,7 +4,7 @@ import { FiChevronDown, FiLogOut, FiSettings, FiBell } from 'react-icons/fi'
 import { pathForView } from '../../../app/routes'
 import { displayNameFromUser, formatUserRole, getUserInitialsFromUser } from '../../lib/userDisplay'
 
-export default function UserProfileMenu({ user, onSignOut }) {
+export default function UserProfileMenu({ user, onSignOut, hideAgentLinks = false }) {
   const navigate = useNavigate()
   const menuId = useId()
   const rootRef = useRef(null)
@@ -84,24 +84,28 @@ export default function UserProfileMenu({ user, onSignOut }) {
             <p className="truncate text-xs text-gray-500 dark:text-gray-400">{email}</p>
             <p className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{roleLabel}</p>
           </div>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => go('settings')}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"
-          >
-            <FiSettings className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
-            Settings
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => go('notifications')}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"
-          >
-            <FiBell className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
-            Notifications
-          </button>
+          {!hideAgentLinks && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => go('settings')}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                <FiSettings className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+                Settings
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => go('notifications')}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                <FiBell className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+                Notifications
+              </button>
+            </>
+          )}
           {onSignOut && (
             <>
               <div className="my-1 border-t border-gray-100 dark:border-gray-800" role="separator" />

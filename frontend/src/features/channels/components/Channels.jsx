@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FiCheckCircle, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
+import { FiCheckCircle, FiXCircle, FiRefreshCw } from 'react-icons/fi'
 import { getChannelsStatus, triggerXPoll, updateChannelIngest } from '../services/channels.api'
+import IntegrationsHealthSection from './IntegrationsHealthSection'
 
 function StatusPill({ tone = 'off', label }) {
   const styles =
@@ -187,7 +188,7 @@ export default function Channels() {
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Channels</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              Connect Instagram, Facebook, and X to ingest customer feedback into the inbox.
+              Connection status, ingest toggles, and ingestion health for all channels.
             </p>
           </div>
           <button
@@ -335,14 +336,9 @@ export default function Channels() {
             </tbody>
           </table>
         </div>
-        <a
-          href="/admin/integrations"
-          className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#009750] hover:text-[#007a42] dark:text-emerald-400"
-        >
-          View integrations health
-          <FiExternalLink className="h-3.5 w-3.5" aria-hidden />
-        </a>
       </div>
+
+      <IntegrationsHealthSection />
     </div>
   )
 }

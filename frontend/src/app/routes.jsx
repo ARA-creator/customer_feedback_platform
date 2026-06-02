@@ -12,7 +12,6 @@ export const VIEW_PATHS = {
   admin_overview: '/admin',
   admin_users: '/admin/users',
   admin_roles: '/admin/roles',
-  admin_integrations: '/admin/integrations',
   admin_db: '/admin/db',
   admin_enterprise_auth: '/admin/enterprise-sso',
   admin_reply_approvals: '/admin/reply-approvals',
@@ -24,7 +23,6 @@ export const VIEW_PATHS = {
 export const ADMIN_NOTIFICATION_HREFS = new Set([
   'admin_users',
   'admin_roles',
-  'admin_integrations',
   'admin_overview',
   'admin_reply_approvals',
   'admin_activity',
@@ -68,6 +66,24 @@ export function isAdminPath(pathname) {
 export function isDashboardAgentPath(pathname) {
   const view = viewFromPathname(pathname)
   return view === 'overview' || view === 'insights' || view === 'inbox'
+}
+
+/** CX/agent portal routes admins should not use (sidebar hidden + redirect to /admin). */
+export function isAgentPortalPath(pathname) {
+  const path = pathname || ''
+  const view = viewFromPathname(path)
+  if (path.startsWith('/settings')) return true
+  const agentViews = new Set([
+    'overview',
+    'insights',
+    'inbox',
+    'notifications',
+    'settings',
+    'settings_security',
+    'reports',
+    'customer',
+  ])
+  return view != null && agentViews.has(view)
 }
 
 export function userIsAdminUI(user) {

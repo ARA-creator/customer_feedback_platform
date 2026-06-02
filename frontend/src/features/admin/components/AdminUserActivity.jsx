@@ -83,13 +83,20 @@ export default function AdminUserActivity() {
                       {row.created_at ? new Date(row.created_at).toLocaleString() : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
-                      {row.actor_email || (row.actor_user_id ? `User #${row.actor_user_id}` : 'System')}
+                      {row.actor_display ||
+                        row.actor_email ||
+                        (row.actor_user_id ? `User #${row.actor_user_id}` : 'System')}
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                       {formatAction(row.action)}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                      {row.target_email || row.target_id || '—'}
+                      {row.target_display ||
+                        row.target_email ||
+                        (row.target_type === 'user' && row.target_id
+                          ? `User #${row.target_id}`
+                          : row.target_id) ||
+                        '—'}
                       {row.target_type ? (
                         <span className="ml-1 text-xs text-gray-400">({row.target_type})</span>
                       ) : null}

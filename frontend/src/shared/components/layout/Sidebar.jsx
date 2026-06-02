@@ -126,6 +126,7 @@ function Sidebar({
   }, [])
 
   useEffect(() => {
+    if (isAdminUI) return undefined
     let mounted = true
     ;(async () => {
       try {
@@ -140,7 +141,7 @@ function Sidebar({
     return () => {
       mounted = false
     }
-  }, [])
+  }, [isAdminUI])
 
   const applyUnreadFromServer = useCallback((n) => {
     const v = Number(n)
@@ -148,6 +149,7 @@ function Sidebar({
   }, [])
 
   useEffect(() => {
+    if (isAdminUI) return undefined
     const refreshUnread = () => {
       getUnreadCount()
         .then((res) => applyUnreadFromServer(res?.unread))
@@ -191,7 +193,7 @@ function Sidebar({
       window.removeEventListener('cfp-notifications-unread', onUnreadEvent)
       window.removeEventListener('storage', onStorage)
     }
-  }, [applyUnreadFromServer])
+  }, [applyUnreadFromServer, isAdminUI])
 
   const setCollapsed = useCallback((v) => {
     setRailCollapsed(v)
@@ -207,8 +209,9 @@ function Sidebar({
   const initials = useMemo(() => getInitials(userEmail), [userEmail])
 
   const c = railCollapsed
-  /** Overview + Inbox — available in separate tabs alongside Admin (same session). */
-  const showAgentDashboardNav = true
+  /** CX overview/inbox — hidden on the admin portal (admins use /admin only). */
+  const showAgentDashboardNav = !isAdminUI
+  const showAccountNav = !isAdminUI
 
   return (
     <aside
@@ -352,15 +355,6 @@ function Sidebar({
             )}
             {canManageIntegrations && (
               <NavButton
-                active={currentView === 'admin_integrations'}
-                collapsed={c}
-                icon={FiActivity}
-                label="Integrations health"
-                onClick={() => go('admin_integrations')}
-              />
-            )}
-            {canManageIntegrations && (
-              <NavButton
                 active={currentView === 'admin_db'}
                 collapsed={c}
                 icon={FiServer}
@@ -399,66 +393,64 @@ function Sidebar({
           </>
         )}
 
-        <div
-          className={`my-2 border-t border-gray-200 dark:border-gray-800 ${c ? 'md:mx-0' : ''}`}
-          aria-hidden
-        />
-        <p
-          className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 ${
-            c ? 'md:sr-only' : ''
-          }`}
-        >
-          Account
-        </p>
-        {canViewReports && (
-          <NavButton
-            active={currentView === 'reports'}
-            collapsed={c}
-            icon={FiDownload}
-            label="Reports"
-            onClick={() => go('reports')}
-            testId="nav-reports"
-          />
+        {showAccountNav && (
+          <>
+            <div
+              className={`my-2 border-t border-gray-200 dark:border-gray-800 ${c ? 'md:mx-0' : ''}`}
+              aria-hidden
+            />
+            <p
+              className={`px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-500 ${
+                c ? 'md:sr-only' : ''
+              }`}
+            >
+              Account
+            </p>
+            {canViewReports && (
+              <NavButton
+                active={currentView === 'reports'}
+                collapsed={c}
+                icon={FiDownload}
+                label="Reports"
+                onClick={() => go('reports')}
+                testId="nav-reports"
+              />
+            )}
+            <NavButton
+              active={currentView === 'settings' || currentView === 'settings_security'}
+              collapsed={c}
+              icon={FiSettings}
+              label="Settings"
+              onClick={() => go('settings')}
+              testId="nav-settings"
+            />
+            <button
+              type="button"
+              onClick={() => go('notifications')}
+              title="Notifications"
+              aria-label="Notifications"
+              aria-current={currentView === 'notifications' ? 'page' : undefined}
+              data-testid="nav-notifications"
+              className={`sidebar-link w-full ${
+                currentView === 'notifications' ? 'sidebar-link-active' : 'sidebar-link-inactive'
+              } ${c ? 'md:justify-center md:px-2 md:space-x-0 relative' : ''} focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950`}
+            >
+              <FiBell className="h-5 w-5 shrink-0" aria-hidden />
+              <span className={c ? 'md:sr-only' : ''}>Notifications</span>
+              <span
+                className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  currentView === 'notifications'
+                    ? 'bg-white/15 text-white'
+                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                } ${c ? 'md:absolute md:right-1.5 md:top-1.5 md:ml-0 md:px-1.5' : ''}`}
+                aria-label={`${notificationsUnread} unread notifications`}
+                title={`${notificationsUnread} unread`}
+              >
+                {notificationsUnread}
+              </span>
+            </button>
+          </>
         )}
-        <NavButton
-          active={currentView === 'settings' || currentView === 'settings_security'}
-          collapsed={c}
-          icon={FiSettings}
-          label="Settings"
-          onClick={() => go('settings')}
-          testId="nav-settings"
-        />
-        <button
-          type="button"
-          onClick={() => go('notifications')}
-          title="Notifications"
-          aria-label="Notifications"
-          aria-current={currentView === 'notifications' ? 'page' : undefined}
-          data-testid="nav-notifications"
-          className={`sidebar-link w-full ${
-            currentView === 'notifications' ? 'sidebar-link-active' : 'sidebar-link-inactive'
-          } ${c ? 'md:justify-center md:px-2 md:space-x-0 relative' : ''} focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750] focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950`}
-        >
-          <FiBell className="h-5 w-5 shrink-0" aria-hidden />
-          <span className={c ? 'md:sr-only' : ''}>Notifications</span>
-          <span
-            className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-              currentView === 'notifications'
-                ? 'bg-white/15 text-white'
-                : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
-            } ${c ? 'md:absolute md:right-1.5 md:top-1.5 md:ml-0 md:px-1.5' : ''}`}
-            aria-label={`${notificationsUnread} unread notifications`}
-            title={`${notificationsUnread} unread`}
-          >
-            {notificationsUnread}
-          </span>
-        </button>
-        <button
-          type="button"
-          className="hidden"
-          aria-hidden="true"
-          tabIndex={-1}
-        />
       </nav>
 
       {/* —— User strip + visible sign out —— */}

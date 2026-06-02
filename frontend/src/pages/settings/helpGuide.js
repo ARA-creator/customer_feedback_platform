@@ -74,7 +74,7 @@ export function buildHelpGuide(auth) {
       to: '/admin/channels',
       title: 'Channels',
       description:
-        'Connection status for email, WhatsApp, and other ingest channels. Copy webhook URLs and follow setup steps for Twilio and integrations.',
+        'Connection status, channel ingest toggles, and integrations health (last ingested per source).',
     })
   }
   if (canUsers) {
@@ -92,11 +92,6 @@ export function buildHelpGuide(auth) {
     })
   }
   if (canIntegrations) {
-    adminSections.push({
-      to: '/admin/integrations',
-      title: 'Integrations health',
-      description: 'Monitor ingestion pipelines and integration errors.',
-    })
     adminSections.push({
       to: '/admin/db',
       title: 'Database connection',

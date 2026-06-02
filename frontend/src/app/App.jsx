@@ -12,7 +12,6 @@ import { connectNotificationsStream } from '../features/notifications/services/n
 import { useLiveNotificationToasts } from '../features/notifications/hooks/useLiveNotificationToasts'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
-import AdminIntegrations from '../features/admin/components/AdminIntegrations'
 import AdminOverview from '../features/admin/components/AdminOverview'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
@@ -43,6 +42,7 @@ import {
   userCanViewReports,
   userIsAdminUI,
   viewFromPathname,
+  isAgentPortalPath,
 } from './routes'
 import { useAppNavigate } from './useAppNavigate'
 import { DisplayPreferencesProvider, useDisplayPreferences } from '../shared/context/DisplayPreferencesContext'
@@ -84,6 +84,14 @@ const HEADER_TITLES = {
   settings: 'Settings',
   customer: 'Customer 360',
   reports: 'Reports',
+  admin_overview: 'Admin',
+  channels: 'Channels',
+  admin_users: 'Users',
+  admin_roles: 'Roles & permissions',
+  admin_db: 'Database connection',
+  admin_enterprise_auth: 'Enterprise SSO',
+  admin_reply_approvals: 'Reply approvals',
+  admin_activity: 'User activity',
 }
 
 function AppChrome({
@@ -137,6 +145,7 @@ function AppChrome({
           onRefresh={onDashboardRefresh}
           user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
           onSignOut={signOut}
+          hideAgentLinks={isAdminUI}
         />
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
           <Outlet />
@@ -169,7 +178,8 @@ function AuthenticatedApp({ auth, setAuth }) {
   const canApproveReplies = useMemo(() => userCanApproveReplies(auth), [auth])
 
   const currentView = viewFromPathname(location.pathname)
-  const showDashboardRefresh = currentView === 'overview' || currentView === 'insights'
+  const showDashboardRefresh =
+    !isAdminUI && (currentView === 'overview' || currentView === 'insights')
 
   const registerDashboardRefresh = useCallback((fn) => {
     dashboardRefreshRef.current = typeof fn === 'function' ? fn : null
@@ -222,7 +232,7 @@ function AuthenticatedApp({ auth, setAuth }) {
   }, [])
 
   const { handleStreamEvent } = useLiveNotificationToasts({
-    enabled: notificationPrefsLoaded && realtimeEnabled,
+    enabled: !isAdminUI && notificationPrefsLoaded && realtimeEnabled,
     deliveryPrefs,
     onToast: (n) => pushLiveToast(n),
   })
@@ -243,12 +253,16 @@ function AuthenticatedApp({ auth, setAuth }) {
   )
 
   useEffect(() => {
-    if (!notificationPrefsLoaded || !realtimeEnabled) return undefined
+    if (isAdminUI || !notificationPrefsLoaded || !realtimeEnabled) return undefined
     return connectNotificationsStream(handleStreamEvent)
-  }, [notificationPrefsLoaded, realtimeEnabled, handleStreamEvent])
+  }, [isAdminUI, notificationPrefsLoaded, realtimeEnabled, handleStreamEvent])
 
   if (!isAdminUI && isAdminPath(location.pathname)) {
     return <Navigate to="/" replace />
+  }
+
+  if (isAdminUI && isAgentPortalPath(location.pathname)) {
+    return <Navigate to="/admin" replace />
   }
 
   if (location.pathname === '/admin/channels' && !canAccessWebhooks) {
@@ -330,10 +344,7 @@ function AuthenticatedApp({ auth, setAuth }) {
             path="/admin/roles"
             element={isAdminUI ? <AdminRoles /> : <Navigate to="/" replace />}
           />
-          <Route
-            path="/admin/integrations"
-            element={isAdminUI ? <AdminIntegrations /> : <Navigate to="/" replace />}
-          />
+          <Route path="/admin/integrations" element={<Navigate to="/admin/channels" replace />} />
           <Route
             path="/admin/db"
             element={isAdminUI ? <AdminDbConnection /> : <Navigate to="/" replace />}

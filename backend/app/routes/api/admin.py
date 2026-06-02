@@ -1229,7 +1229,7 @@ def admin_update_user(user_id: int):
             action="admin.user.update",
             target_type="user",
             target_id=str(user_id),
-            meta=changed,
+            meta={"email": user.email, **changed},
         )
         if "roles" in changed:
             try:
@@ -1282,7 +1282,7 @@ def admin_set_user_roles(user_id: int):
             action="admin.user.set_roles",
             target_type="user",
             target_id=str(user_id),
-            meta={"roles": [r.name for r in role_rows]},
+            meta={"email": user.email, "roles": [r.name for r in role_rows]},
         )
         try:
             _notify_admins_user_roles_changed(db, changed_user=user, roles=[r.name for r in role_rows])
@@ -1320,7 +1320,7 @@ def admin_set_user_status(user_id: int):
             action="admin.user.set_status",
             target_type="user",
             target_id=str(user_id),
-            meta={"is_active": bool(is_active)},
+            meta={"email": user.email, "is_active": bool(is_active)},
         )
         return jsonify(
             {
@@ -1669,7 +1669,7 @@ def admin_set_user_scope(user_id: int):
             action="admin.user.set_scope",
             target_type="user",
             target_id=str(user_id),
-            meta={"team": team, "region": region},
+            meta={"email": user.email, "team": team, "region": region},
         )
         return jsonify({"ok": True, "team": team, "region": region})
     except PermissionError as e:
@@ -1679,26 +1679,85 @@ def admin_set_user_scope(user_id: int):
         db.close()
 
 
-def _serialize_audit_entry(db, row: AuditLog) -> Dict[str, Any]:
-    actor = None
-    if row.actor_user_id:
-        actor = db.query(User).filter(User.id == row.actor_user_id).first()
-    target_user = None
+def _email_from_audit_meta(meta: Any) -> Optional[str]:
+    if not isinstance(meta, dict):
+        return None
+    raw = meta.get("email") or meta.get("target_email")
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    return s or None
+
+
+def _lookup_user_emails(db, user_ids: List[int]) -> Dict[int, str]:
+    ids = sorted({int(i) for i in user_ids if i is not None})
+    if not ids:
+        return {}
+    rows = db.query(User.id, User.email).filter(User.id.in_(ids)).all()
+    return {int(r[0]): str(r[1]) for r in rows if r and r[0] is not None and r[1]}
+
+
+def _format_audit_target_display(row: AuditLog, meta: dict, target_email: Optional[str]) -> str:
+    if row.target_type == "user":
+        if target_email:
+            return target_email
+        if row.target_id:
+            return f"User #{row.target_id}"
+        return "—"
+    if row.target_type == "role":
+        role_name = meta.get("role") if isinstance(meta, dict) else None
+        if role_name:
+            return str(role_name)
+        if row.target_id:
+            return f"Role #{row.target_id}"
+        return "—"
+    if target_email:
+        return target_email
+    return str(row.target_id) if row.target_id else "—"
+
+
+def _serialize_audit_entry(db, row: AuditLog, users_by_id: Optional[Dict[int, str]] = None) -> Dict[str, Any]:
+    meta = safe_json_loads(row.meta) if row.meta else {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    def email_for_user_id(uid: Optional[int]) -> Optional[str]:
+        if uid is None:
+            return None
+        if users_by_id is not None:
+            return users_by_id.get(int(uid))
+        u = db.query(User.email).filter(User.id == int(uid)).first()
+        return str(u.email).strip() if u and u.email else None
+
+    actor_email = email_for_user_id(row.actor_user_id) if row.actor_user_id else None
+    actor_display = actor_email or (f"User #{row.actor_user_id}" if row.actor_user_id else "System")
+
+    target_email: Optional[str] = None
     if row.target_type == "user" and row.target_id:
         try:
-            target_user = db.query(User).filter(User.id == int(row.target_id)).first()
+            target_uid = int(row.target_id)
+            target_email = email_for_user_id(target_uid) or _email_from_audit_meta(meta)
         except (TypeError, ValueError):
-            target_user = None
+            target_email = _email_from_audit_meta(meta)
+            if not target_email and row.target_id and "@" in str(row.target_id):
+                target_email = str(row.target_id).strip()
+    else:
+        target_email = _email_from_audit_meta(meta)
+
+    target_display = _format_audit_target_display(row, meta, target_email)
+
     return {
         "id": row.id,
         "action": row.action,
         "target_type": row.target_type,
         "target_id": row.target_id,
-        "meta": safe_json_loads(row.meta) if row.meta else {},
+        "meta": meta,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "actor_user_id": row.actor_user_id,
-        "actor_email": actor.email if actor else None,
-        "target_email": target_user.email if target_user else None,
+        "actor_email": actor_email,
+        "actor_display": actor_display,
+        "target_email": target_email,
+        "target_display": target_display,
     }
 
 
@@ -1723,7 +1782,22 @@ def admin_audit_logs():
             q = q.filter(AuditLog.target_type == target_type)
 
         rows = q.order_by(desc(AuditLog.created_at), desc(AuditLog.id)).limit(limit).all()
-        return jsonify({"items": [_serialize_audit_entry(db, r) for r in rows], "count": len(rows)})
+        user_ids: List[int] = []
+        for r in rows:
+            if r.actor_user_id:
+                user_ids.append(int(r.actor_user_id))
+            if r.target_type == "user" and r.target_id:
+                try:
+                    user_ids.append(int(r.target_id))
+                except (TypeError, ValueError):
+                    pass
+        users_by_id = _lookup_user_emails(db, user_ids)
+        return jsonify(
+            {
+                "items": [_serialize_audit_entry(db, r, users_by_id=users_by_id) for r in rows],
+                "count": len(rows),
+            }
+        )
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403

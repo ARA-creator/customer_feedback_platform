@@ -11,6 +11,7 @@ function Header({
   refreshDisabled,
   user,
   onSignOut,
+  hideAgentLinks = false,
 }) {
   return (
     <header className="bg-white/95 border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 shadow-sm dark:bg-gray-950/90 dark:border-gray-800">
@@ -52,7 +53,7 @@ function Header({
           >
             {theme === 'dark' ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
           </button>
-          <UserProfileMenu user={user} onSignOut={onSignOut} />
+          <UserProfileMenu user={user} onSignOut={onSignOut} hideAgentLinks={hideAgentLinks} />
         </div>
       </div>
     </header>
