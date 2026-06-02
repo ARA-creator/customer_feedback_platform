@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { authLogin, authMe, authSignup } from '../services/auth.api'
+import { captureApiSessionFromUrl } from '../../../shared/lib/authSession'
 import { ToastStack } from '../../../shared/components/ui'
 import AuthGate from './AuthGate'
 
@@ -57,6 +58,7 @@ export default function AuthShell({ onAuthenticated, adminPortal = false }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    captureApiSessionFromUrl()
     const params = new URLSearchParams(window.location.search)
     if (params.get('enterprise_signed_in') === '1') {
       authMe()

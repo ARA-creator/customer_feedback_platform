@@ -5,6 +5,7 @@ import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
 import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
+import { captureApiSessionFromUrl } from '../shared/lib/authSession'
 import { useNotificationPrefs } from '../features/notifications/hooks/useNotificationPrefs'
 import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
 import { useLiveNotificationToasts } from '../features/notifications/hooks/useLiveNotificationToasts'
@@ -405,6 +406,7 @@ function App() {
 
   useEffect(() => {
     let cancelled = false
+    captureApiSessionFromUrl()
     ;(async () => {
       try {
         const data = await authMe()

@@ -45,6 +45,20 @@ class User(Base):
     )
 
 
+class UserApiSession(Base):
+    """Per-tab bearer session (token stored hashed; CSRF bound to the row)."""
+
+    __tablename__ = "user_api_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)
+    csrf_token = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
 class Role(Base):
     __tablename__ = "roles"
 

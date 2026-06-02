@@ -34,7 +34,8 @@ from ...services.emailer import send_email_async, smtp_is_configured
 from ...emails.templates import reset_password_email, verify_email, welcome_email
 from ...extensions import limiter
 from . import api_bp
-from ._helpers import _current_user, _require_user, _user_permission_keys
+from ...services.api_sessions import create_api_session, csrf_for_api_session, revoke_api_session
+from ._helpers import _current_user, _get_bearer_token, _require_user, _user_permission_keys
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,12 @@ def _check_password_reset_code(user: User | None, code: str) -> str | None:
     return None
 
 
-def _ensure_csrf() -> str:
+def _ensure_csrf(db=None) -> str:
+    bearer = _get_bearer_token()
+    if bearer and db is not None:
+        csrf = csrf_for_api_session(db, bearer)
+        if csrf:
+            return csrf
     token = session.get("csrf_token")
     if not token:
         token = secrets.token_urlsafe(32)
@@ -143,21 +149,20 @@ def _serialize_auth_user(db, user: User) -> dict:
 
 
 def _login_response(db, user: User):
-    session.clear()
-    session["user_id"] = user.id
-    csrf = _ensure_csrf()
-    session.permanent = True
+    """Issue a per-tab API session (no shared Flask user_id cookie)."""
     try:
+        access_token, csrf = create_api_session(db, user.id)
         user.last_login_at = datetime.now(tz=timezone.utc)
         db.commit()
     except SQLAlchemyError:
-        logger.exception("Login failed: could not update last_login_at")
+        logger.exception("Login failed: could not create session")
         db.rollback()
         return jsonify({"error": "Database is temporarily unavailable. Please try again."}), 503
     return (
         jsonify(
             {
                 "csrf": csrf,
+                "access_token": access_token,
                 "user": _serialize_auth_user(db, user),
             }
         ),
@@ -240,17 +245,17 @@ def auth_enterprise_callback():
 
     db = SessionLocal()
     try:
-        session.clear()
-        session["user_id"] = user.id
-        _ensure_csrf()
-        session.permanent = True
+        access_token, _csrf = create_api_session(db, user.id)
         user.last_login_at = datetime.now(tz=timezone.utc)
         db.merge(user)
         db.commit()
         landing = _frontend_landing_path(db, user)
     finally:
         db.close()
-    return redirect(f"{front}{landing}?enterprise_signed_in=1")
+    from urllib.parse import quote
+
+    token_q = quote(access_token, safe="")
+    return redirect(f"{front}{landing}?enterprise_signed_in=1&api_session={token_q}")
 
 
 @api_bp.route("/auth/me", methods=["GET"])
@@ -265,7 +270,7 @@ def auth_me():
         blocked = access_block_reason(user)
         if blocked:
             return jsonify({"authenticated": False, "error": blocked}), 401
-        csrf = _ensure_csrf()
+        csrf = _ensure_csrf(db)
         return jsonify(
             {
                 "authenticated": True,
@@ -484,14 +489,23 @@ def auth_csrf():
         user = _current_user(db)
         if not user:
             return jsonify({"error": "Not authenticated"}), 401
-        return jsonify({"csrf": _ensure_csrf()})
+        return jsonify({"csrf": _ensure_csrf(db)})
     finally:
         db.close()
 
 
 @api_bp.route("/auth/logout", methods=["POST"])
 def auth_logout():
+    bearer = _get_bearer_token()
+    db = SessionLocal()
+    try:
+        if bearer:
+            revoke_api_session(db, bearer)
+            db.commit()
+    finally:
+        db.close()
     session.pop("user_id", None)
+    session.pop("csrf_token", None)
     return jsonify({"ok": True})
 
 

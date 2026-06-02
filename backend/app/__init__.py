@@ -118,8 +118,13 @@ def create_app() -> Flask:
         if not (path.startswith("/api/") or path.startswith("/auth/") or path.startswith("/feedback/") or path.startswith("/notifications/") or path.startswith("/events") or path.startswith("/customers/") or path.startswith("/policies/") or path.startswith("/analytics/") or path.startswith("/releases/") or path.startswith("/admin/")):
             return None
 
-        # No session: nothing to protect (and we don't want to block login/signup).
-        if not session.get("user_id"):
+        from .database import SessionLocal
+        from .routes.api._helpers import _get_bearer_token
+        from .services.api_sessions import csrf_for_api_session
+
+        bearer = _get_bearer_token()
+        cookie_user = session.get("user_id")
+        if not bearer and not cookie_user:
             return None
 
         # Exempt auth endpoints involved in initial auth / email flows.
@@ -139,7 +144,18 @@ def create_app() -> Flask:
         ):
             return None
 
-        expected = session.get("csrf_token")
+        expected = None
+        if bearer:
+            db = SessionLocal()
+            try:
+                expected = csrf_for_api_session(db, bearer)
+                if expected:
+                    db.commit()
+            finally:
+                db.close()
+        else:
+            expected = session.get("csrf_token")
+
         provided = request.headers.get("X-CSRF-Token")
         if not expected or not provided or str(provided) != str(expected):
             return {"error": "CSRF token missing or invalid"}, 403

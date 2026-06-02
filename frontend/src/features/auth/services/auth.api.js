@@ -1,4 +1,12 @@
 import { api, setCsrfToken } from '../../../shared/lib/apiClient'
+import { clearAuthSession, setAuthSession } from '../../../shared/lib/authSession'
+
+function applyAuthPayload(data) {
+  if (data?.access_token || data?.csrf) {
+    setAuthSession({ accessToken: data.access_token, csrf: data.csrf })
+  }
+  if (data?.csrf) setCsrfToken(data.csrf)
+}
 
 export const authConfig = async () => {
   const response = await api.get('/auth/config')
@@ -7,25 +15,30 @@ export const authConfig = async () => {
 
 export const authMe = async () => {
   const response = await api.get('/auth/me')
-  if (response?.data?.csrf) setCsrfToken(response.data.csrf)
+  applyAuthPayload(response?.data)
   return response.data
 }
 
 export const authSignup = async ({ email, password, name, account_type = 'external' }) => {
   const response = await api.post('/auth/signup', { email, password, name, account_type })
-  if (response?.data?.csrf) setCsrfToken(response.data.csrf)
+  applyAuthPayload(response?.data)
   return response.data
 }
 
 export const authLogin = async ({ email, password }) => {
   const response = await api.post('/auth/login', { email, password })
-  if (response?.data?.csrf) setCsrfToken(response.data.csrf)
+  applyAuthPayload(response?.data)
   return response.data
 }
 
 export const authLogout = async () => {
-  const response = await api.post('/auth/logout', {})
-  return response.data
+  try {
+    const response = await api.post('/auth/logout', {})
+    return response.data
+  } finally {
+    clearAuthSession()
+    setCsrfToken('')
+  }
 }
 
 export const authUpdateProfile = async ({ full_name } = {}) => {

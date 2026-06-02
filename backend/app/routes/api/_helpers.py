@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from queue import Queue
 from typing import Any, Dict, List, Optional, Tuple
 
-from flask import session
+from flask import request, session
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import load_only
 
@@ -219,7 +219,62 @@ def _scope_feedback_query(db, q, *, user: User, perms: set[str]):
     return q.filter(or_(FeedbackWorkflow.assigned_user_id == user.id, FeedbackWorkflow.assigned_user_id.is_(None)))
 
 
+def _get_bearer_token() -> Optional[str]:
+    """Bearer token from Authorization header or ?access_token= (SSE only)."""
+    auth = request.headers.get("Authorization") or ""
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+        if token:
+            return token
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        q = request.args.get("access_token")
+        if q:
+            return str(q).strip() or None
+    return None
+
+
+def _user_load_options():
+    return load_only(
+        User.id,
+        User.email,
+        User.role,
+        User.is_active,
+        User.deleted_at,
+        User.email_verified_at,
+        User.account_type,
+        User.auth_provider,
+        User.approved_at,
+    )
+
+
+def _load_user_by_id(db: SessionLocal, uid: int) -> Optional[User]:
+    from ...services.auth_account import access_block_reason
+
+    user = (
+        db.query(User)
+        .options(_user_load_options())
+        .filter(User.id == uid)
+        .first()
+    )
+    if not user:
+        return None
+    if getattr(user, "deleted_at", None):
+        return None
+    if access_block_reason(user):
+        return None
+    return user
+
+
 def _current_user(db: SessionLocal) -> Optional[User]:
+    bearer = _get_bearer_token()
+    if bearer:
+        from ...services.api_sessions import resolve_api_session
+
+        row = resolve_api_session(db, bearer)
+        if not row:
+            return None
+        return _load_user_by_id(db, int(row.user_id))
+
     uid_raw = session.get("user_id")
     if not uid_raw:
         return None
@@ -228,36 +283,8 @@ def _current_user(db: SessionLocal) -> Optional[User]:
     except (TypeError, ValueError):
         session.pop("user_id", None)
         return None
-    # Be careful selecting all columns: in production, schema may temporarily lag behind
-    # mapped columns during deployments. Loading only the fields needed for access control
-    # prevents hard failures (e.g., missing newly-added auth columns).
-    user = (
-        db.query(User)
-        .options(
-            load_only(
-                User.id,
-                User.email,
-                User.role,
-                User.is_active,
-                User.deleted_at,
-                User.email_verified_at,
-                User.account_type,
-                User.auth_provider,
-                User.approved_at,
-            )
-        )
-        .filter(User.id == uid)
-        .first()
-    )
+    user = _load_user_by_id(db, uid)
     if not user:
-        return None
-    if getattr(user, "deleted_at", None):
-        # Soft-deleted accounts must not retain a session.
-        session.pop("user_id", None)
-        return None
-    from ...services.auth_account import access_block_reason
-
-    if access_block_reason(user):
         session.pop("user_id", None)
         return None
     return user

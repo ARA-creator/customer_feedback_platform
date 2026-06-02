@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAccessToken, getStoredCsrfToken } from './authSession'
 
 function normalizeBackendOrigin(value) {
   const v = String(value ?? 'http://localhost:5000').trim().replace(/\/+$/, '')
@@ -79,13 +80,24 @@ const api = axios.create({
 let csrfToken = ''
 export function setCsrfToken(next) {
   csrfToken = String(next || '')
+  try {
+    if (next) sessionStorage.setItem('cfp_csrf_token', String(next))
+  } catch {
+    // ignore
+  }
 }
 
 api.interceptors.request.use((config) => {
-  const method = String(config?.method || 'get').toLowerCase()
-  if (!['get', 'head', 'options'].includes(method) && csrfToken) {
+  const accessToken = getAccessToken()
+  if (accessToken) {
     config.headers = config.headers || {}
-    config.headers['X-CSRF-Token'] = csrfToken
+    config.headers.Authorization = `Bearer ${accessToken}`
+  }
+  const method = String(config?.method || 'get').toLowerCase()
+  const csrf = csrfToken || getStoredCsrfToken()
+  if (!['get', 'head', 'options'].includes(method) && csrf) {
+    config.headers = config.headers || {}
+    config.headers['X-CSRF-Token'] = csrf
   }
   return config
 })

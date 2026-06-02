@@ -1,4 +1,5 @@
 import { api, USE_DEV_API_PROXY, getBackendOrigin } from '../../../shared/lib/apiClient'
+import { getAccessToken } from '../../../shared/lib/authSession'
 import { publishNotificationsUnread } from '../../../shared/lib/crossTabSync'
 
 export async function getNotifications({ cursor, unreadOnly, limit } = {}) {
@@ -56,7 +57,9 @@ export async function savePreferences(prefs) {
  */
 export function connectNotificationsStream(onEvent) {
   const base = USE_DEV_API_PROXY ? '' : getBackendOrigin()
-  const url = `${base}/api/notifications/stream`
+  const token = getAccessToken()
+  const qs = token ? `?access_token=${encodeURIComponent(token)}` : ''
+  const url = `${base}/api/notifications/stream${qs}`
   const es = new EventSource(url, { withCredentials: true })
 
   es.onmessage = (msg) => {
