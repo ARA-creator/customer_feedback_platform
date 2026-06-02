@@ -37,6 +37,7 @@ from ...services.notification_policy import (
     is_platform_admin,
     prefs_allow,
 )
+from ...services.analytics_time_window import parse_overview_time_window
 from ...services.policy_detection import detect_policies
 from . import api_bp
 from ._helpers import (
@@ -159,15 +160,25 @@ def get_recent_feedback():
     try:
         limit = request.args.get("limit", type=int) or 50
         limit = min(limit, 1000)
+        sentiment = (request.args.get("sentiment") or "all").strip().lower()
+        time_window = (request.args.get("time_window") or "all").strip().lower()
 
-        recent = (
+        q = (
             db.query(Feedback)
             .filter(Feedback.deleted_at.is_(None))
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
-            .order_by(desc(Feedback.created_at))
-            .limit(limit)
-            .all()
         )
+        if sentiment in ("positive", "negative", "neutral"):
+            q = q.filter(func.lower(func.coalesce(Feedback.sentiment_label, "")) == sentiment)
+
+        now = datetime.now(tz=timezone.utc)
+        _tw, filter_from, filter_to, _label, _range_days = parse_overview_time_window(time_window, now=now)
+        if filter_from is not None:
+            q = q.filter(Feedback.created_at >= filter_from)
+        if filter_to is not None:
+            q = q.filter(Feedback.created_at < filter_to)
+
+        recent = q.order_by(desc(Feedback.created_at)).limit(limit).all()
         feedback_list = [_serialize_feedback(f) for f in recent]
         return jsonify({"feedback": feedback_list, "count": len(feedback_list)})
     except Exception:

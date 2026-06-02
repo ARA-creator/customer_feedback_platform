@@ -3,6 +3,7 @@ import {
   getSentimentIcon,
   sentimentAvatarRingClass,
   sentimentIconGlyphClass,
+  sentimentLabelFromItem,
 } from '../../../shared/lib/sentimentDisplay'
 import { extractFeedbackTitle, getPriorityBadge } from '../utils/inboxDerivedStats'
 
@@ -38,7 +39,7 @@ export default function InboxFeedbackRow({
   formatRelativeTime,
   SourceIcon,
 }) {
-  const sentiment = String(item?.sentiment_label || 'unknown').toLowerCase()
+  const sentiment = sentimentLabelFromItem(item) || 'neutral'
   const SentimentIcon = getSentimentIcon(sentiment)
   const title = extractFeedbackTitle(item)
   const preview = String(item?.message || item?.message_preview || '').trim()

@@ -1,3 +1,4 @@
+import { sentimentLabelFromItem } from '../../../../shared/lib/sentimentDisplay'
 import { formatSentimentWord } from '../../utils/dashboardFormatters'
 import { humanizeSource } from '../../utils/insightsMetrics'
 
@@ -11,12 +12,6 @@ export function formatFeedbackListDate(iso) {
     year: 'numeric',
   })
 }
-
-export {
-  getSentimentIcon,
-  sentimentAvatarRingClass as sentimentIconStyles,
-  sentimentIconGlyphClass,
-} from '../../../../shared/lib/sentimentDisplay'
 
 export function categoryPillClass(category) {
   const c = String(category || '').toLowerCase()
@@ -48,6 +43,6 @@ export function feedbackCategoryLabel(item) {
 export function feedbackMetaLine(item) {
   const source = humanizeSource(item?.source)
   const date = formatFeedbackListDate(item?.created_at)
-  const sentiment = formatSentimentWord(item?.sentiment_label)
+  const sentiment = formatSentimentWord(sentimentLabelFromItem(item) || item?.sentiment_label)
   return `${source} · ${date} · ${sentiment}`
 }

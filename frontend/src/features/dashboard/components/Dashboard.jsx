@@ -20,6 +20,7 @@ import {
 import {
   getAnalytics,
   getFeedbackAnalyzer,
+  buildOverviewRecentFeedbackParams,
   getRecentFeedback,
   getPriorityQueue,
   getProductPulse,
@@ -180,6 +181,14 @@ function Dashboard({
   /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
   const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => getDefaultOverviewPeriod())
   const [overviewSentimentFilter, setOverviewSentimentFilter] = useState('all')
+  const overviewRecentFeedbackParamsRef = useRef({})
+
+  useEffect(() => {
+    overviewRecentFeedbackParamsRef.current = buildOverviewRecentFeedbackParams({
+      sentiment: overviewSentimentFilter,
+      timeWindow: overviewTimeFilter,
+    })
+  }, [overviewSentimentFilter, overviewTimeFilter])
 
   useEffect(() => {
     const onPrefsChanged = (e) => {
@@ -375,6 +384,7 @@ function Dashboard({
     analyticsSseDebounceRef,
     refreshDashboardSilentRef,
     getRecentFeedback,
+    getRecentFeedbackParamsRef: overviewRecentFeedbackParamsRef,
     getPriorityQueue,
     setRecentFeedback,
     setPriorityQueue,
@@ -634,6 +644,7 @@ function Dashboard({
               sourcePerformance={sourcePerformance}
               productPulse={productPulse}
               recentFeedback={recentFeedback}
+              overviewSentimentFilter={overviewSentimentFilter}
               onNavigateToInsights={onNavigateToInsights}
               onNavigateToInbox={onNavigateToInbox}
               onOpenFeedback={openFeedbackModal}

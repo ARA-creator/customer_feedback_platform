@@ -23,9 +23,20 @@ export const getAnalytics = async (params = undefined) => {
   return response.data
 }
 
-export const getRecentFeedback = async (limit = 50) => {
-  const response = await api.get(`/feedback/recent?limit=${limit}`)
+export const getRecentFeedback = async (limit = 50, params = {}) => {
+  const query = { limit, ...params }
+  const response = await api.get('/feedback/recent', withParamsConfig(query))
   return response.data
+}
+
+/** Query params for overview Recent Feedback (matches analytics filters). */
+export function buildOverviewRecentFeedbackParams({ sentiment, timeWindow } = {}) {
+  const params = {}
+  const s = String(sentiment || 'all').toLowerCase()
+  if (s && s !== 'all') params.sentiment = s
+  const tw = String(timeWindow || 'all').toLowerCase()
+  if (tw && tw !== 'all') params.time_window = tw
+  return params
 }
 
 export const getPriorityQueue = async (limit = 20) => {

@@ -1,12 +1,17 @@
+import { useMemo } from 'react'
 import { FiArrowRight } from 'react-icons/fi'
 import DashboardChartCard from './DashboardChartCard'
+import {
+  getSentimentIcon,
+  itemMatchesSentimentFilter,
+  sentimentAvatarRingClass,
+  sentimentIconGlyphClass,
+  sentimentLabelFromItem,
+} from '../../../../shared/lib/sentimentDisplay'
 import {
   categoryPillClass,
   feedbackCategoryLabel,
   feedbackMetaLine,
-  getSentimentIcon,
-  sentimentIconGlyphClass,
-  sentimentIconStyles,
 } from './recentFeedbackUi'
 
 function ChartSkeleton({ className = 'h-56' }) {
@@ -29,7 +34,8 @@ function FeedbackRow({ item, onOpen }) {
   const msg = String(item.message || item.summary || '').trim()
   const preview = msg.length > 85 ? `${msg.slice(0, 85)}…` : msg || '—'
   const tagLabel = feedbackCategoryLabel(item)
-  const SentimentIcon = getSentimentIcon(item.sentiment_label)
+  const sentiment = sentimentLabelFromItem(item) || 'neutral'
+  const SentimentIcon = getSentimentIcon(sentiment)
 
   return (
     <li>
@@ -40,13 +46,11 @@ function FeedbackRow({ item, onOpen }) {
       >
         <div className="flex items-center gap-3">
           <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sentimentIconStyles(
-              item.sentiment_label,
-            )}`}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sentimentAvatarRingClass(sentiment)}`}
             aria-hidden
           >
             <SentimentIcon
-              className={`h-5 w-5 ${sentimentIconGlyphClass(item.sentiment_label)}`}
+              className={`h-5 w-5 ${sentimentIconGlyphClass(sentiment)}`}
               aria-hidden
             />
           </span>
@@ -68,11 +72,24 @@ function FeedbackRow({ item, onOpen }) {
 export default function RecentFeedbackCard({
   ready,
   recentFeedback = [],
+  sentimentFilter = 'all',
   onViewAll,
   onViewAllFeedback,
   onOpenFeedback,
 }) {
-  const recent = (Array.isArray(recentFeedback) ? recentFeedback : []).slice(0, 3)
+  const recent = useMemo(() => {
+    const list = Array.isArray(recentFeedback) ? recentFeedback : []
+    return list.filter((it) => itemMatchesSentimentFilter(it, sentimentFilter)).slice(0, 3)
+  }, [recentFeedback, sentimentFilter])
+
+  const emptyLabel = useMemo(() => {
+    const f = String(sentimentFilter || 'all').toLowerCase()
+    if (f && f !== 'all') {
+      return `No ${f} feedback in this period.`
+    }
+    return 'No recent feedback yet.'
+  }, [sentimentFilter])
+
   const showFooter = Boolean(onViewAllFeedback && recent.length > 0)
 
   return (
@@ -83,7 +100,7 @@ export default function RecentFeedbackCard({
       {!ready ? (
         <ChartSkeleton className="h-56" />
       ) : recent.length === 0 ? (
-        <p className="text-sm text-gray-600 dark:text-gray-400">No recent feedback yet.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{emptyLabel}</p>
       ) : (
         <>
           <ul className="space-y-3">

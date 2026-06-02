@@ -30,6 +30,7 @@ export default function OverviewChartsSection({
   sourcePerformance,
   productPulse = [],
   recentFeedback = [],
+  overviewSentimentFilter = 'all',
   onNavigateToInsights,
   onNavigateToInbox,
   onOpenFeedback,
@@ -130,6 +131,7 @@ export default function OverviewChartsSection({
           <RecentFeedbackCard
             ready={ready}
             recentFeedback={recentFeedback}
+            sentimentFilter={overviewSentimentFilter}
             onViewAll={onNavigateToInbox ? () => onNavigateToInbox() : onNavigateToInsights}
             onViewAllFeedback={onNavigateToInbox ? () => onNavigateToInbox() : onNavigateToInsights}
             onOpenFeedback={onOpenFeedback}

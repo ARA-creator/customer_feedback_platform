@@ -7,6 +7,7 @@ export function useDashboardSse({
   analyticsSseDebounceRef,
   refreshDashboardSilentRef,
   getRecentFeedback,
+  getRecentFeedbackParamsRef,
   getPriorityQueue,
   setRecentFeedback,
   setPriorityQueue,
@@ -33,8 +34,9 @@ export function useDashboardSse({
 
         ;(async () => {
           try {
+            const recentQuery = getRecentFeedbackParamsRef?.current || {}
             const [recentData, priorityData] = await Promise.all([
-              getRecentFeedback(100).catch(() => ({ feedback: [] })),
+              getRecentFeedback(100, recentQuery).catch(() => ({ feedback: [] })),
               getPriorityQueue(50).catch(() => ({ feedback: [] })),
             ])
             setRecentFeedback(recentData.feedback || [])
@@ -81,6 +83,7 @@ export function useDashboardSse({
     analyticsSseDebounceRef,
     refreshDashboardSilentRef,
     getRecentFeedback,
+    getRecentFeedbackParamsRef,
     getPriorityQueue,
     setRecentFeedback,
     setPriorityQueue,
