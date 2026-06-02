@@ -614,6 +614,7 @@ function Dashboard({
             analyticsLoading={analyticsLoading}
             analyticsDelayPassed={analyticsDelayPassed}
             navigateToInboxPreset={navigateToInboxPreset}
+            sentimentFilter={overviewSentimentFilter}
           />
         </>
       )}
