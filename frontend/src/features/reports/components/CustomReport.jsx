@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import { FiArrowLeft, FiDownload } from 'react-icons/fi'
 import { downloadCustomReportCsv } from '../services/reports.api'
 
+const FIELD_CLASSES =
+  'mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500'
+
 export default function CustomReport({ onBack, embedded = false }) {
   const [sentiment, setSentiment] = useState('all')
   const [category, setCategory] = useState('all')
@@ -84,11 +87,11 @@ export default function CustomReport({ onBack, embedded = false }) {
       <div className="card p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-xs font-semibold text-gray-600">Sentiment</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Sentiment</label>
             <select
               value={sentiment}
               onChange={(e) => setSentiment(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
             >
               <option value="all">All</option>
               <option value="positive">Positive</option>
@@ -97,61 +100,61 @@ export default function CustomReport({ onBack, embedded = false }) {
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Priority</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Priority</label>
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
             >
               <option value="all">All</option>
               <option value="high">High priority (≥80)</option>
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Source (exact)</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Source (exact)</label>
             <input
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
               placeholder="all, email, web, google_forms…"
             />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-600">Category</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Category</label>
             <input
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
               placeholder="all or e.g. claims"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Limit</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Limit</label>
             <input
               type="number"
               min={1}
               max={5000}
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value || 2000))}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Date from</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Date from</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-600">Date to</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Date to</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="mt-1 w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm"
+              className={FIELD_CLASSES}
             />
           </div>
         </div>
@@ -168,7 +171,7 @@ export default function CustomReport({ onBack, embedded = false }) {
           </button>
         </div>
 
-        <p className="mt-3 text-xs text-gray-500">
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           Note: search text filtering is not available in custom reports because message content is encrypted in the database.
         </p>
       </div>

@@ -1139,7 +1139,13 @@ export default function InboxLite({ onNavigate }) {
                                   {product}
                                 </span>
                                 {m.policy_masked ? (
-                                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{m.policy_masked}</span>
+                                  String(m.policy_masked).includes('(name match)') ? (
+                                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                      Plan name match
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">{m.policy_masked}</span>
+                                  )
                                 ) : null}
                                 {isPrimary ? (
                                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200">

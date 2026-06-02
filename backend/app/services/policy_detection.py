@@ -145,7 +145,66 @@ _CTX_KEYWORDS = (
     "policy number",
     "member",
     "member id",
+    "plan",
+    "cover",
+    "premium",
+    "claim",
 )
+
+# Product aliases that collide with HTML/CSS tokens (e.g. style="transition: …").
+# For these, compact substring matching is disabled; phrase matches need insurance context.
+_HTML_NOISE_ALIASES: Set[str] = {
+    "TRANSITION",
+    "TRANSFORM",
+    "DISPLAY",
+    "POSITION",
+    "MARGIN",
+    "PADDING",
+    "BORDER",
+    "OPACITY",
+    "OVERFLOW",
+    "FLEX",
+    "GRID",
+    "CENTER",
+    "MIDDLE",
+    "BLOCK",
+    "INLINE",
+    "TABLE",
+    "FONT",
+    "COLOR",
+    "BACKGROUND",
+    "CONTENT",
+    "FLOAT",
+    "CLEAR",
+    "VISIBILITY",
+    "ANIMATION",
+}
+
+
+def _strip_html_for_policy_scan(text: str) -> str:
+    """
+    Extract rough visible text from HTML emails before product-name matching.
+
+    Raw HTML often contains CSS properties like ``transition:`` that falsely match
+    product aliases (e.g. TRANSITION plan).
+    """
+    t = str(text or "")
+    if not t.strip():
+        return ""
+    if "<" not in t and "&lt;" not in t.lower():
+        return t
+    t = re.sub(r"(?is)<(script|style|head|noscript)[^>]*>.*?</\1>", " ", t)
+    t = re.sub(r"(?is)<!--.*?-->", " ", t)
+    t = re.sub(r"(?is)<[^>]+>", " ", t)
+    t = (
+        t.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", '"')
+        .replace("&#39;", "'")
+    )
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def _normalize_for_scan(text: str) -> str:
@@ -191,16 +250,18 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
       - policies: list of DetectedPolicy (may be empty)
       - debug: minimal info safe for logs (no raw policy numbers)
     """
-    msg = message_plaintext or ""
-    msg_lc = msg.lower()
-    norm = _normalize_for_scan(msg)
-    phrase_msg = _phrase_norm(msg)
-    compact_msg = _compact_norm(msg)
+    raw = message_plaintext or ""
+    visible = _strip_html_for_policy_scan(raw)
+    scan_text = visible or raw
+    msg_lc = scan_text.lower()
+    norm = _normalize_for_scan(scan_text)
+    phrase_msg = _phrase_norm(scan_text)
+    compact_msg = _compact_norm(scan_text)
 
     # Phone candidates (not persisted; used only to reduce false positives in scoring)
     phone_candidates = []
     try:
-        phone_candidates = [m.group(0) for m in _PHONE_RE.finditer(msg or "")]
+        phone_candidates = [m.group(0) for m in _PHONE_RE.finditer(scan_text or "")]
     except Exception:
         phone_candidates = []
 
@@ -264,17 +325,23 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         compact_aliases: Set[str] = set(cat.get("aliases_compact") or set())
 
         matched_aliases = 0
+        has_ctx = any(k in msg_lc for k in _CTX_KEYWORDS)
         for alias in phrase_aliases:
             if not alias:
                 continue
             if len(alias) < 4:
                 continue
-            if f" {alias} " in f" {phrase_msg} ":
-                matched_aliases += 1
+            if f" {alias} " not in f" {phrase_msg} ":
+                continue
+            if alias in _HTML_NOISE_ALIASES and not has_ctx:
+                continue
+            matched_aliases += 1
         for alias in compact_aliases:
             if not alias:
                 continue
             if len(alias) < 6:
+                continue
+            if alias in _HTML_NOISE_ALIASES:
                 continue
             if alias in compact_msg:
                 matched_aliases += 1
@@ -350,7 +417,7 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         "policy_number_candidates": number_candidates,
         "product_name_candidates": name_candidates,
         "phones_found": len(phone_candidates),
-        "has_any_keyword": any(k in (msg or "").lower() for k in _CTX_KEYWORDS),
+        "has_any_keyword": any(k in (scan_text or "").lower() for k in _CTX_KEYWORDS),
     }
     return detected, debug
 
