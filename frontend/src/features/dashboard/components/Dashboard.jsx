@@ -70,6 +70,7 @@ import {
   useInsightsProductParams,
 } from '../hooks/useInsightsProductOptions'
 import { useDashboardDataLoader } from '../hooks/useDashboardDataLoader'
+import { useOverviewRecentFeedback } from '../hooks/useOverviewRecentFeedback'
 import { useDashboardSse } from '../hooks/useDashboardSse'
 import { useInboxFilteredLists } from '../hooks/useInboxFilteredLists'
 import { filterFeedbackItems } from '../utils/dashboardInboxFilters'
@@ -334,6 +335,15 @@ function Dashboard({
   })
 
   const sourceTrendColors = useMemo(() => buildSourceTrendColorMap(sourceTrends), [sourceTrends])
+
+  const { recentFeedbackLoading } = useOverviewRecentFeedback({
+    enabled: mode === 'overview',
+    sentiment: overviewSentimentFilter,
+    timeWindow: overviewTimeFilter,
+    getRecentFeedback,
+    setRecentFeedback,
+    paramsRef: overviewRecentFeedbackParamsRef,
+  })
 
   useDashboardDataLoader({
       mode,
@@ -645,6 +655,8 @@ function Dashboard({
               productPulse={productPulse}
               recentFeedback={recentFeedback}
               overviewSentimentFilter={overviewSentimentFilter}
+              recentFeedbackLoading={recentFeedbackLoading}
+              navigateToInboxPreset={navigateToInboxPreset}
               onNavigateToInsights={onNavigateToInsights}
               onNavigateToInbox={onNavigateToInbox}
               onOpenFeedback={openFeedbackModal}

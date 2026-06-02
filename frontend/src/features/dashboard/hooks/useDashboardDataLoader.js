@@ -224,25 +224,19 @@ export function useDashboardDataLoader({
 
         if (!isSilent) setAnalyticsLoading(false)
 
-        const recentQuery =
-          mode === 'overview'
-            ? {
-                ...(overviewSentimentFilter && overviewSentimentFilter !== 'all'
-                  ? { sentiment: overviewSentimentFilter }
-                  : {}),
-                ...(overviewTimeFilter && overviewTimeFilter !== 'all'
-                  ? { time_window: overviewTimeFilter }
-                  : {}),
-              }
-            : {}
-        const [recentData, priorityData] = await Promise.all([
-          getRecentFeedback(100, recentQuery).catch(() => ({ feedback: [] })),
-          getPriorityQueue(50).catch(() => ({ feedback: [] })),
-        ])
-        if (cancelled) return
-
-        setRecentFeedback(recentData.feedback || [])
-        setPriorityQueue(priorityData.feedback || [])
+        if (mode === 'overview') {
+          const priorityData = await getPriorityQueue(50).catch(() => ({ feedback: [] }))
+          if (cancelled) return
+          setPriorityQueue(priorityData.feedback || [])
+        } else {
+          const [recentData, priorityData] = await Promise.all([
+            getRecentFeedback(100).catch(() => ({ feedback: [] })),
+            getPriorityQueue(50).catch(() => ({ feedback: [] })),
+          ])
+          if (cancelled) return
+          setRecentFeedback(recentData.feedback || [])
+          setPriorityQueue(priorityData.feedback || [])
+        }
 
         if (!isSilent) setInboxLoading(false)
         setError(null)

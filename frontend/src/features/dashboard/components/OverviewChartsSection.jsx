@@ -31,6 +31,8 @@ export default function OverviewChartsSection({
   productPulse = [],
   recentFeedback = [],
   overviewSentimentFilter = 'all',
+  recentFeedbackLoading = false,
+  navigateToInboxPreset,
   onNavigateToInsights,
   onNavigateToInbox,
   onOpenFeedback,
@@ -84,6 +86,14 @@ export default function OverviewChartsSection({
   const topics = buildTopicsTableRows(insuranceTagsBreakdown, { limit: 5 })
   const ready = !analyticsLoading && analyticsDelayPassed
 
+  const openInboxWithOverviewSentiment = () => {
+    if (navigateToInboxPreset) {
+      navigateToInboxPreset({ sentiment: overviewSentimentFilter || 'all', priority: 'all' })
+      return
+    }
+    onNavigateToInbox?.()
+  }
+
   return (
     <div className="space-y-6">
       {/* Row 1: Sentiment trend */}
@@ -130,10 +140,11 @@ export default function OverviewChartsSection({
         <div className={isCx ? 'lg:col-span-1' : ''}>
           <RecentFeedbackCard
             ready={ready}
+            listLoading={recentFeedbackLoading}
             recentFeedback={recentFeedback}
             sentimentFilter={overviewSentimentFilter}
-            onViewAll={onNavigateToInbox ? () => onNavigateToInbox() : onNavigateToInsights}
-            onViewAllFeedback={onNavigateToInbox ? () => onNavigateToInbox() : onNavigateToInsights}
+            onViewAll={navigateToInboxPreset || onNavigateToInbox ? openInboxWithOverviewSentiment : onNavigateToInsights}
+            onViewAllFeedback={navigateToInboxPreset || onNavigateToInbox ? openInboxWithOverviewSentiment : onNavigateToInsights}
             onOpenFeedback={onOpenFeedback}
           />
         </div>

@@ -169,7 +169,7 @@ def get_recent_feedback():
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
         )
         if sentiment in ("positive", "negative", "neutral"):
-            q = q.filter(func.lower(func.coalesce(Feedback.sentiment_label, "")) == sentiment)
+            q = q.filter(func.lower(func.trim(func.coalesce(Feedback.sentiment_label, ""))) == sentiment)
 
         now = datetime.now(tz=timezone.utc)
         _tw, filter_from, filter_to, _label, _range_days = parse_overview_time_window(time_window, now=now)

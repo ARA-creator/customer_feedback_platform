@@ -71,6 +71,7 @@ function FeedbackRow({ item, onOpen }) {
 
 export default function RecentFeedbackCard({
   ready,
+  listLoading = false,
   recentFeedback = [],
   sentimentFilter = 'all',
   onViewAll,
@@ -81,6 +82,8 @@ export default function RecentFeedbackCard({
     const list = Array.isArray(recentFeedback) ? recentFeedback : []
     return list.filter((it) => itemMatchesSentimentFilter(it, sentimentFilter)).slice(0, 3)
   }, [recentFeedback, sentimentFilter])
+
+  const showSkeleton = !ready || listLoading
 
   const emptyLabel = useMemo(() => {
     const f = String(sentimentFilter || 'all').toLowerCase()
@@ -97,7 +100,7 @@ export default function RecentFeedbackCard({
       title="Recent Feedback"
       action={onViewAll ? <ViewAllButton onClick={onViewAll}>View all</ViewAllButton> : null}
     >
-      {!ready ? (
+      {showSkeleton ? (
         <ChartSkeleton className="h-56" />
       ) : recent.length === 0 ? (
         <p className="text-sm text-gray-600 dark:text-gray-400">{emptyLabel}</p>
