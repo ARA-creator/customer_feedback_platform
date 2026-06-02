@@ -34,11 +34,12 @@ export default function AdminUsers() {
 
   const roleOptions = useMemo(() => roles.map((r) => r.name).sort(), [roles])
 
-  const load = async () => {
+  const load = async (scopeOverride) => {
+    const scope = scopeOverride ?? userScope
     setLoading(true)
     setError(null)
     try {
-      const [u, r] = await Promise.all([adminListUsers({ scope: userScope }), adminListRoles()])
+      const [u, r] = await Promise.all([adminListUsers({ scope }), adminListRoles()])
       setUsers(u?.users || [])
       setRoles(r?.roles || [])
     } catch (e) {
@@ -132,7 +133,9 @@ export default function AdminUsers() {
     setError(null)
     try {
       await adminDeleteUser(u.id)
-      await load()
+      setSaveNotice(`${u.email} was moved to the recycle bin.`)
+      setUserScope('recycle')
+      await load('recycle')
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to remove user')
     } finally {

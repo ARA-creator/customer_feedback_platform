@@ -742,7 +742,10 @@ def feedback_feed():
         # `customer_key` (email_hash:...) for Customer 360, so "View customer" stays unavailable.
         try:
             touched = False
+            backfill_budget = 3
             for fb in page:
+                if backfill_budget <= 0:
+                    break
                 if getattr(fb, "email_hash", None):
                     continue
                 meta_fb = normalize_channel_metadata(getattr(fb, "source", None), fb.channel_metadata) or {}
@@ -759,6 +762,7 @@ def feedback_feed():
                 _upsert_customer_entities(db, feedback=fb, message_plaintext=msg_plain)
                 _upsert_search_document(db, feedback=fb, message_plaintext=msg_plain)
                 touched = True
+                backfill_budget -= 1
             if touched:
                 db.commit()
         except Exception:

@@ -27,13 +27,19 @@ class Base(DeclarativeBase):
 
 # For PostgreSQL in production: DATABASE_URL like:
 _pool_recycle = int(os.getenv("SQLALCHEMY_POOL_RECYCLE_SECONDS", "280"))
+_db_uri = _normalize_database_uri(config.SQLALCHEMY_DATABASE_URI)
+_connect_args = {}
+if _db_uri.startswith("postgresql"):
+    _connect_args["connect_timeout"] = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "10"))
+
 
 engine = create_engine(
-    _normalize_database_uri(config.SQLALCHEMY_DATABASE_URI),
+    _db_uri,
     echo=config.SQLALCHEMY_ECHO,
     future=True,
     pool_pre_ping=True,
     pool_recycle=max(60, _pool_recycle),
+    connect_args=_connect_args,
 )
 
 SessionLocal = scoped_session(

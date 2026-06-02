@@ -52,6 +52,28 @@ logger = logging.getLogger(__name__)
 
 integrations_bp = Blueprint("integrations", __name__, url_prefix="/integrations")
 
+
+def _channel_ingest_blocked_response(channel_id: str):
+    """Return a Flask response when admin disabled ingest for this channel."""
+    db = SessionLocal()
+    try:
+        from ..services.channel_ingest import is_channel_ingest_enabled
+
+        if is_channel_ingest_enabled(db, channel_id):
+            return None
+    finally:
+        db.close()
+    return (
+        jsonify(
+            {
+                "error": f"Ingest for this channel is turned off in Webhooks & channels.",
+                "channel": channel_id,
+                "ingest_enabled": False,
+            }
+        ),
+        403,
+    )
+
 def _sha256_hex(value: str) -> str:
     import hashlib
 
@@ -64,6 +86,21 @@ def poll_x_and_ingest(*, bearer_token: str, query: str, max_results: int = 25) -
 
     Dedupe uses ExternalIngestedItem.url_hash = sha256(tweet_url).
     """
+    db = SessionLocal()
+    try:
+        from ..services.channel_ingest import is_channel_ingest_enabled
+
+        if not is_channel_ingest_enabled(db, "x"):
+            return {
+                "message": "X ingest is disabled",
+                "items_found": 0,
+                "processed": 0,
+                "skipped": True,
+                "ingest_enabled": False,
+            }
+    finally:
+        db.close()
+
     items = x_search_recent(bearer_token=bearer_token, query=query, max_results=max_results)
     processed = 0
 
@@ -99,6 +136,21 @@ def poll_tiktok_and_ingest(*, access_token: str, base_url: str, query: str, limi
     """
     Poll TikTok comments/mentions (where available) and ingest new items as feedback.
     """
+    db = SessionLocal()
+    try:
+        from ..services.channel_ingest import is_channel_ingest_enabled
+
+        if not is_channel_ingest_enabled(db, "tiktok"):
+            return {
+                "message": "TikTok ingest is disabled",
+                "items_found": 0,
+                "processed": 0,
+                "skipped": True,
+                "ingest_enabled": False,
+            }
+    finally:
+        db.close()
+
     items = tiktok_poll_comments_or_mentions(
         access_token=access_token, base_url=base_url, query=query, limit=limit
     )
@@ -132,11 +184,29 @@ def poll_tiktok_and_ingest(*, access_token: str, base_url: str, query: str, limi
     }
 
 
+_META_SOURCE_CHANNEL = {
+    "instagram": "instagram",
+    "facebook": "facebook",
+    "whatsapp": "whatsapp_meta",
+}
+
+
 def _ingest_meta_webhook_payload(feedback_payload: dict) -> bool:
     """
     Ingest Instagram/Facebook webhook payload with ExternalIngestedItem dedupe.
     """
     source = str(feedback_payload.get("source") or "meta")
+    channel_id = _META_SOURCE_CHANNEL.get(source.strip().lower())
+    if channel_id:
+        db = SessionLocal()
+        try:
+            from ..services.channel_ingest import is_channel_ingest_enabled
+
+            if not is_channel_ingest_enabled(db, channel_id):
+                return True
+        finally:
+            db.close()
+
     meta = feedback_payload.get("channel_metadata") or {}
     h = meta_event_dedupe_hash(source, meta)
     if not h:
@@ -388,6 +458,21 @@ def poll_email_and_ingest(
 
     Returns a summary dict similar to the /integrations/email/poll response.
     """
+    db = SessionLocal()
+    try:
+        from ..services.channel_ingest import is_channel_ingest_enabled
+
+        if not is_channel_ingest_enabled(db, "email"):
+            return {
+                "message": "Email ingest is disabled",
+                "emails_found": 0,
+                "processed": 0,
+                "skipped": True,
+                "ingest_enabled": False,
+            }
+    finally:
+        db.close()
+
     since_date = datetime.now() - timedelta(hours=hours_back)
     emails = fetch_emails(imap_server, imap_port, username, password, folder, since_date)
     processed_count = 0
@@ -454,6 +539,21 @@ def poll_twilio_whatsapp_and_ingest(
     auth_token = (auth_token or "").strip()
     if not account_sid or not auth_token:
         return {"message": "Missing Twilio credentials", "messages_found": 0, "processed": 0, "error": "no_credentials"}
+
+    db = SessionLocal()
+    try:
+        from ..services.channel_ingest import is_channel_ingest_enabled
+
+        if not is_channel_ingest_enabled(db, "whatsapp_twilio"):
+            return {
+                "message": "WhatsApp (Twilio) ingest is disabled",
+                "messages_found": 0,
+                "processed": 0,
+                "skipped": True,
+                "ingest_enabled": False,
+            }
+    finally:
+        db.close()
 
     to_filter = (to_number or "").strip() or None
 
@@ -548,6 +648,10 @@ def google_forms_webhook():
         provided = (request.headers.get("X-Webhook-Secret", "") or "").strip()
         if provided != expected:
             return jsonify({"error": "Invalid webhook secret"}), 403
+
+    blocked = _channel_ingest_blocked_response("google_forms")
+    if blocked:
+        return blocked
 
     payload = request.get_json(silent=True) or {}
     message = (payload.get("message") or "").strip()
@@ -673,6 +777,12 @@ def email_poll():
     if error_response:
         return error_response
 
+    blocked = _channel_ingest_blocked_response("email")
+    if blocked:
+        if request.method == "GET":
+            return jsonify({"ok": True, "skipped": True, "message": "Email ingest is disabled"}), 200
+        return blocked
+
     config = get_config()
     data = payload
 
@@ -714,6 +824,10 @@ def web_poll():
         - timeout_seconds: int
         - max_snippet_chars: int
     """
+    blocked = _channel_ingest_blocked_response("web")
+    if blocked:
+        return blocked
+
     config = get_config()
     data = request.get_json(silent=True) or {}
 
@@ -817,6 +931,10 @@ def x_poll():
     if not query:
         return jsonify({"error": "Missing X_QUERY"}), 400
 
+    blocked = _channel_ingest_blocked_response("x")
+    if blocked:
+        return blocked
+
     max_results = int((request.get_json(silent=True) or {}).get("max_results") or 25)
     max_results = max(10, min(max_results, 100))
 
@@ -864,6 +982,10 @@ def tiktok_poll():
     if not query:
         return jsonify({"error": "Missing query"}), 400
 
+    blocked = _channel_ingest_blocked_response("tiktok")
+    if blocked:
+        return blocked
+
     limit = int((request.get_json(silent=True) or {}).get("limit") or 25)
     limit = max(1, min(limit, 100))
 
@@ -894,6 +1016,10 @@ def web_search_poll():
     api_key = (data.get("serpapi_api_key") or getattr(config, "SERPAPI_API_KEY", "") or "").strip()
     if not api_key:
         return jsonify({"error": "Missing SERPAPI_API_KEY"}), 400
+
+    blocked = _channel_ingest_blocked_response("web")
+    if blocked:
+        return blocked
 
     keywords_raw = data.get("keywords", None)
     if isinstance(keywords_raw, list):
@@ -985,6 +1111,10 @@ def whatsapp_poll():
     if not account_sid or not auth_token:
         return jsonify({"error": "Missing Twilio credentials"}), 400
 
+    blocked = _channel_ingest_blocked_response("whatsapp_twilio")
+    if blocked:
+        return blocked
+
     try:
         result = poll_twilio_whatsapp_and_ingest(
             account_sid=str(account_sid).strip(),
@@ -1019,6 +1149,15 @@ def whatsapp_twilio_webhook():
             }
         )
 
+    def _twiml_ok() -> FlaskResponse:
+        # Twilio expects TwiML (XML) or an empty 2xx response.
+        # Returning empty TwiML avoids Twilio's default demo auto-replies.
+        return FlaskResponse("<Response></Response>", status=200, mimetype="application/xml")
+
+    blocked = _channel_ingest_blocked_response("whatsapp_twilio")
+    if blocked:
+        return _twiml_ok()
+
     form_data = request.form.to_dict()
 
     # verify signature if token is configured
@@ -1027,11 +1166,6 @@ def whatsapp_twilio_webhook():
         if not verify_twilio_signature(url, form_data, twilio_auth_token):
             logger.warning("Invalid Twilio signature")
             return jsonify({"error": "Invalid signature"}), 403
-
-    def _twiml_ok() -> FlaskResponse:
-        # Twilio expects TwiML (XML) or an empty 2xx response.
-        # Returning empty TwiML avoids Twilio's default demo auto-replies.
-        return FlaskResponse("<Response></Response>", status=200, mimetype="application/xml")
 
     feedback_payload = parse_twilio_webhook(form_data)
     if not feedback_payload:
@@ -1063,6 +1197,10 @@ def whatsapp_meta_webhook():
             return challenge, 200
         else:
             return jsonify({"error": "Invalid verify token"}), 403
+
+    blocked = _channel_ingest_blocked_response("whatsapp_meta")
+    if blocked:
+        return jsonify({"status": "ok", "skipped": True}), 200
 
     # verify signature
     if app_secret:
@@ -1116,6 +1254,10 @@ def instagram_webhook():
             }
         )
 
+    blocked = _channel_ingest_blocked_response("instagram")
+    if blocked:
+        return jsonify({"status": "ok", "skipped": True}), 200
+
     # verify signature
     if app_secret:
         signature = request.headers.get("X-Hub-Signature-256", "")
@@ -1167,6 +1309,10 @@ def facebook_webhook():
                 "note": "This endpoint is called by Meta, not manually in a browser.",
             }
         )
+
+    blocked = _channel_ingest_blocked_response("facebook")
+    if blocked:
+        return jsonify({"status": "ok", "skipped": True}), 200
 
     # verify signature
     if app_secret:

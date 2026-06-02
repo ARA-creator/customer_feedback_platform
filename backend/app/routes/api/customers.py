@@ -28,13 +28,17 @@ from ...services.metadata_normalization import safe_json_loads
 from . import api_bp
 from ._helpers import (
     _find_customer_profile,
+    _normalize_metadata,
     _parse_dt,
+    _purchase_summary_for_customer,
     _require_user,
     _scope_feedback_query,
     _safe_json_dumps,
-    _serialize_feedback,
+    _serialize_feedback_batch,
+    _ticket_summary_for_customer,
     _user_permission_keys,
 )
+from ...services.prioritization import normalize_source_group
 
 
 @api_bp.route("/customers/<path:customer_key>", methods=["GET"])
@@ -95,18 +99,36 @@ def customer_profile(customer_key: str):
         if not rows:
             return jsonify({"error": "Customer not found"}), 404
 
-        serialized = [_serialize_feedback(row) for row in rows]
         profile = _find_customer_profile(db, customer_key=customer_key)
+        purchase_summary = (
+            _purchase_summary_for_customer(
+                db, getattr(profile, "id", None), getattr(profile, "customer_tier", None)
+            )
+            if profile
+            else {}
+        )
+        ticket_summary = _ticket_summary_for_customer(db, getattr(profile, "id", None)) if profile else {}
+
         source_counts: Dict[str, int] = {}
         sentiment_counts: Dict[str, int] = {}
         customer_label = None
-        for item in serialized:
-            src = item.get("source_group") or item.get("source") or "unknown"
+        for row in rows:
+            meta = _normalize_metadata(row)
+            src = normalize_source_group(row.source) or "unknown"
             source_counts[src] = source_counts.get(src, 0) + 1
-            sent = (item.get("sentiment_label") or "unknown").lower()
+            sent = (row.sentiment_label or "unknown").lower()
             sentiment_counts[sent] = sentiment_counts.get(sent, 0) + 1
             if not customer_label:
-                customer_label = item.get("customer_label") or item.get("customer_id")
+                customer_label = meta.get("customer_label") or row.customer_id
+
+        history_rows = rows[:25]
+        serialized = _serialize_feedback_batch(
+            db,
+            history_rows,
+            purchase_summary=purchase_summary,
+            ticket_summary=ticket_summary,
+            profile_id=getattr(profile, "id", None),
+        )
 
         identifiers = []
         purchases_payload = []
@@ -181,9 +203,9 @@ def customer_profile(customer_key: str):
                     "customer_tier": getattr(profile, "customer_tier", None),
                     "lifecycle_stage": getattr(profile, "lifecycle_stage", None),
                     "company": getattr(profile, "company", None),
-                    "total_feedback": len(serialized),
-                    "first_seen_at": serialized[-1].get("created_at"),
-                    "last_seen_at": serialized[0].get("created_at"),
+                    "total_feedback": len(rows),
+                    "first_seen_at": rows[-1].created_at.isoformat() if rows[-1].created_at else None,
+                    "last_seen_at": rows[0].created_at.isoformat() if rows[0].created_at else None,
                     "source_counts": source_counts,
                     "sentiment_counts": sentiment_counts,
                 },
@@ -200,7 +222,7 @@ def customer_profile(customer_key: str):
                 "purchases": purchases_payload,
                 "tickets": tickets_payload,
                 "demographics": demographics_payload,
-                "history": serialized[:25],
+                "history": serialized,
             }
         )
     except Exception:

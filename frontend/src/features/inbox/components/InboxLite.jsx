@@ -11,6 +11,7 @@ import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import {
   computeInboxStats,
+  computeStableUnreadCount,
   computeTopThemes,
   isHighPriority,
   needsResponse,
@@ -270,6 +271,7 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
+  const [scopedInboxIds, setScopedInboxIds] = useState(() => new Set())
   const feedCursorRef = useRef(null)
   const [feedHasMore, setFeedHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -298,6 +300,20 @@ export default function InboxLite({ onNavigate }) {
       // ignore
     }
   }, [readIds])
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== READ_IDS_KEY) return
+      try {
+        const arr = e.newValue ? JSON.parse(e.newValue) : []
+        setReadIds(new Set(Array.isArray(arr) ? arr : []))
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   useEffect(() => {
     const onClear = () => setArchivedIds(new Set())
@@ -505,6 +521,9 @@ export default function InboxLite({ onNavigate }) {
       if (append) setLoadingMore(true)
       else {
         setLoading(true)
+        // Counts are filter-dependent; clear immediately to avoid showing stale totals
+        // if the background counts request times out.
+        setCounts({})
         feedCursorRef.current = null
         setFeedHasMore(false)
       }
@@ -531,29 +550,52 @@ export default function InboxLite({ onNavigate }) {
           params.cursor_created_at = feedCursorRef.current.cursor_created_at
           params.cursor_id = feedCursorRef.current.cursor_id
         }
-        const [feed, sc] = await Promise.all([getFeedbackFeed(params), getSourceCounts(params)])
+        const feed = await getFeedbackFeed(params)
         if (seq !== loadSeq.current) return
         const newItems = Array.isArray(feed?.items) ? feed.items : []
+        const inboxIds = newItems.filter((it) => it?.id && !archivedIds.has(it.id)).map((it) => it.id)
         if (append && !isPriority) {
           setItems((prev) => [...prev, ...newItems])
+          setScopedInboxIds((prev) => {
+            const next = new Set(prev)
+            for (const id of inboxIds) next.add(id)
+            return next
+          })
         } else {
           setItems(newItems)
+          setScopedInboxIds(new Set(inboxIds))
         }
         feedCursorRef.current = feed?.next_cursor ?? null
         setFeedHasMore(Boolean(feed?.has_more))
         if (!append) {
-          const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
-          const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
-          const total = Number(sc?.total ?? 0)
-          const base = grouped || raw || {}
-          setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
           setLastLoadedAt(new Date())
+        }
+
+        // Tab counts are secondary; don't block showing the feed if this is slow.
+        if (!append) {
+          try {
+            const sc = await getSourceCounts(params)
+            if (seq !== loadSeq.current) return
+            const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
+            const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
+            const total = Number(sc?.total ?? 0)
+            const base = grouped || raw || {}
+            setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
+          } catch {
+            // Keep feed visible; counts refresh on next load.
+          }
         }
       } catch (e) {
         if (seq !== loadSeq.current) return
         if (!append) {
-          setError(e?.response?.data?.error || e?.message || 'Failed to load inbox')
+          const raw = e?.response?.data?.error || e?.message || 'Failed to load inbox'
+          const msg =
+            String(raw).toLowerCase().includes('timeout')
+              ? 'The server is taking longer than usual (often Neon cold start). Try Refresh, or check that the backend can reach the database.'
+              : raw
+          setError(msg)
           setItems([])
+          setScopedInboxIds(new Set())
           setCounts({})
           setLastLoadedAt(null)
           feedCursorRef.current = null
@@ -576,6 +618,7 @@ export default function InboxLite({ onNavigate }) {
       peakHour,
       peakRangeDays,
       sortBy,
+      archivedIds,
     ],
   )
 
@@ -631,17 +674,26 @@ export default function InboxLite({ onNavigate }) {
     return arr.filter((it) => !archivedIds.has(it?.id))
   }, [items, archivedIds])
 
+  const unreadInboxCount = useMemo(
+    () =>
+      computeStableUnreadCount({
+        total: counts?.all,
+        scopedIds: scopedInboxIds,
+        readIds,
+        loadedItems: inboxItemsForStats,
+      }),
+    [counts?.all, scopedInboxIds, readIds, inboxItemsForStats],
+  )
+
   const sidebarStats = useMemo(
-    () => computeInboxStats(inboxItemsForStats, { readIds, folder: 'inbox' }),
-    [inboxItemsForStats, readIds],
+    () => ({
+      ...computeInboxStats(inboxItemsForStats, { readIds, folder: 'inbox' }),
+      newCount: unreadInboxCount,
+    }),
+    [inboxItemsForStats, readIds, unreadInboxCount],
   )
 
   const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 5), [inboxItemsForStats])
-
-  const unreadInboxCount = useMemo(
-    () => inboxItemsForStats.filter((it) => !readIds.has(it?.id)).length,
-    [inboxItemsForStats, readIds],
-  )
 
   const needsResponseCount = useMemo(
     () => inboxItemsForStats.filter(needsResponse).length,

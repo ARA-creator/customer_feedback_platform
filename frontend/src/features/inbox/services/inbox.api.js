@@ -1,7 +1,9 @@
-import { api } from '../../../shared/lib/apiClient'
+import { api, SLOW_API_TIMEOUT_MS } from '../../../shared/lib/apiClient'
+
+const withInboxTimeout = (config = {}) => ({ ...config, timeout: SLOW_API_TIMEOUT_MS })
 
 export const getFeedbackFeed = async (params = {}) => {
-  const response = await api.get('/feedback/feed', { params })
+  const response = await api.get('/feedback/feed', withInboxTimeout({ params }))
   return response.data
 }
 
@@ -16,7 +18,7 @@ export const listAssignableUsers = async ({ team } = {}) => {
 }
 
 export const getCustomerProfile = async (customerKey) => {
-  const response = await api.get(`/customers/${encodeURIComponent(customerKey)}`)
+  const response = await api.get(`/customers/${encodeURIComponent(customerKey)}`, withInboxTimeout())
   return response.data
 }
 
@@ -53,7 +55,7 @@ export const getSourceCounts = async ({
   if (dow != null) params.dow = dow
   if (hour != null) params.hour = hour
   if (range_days != null) params.range_days = range_days
-  const response = await api.get('/feedback/source-counts', { params })
+  const response = await api.get('/feedback/source-counts', withInboxTimeout({ params }))
   return response.data
 }
 

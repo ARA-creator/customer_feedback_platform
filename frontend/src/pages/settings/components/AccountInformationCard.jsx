@@ -50,11 +50,11 @@ export default function AccountInformationCard({ auth }) {
 
   return (
     <>
-      <div className="rounded-2xl border border-gray-200/90 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-10">
+      <div className="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-8">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Account information</h2>
 
-        <div className="mt-10 flex flex-col gap-8 sm:flex-row sm:items-center">
-          <div className="relative shrink-0 self-start sm:self-center">
+        <div className="mt-5 flex flex-col gap-6 sm:flex-row sm:items-start">
+          <div className="relative shrink-0 self-start">
             <div
               className="flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full bg-[#10B981] text-[1.65rem] font-bold leading-none text-white shadow-sm"
               aria-hidden

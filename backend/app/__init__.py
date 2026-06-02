@@ -591,6 +591,16 @@ def create_app() -> Flask:
             time.sleep(2.0)
             while True:
                 try:
+                    db_gate = SessionLocal()
+                    try:
+                        from .services.channel_ingest import is_channel_ingest_enabled  # noqa: WPS433
+
+                        if not is_channel_ingest_enabled(db_gate, "web"):
+                            time.sleep(max(30, interval))
+                            continue
+                    finally:
+                        db_gate.close()
+
                     mentions = []
                     if feed_urls:
                         mentions.extend(

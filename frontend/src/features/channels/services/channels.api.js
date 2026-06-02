@@ -7,6 +7,12 @@ export const getChannelsStatus = async () => {
   return response.data
 }
 
+/** @param {Record<string, boolean>} channels e.g. { email: false, x: true } */
+export const updateChannelIngest = async (channels) => {
+  const response = await api.patch('/channels/ingest', { channels })
+  return response.data
+}
+
 export const triggerXPoll = async ({ max_results = 25 } = {}) => {
   const response = await axios.post(
     `${getBackendOrigin()}/integrations/x/poll`,

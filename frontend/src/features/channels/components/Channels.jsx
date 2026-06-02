@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { FiCheckCircle, FiCopy, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
+import { FiCheckCircle, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
 import { getIntegrationsWebhookBase, USE_DEV_API_PROXY } from '../../../shared/lib/apiClient'
-import { getChannelsStatus, triggerXPoll } from '../services/channels.api'
+import { getChannelsStatus, triggerXPoll, updateChannelIngest } from '../services/channels.api'
 
 function StatusPill({ tone = 'off', label }) {
   const styles =
@@ -18,6 +18,38 @@ function StatusPill({ tone = 'off', label }) {
       <Icon className="h-3.5 w-3.5" />
       {label}
     </span>
+  )
+}
+
+function IngestSwitch({ checked, disabled, onChange, label }) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2">
+      <span className="sr-only">{label}</span>
+      <span className="relative inline-flex h-6 w-11 shrink-0 items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="peer sr-only"
+        />
+        <span
+          className={`block h-6 w-11 rounded-full transition-colors ${
+            checked ? 'bg-[#009750]' : 'bg-gray-300 dark:bg-gray-600'
+          } ${disabled ? 'opacity-50' : ''}`}
+          aria-hidden
+        />
+        <span
+          className={`pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+          aria-hidden
+        />
+      </span>
+      <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+        {checked ? 'On' : 'Off'}
+      </span>
+    </label>
   )
 }
 
@@ -49,11 +81,24 @@ function EnvCode({ children }) {
   )
 }
 
+const CHANNEL_ROWS = [
+  { label: 'WhatsApp (Twilio)', path: '/integrations/whatsapp/twilio', method: 'POST', channelId: 'whatsapp_twilio' },
+  { label: 'WhatsApp (Meta)', path: '/integrations/whatsapp/meta', method: 'POST', channelId: 'whatsapp_meta' },
+  { label: 'Instagram (Meta)', path: '/integrations/instagram/webhook', method: 'GET/POST', channelId: 'instagram' },
+  { label: 'Facebook (Meta)', path: '/integrations/facebook/webhook', method: 'GET/POST', channelId: 'facebook' },
+  { label: 'Google Forms webhook', path: '/integrations/google/forms', method: 'POST', channelId: 'google_forms' },
+  { label: 'Email poller', path: '/integrations/email/poll', method: 'POST', channelId: 'email' },
+  { label: 'Web poller', path: '/integrations/web/poll', method: 'POST', channelId: 'web' },
+  { label: 'X poll trigger', path: '/integrations/x/poll', method: 'POST', channelId: 'x' },
+  { label: 'TikTok poll trigger', path: '/integrations/tiktok/poll', method: 'POST', channelId: 'tiktok' },
+]
+
 export default function Channels() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [copiedPath, setCopiedPath] = useState(null)
+  const [savingChannel, setSavingChannel] = useState(null)
+  const [toggleError, setToggleError] = useState(null)
   const [xPolling, setXPolling] = useState(false)
   const [xPollResult, setXPollResult] = useState(null)
   const [xPollError, setXPollError] = useState(null)
@@ -86,35 +131,39 @@ export default function Channels() {
   }, [])
 
   const integrationsBase = getIntegrationsWebhookBase()
+  const ingest = status?.ingest || {}
   const wa = status?.whatsapp_twilio
   const ig = status?.instagram
   const fb = status?.facebook
   const x = status?.x
 
-  const webhooks = [
-    { label: 'WhatsApp (Twilio)', path: '/integrations/whatsapp/twilio', method: 'POST' },
-    { label: 'WhatsApp (Meta)', path: '/integrations/whatsapp/meta', method: 'POST' },
-    { label: 'Instagram (Meta)', path: '/integrations/instagram/webhook', method: 'GET/POST' },
-    { label: 'Facebook (Meta)', path: '/integrations/facebook/webhook', method: 'GET/POST' },
-    { label: 'Google Forms webhook', path: '/integrations/google/forms', method: 'POST' },
-    { label: 'Email poller', path: '/integrations/email/poll', method: 'POST' },
-    { label: 'Web poller', path: '/integrations/web/poll', method: 'POST' },
-    { label: 'X poll trigger', path: '/integrations/x/poll', method: 'POST' },
-    { label: 'TikTok poll trigger', path: '/integrations/tiktok/poll', method: 'POST' },
-  ]
+  const isIngestOn = (channelId) => ingest[channelId] !== false
 
-  const copyUrl = async (path) => {
-    const url = `${integrationsBase}${path}`
+  const setChannelIngest = async (channelId, enabled) => {
+    setSavingChannel(channelId)
+    setToggleError(null)
+    const prev = status?.ingest?.[channelId]
+    setStatus((s) =>
+      s ? { ...s, ingest: { ...(s.ingest || {}), [channelId]: enabled } } : s
+    )
     try {
-      await navigator.clipboard.writeText(url)
-      setCopiedPath(path)
-      setTimeout(() => setCopiedPath((p) => (p === path ? null : p)), 2000)
-    } catch {
-      window.prompt('Copy this URL:', url)
+      const data = await updateChannelIngest({ [channelId]: enabled })
+      setStatus((s) => (s ? { ...s, ingest: data.ingest || s.ingest } : s))
+    } catch (e) {
+      setStatus((s) =>
+        s && prev !== undefined ? { ...s, ingest: { ...(s.ingest || {}), [channelId]: prev } } : s
+      )
+      setToggleError(e?.response?.data?.error || e?.message || 'Failed to update channel')
+    } finally {
+      setSavingChannel(null)
     }
   }
 
   const runXPoll = async () => {
+    if (!isIngestOn('x')) {
+      setXPollError('X ingest is turned off. Enable it in the table below.')
+      return
+    }
     setXPolling(true)
     setXPollError(null)
     setXPollResult(null)
@@ -200,6 +249,7 @@ export default function Channels() {
               </div>
               <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
                 Green = messages ingested. Amber = credentials set, waiting for first message. Red = not configured.
+                Use the ingest switches below to pause a channel without removing credentials.
               </p>
 
               {metaNeedsSetup && (
@@ -279,7 +329,7 @@ export default function Channels() {
                   <button
                     type="button"
                     onClick={runXPoll}
-                    disabled={xPolling}
+                    disabled={xPolling || !isIngestOn('x')}
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-[#009750] bg-[#009750] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
                   >
                     <FiRefreshCw className={`h-4 w-4 ${xPolling ? 'animate-spin' : ''}`} />
@@ -307,10 +357,10 @@ export default function Channels() {
       </div>
 
       <div className="card p-6">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Webhook &amp; poller URLs</h3>
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Channel ingest</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Paste these into Meta Developer Console, Twilio, or X cron. On <strong className="font-medium">Vercel</strong>,
-          paths are under <code className="rounded bg-gray-100 px-1 py-0.5 text-[11px] dark:bg-gray-800">/api/integrations/...</code>.
+          Turn a channel off to stop new messages from being ingested (webhooks still respond OK). Turn it on to resume.
+          Callback URLs are shown for setup in Meta, Twilio, or cron.
         </p>
         <p className="mt-3 text-xs font-medium text-gray-700 dark:text-gray-300">
           Integrations base{' '}
@@ -322,6 +372,10 @@ export default function Channels() {
           {integrationsBase}
         </p>
 
+        {toggleError && (
+          <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">{toggleError}</p>
+        )}
+
         <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
           <table className="w-full min-w-[32rem] text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
@@ -329,14 +383,18 @@ export default function Channels() {
                 <th className="px-3 py-2">Channel</th>
                 <th className="px-3 py-2">Method</th>
                 <th className="px-3 py-2">URL</th>
-                <th className="px-3 py-2 w-24"> </th>
+                <th className="px-3 py-2 w-28">Ingest</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {webhooks.map((w) => {
+              {CHANNEL_ROWS.map((w) => {
                 const full = `${integrationsBase}${w.path}`
+                const on = isIngestOn(w.channelId)
                 return (
-                  <tr key={w.path} className="bg-white dark:bg-gray-950">
+                  <tr
+                    key={w.path}
+                    className={`bg-white dark:bg-gray-950 ${!on ? 'opacity-75' : ''}`}
+                  >
                     <td className="px-3 py-2 align-top text-gray-900 dark:text-gray-100">
                       <span className="font-medium">{w.label}</span>
                     </td>
@@ -349,14 +407,12 @@ export default function Channels() {
                       <code className="break-all text-[11px] text-gray-700 dark:text-gray-300">{full}</code>
                     </td>
                     <td className="px-3 py-2 align-top">
-                      <button
-                        type="button"
-                        onClick={() => copyUrl(w.path)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <FiCopy className="h-3.5 w-3.5" />
-                        {copiedPath === w.path ? 'Copied' : 'Copy'}
-                      </button>
+                      <IngestSwitch
+                        label={`${w.label} ingest`}
+                        checked={on}
+                        disabled={savingChannel === w.channelId}
+                        onChange={(enabled) => setChannelIngest(w.channelId, enabled)}
+                      />
                     </td>
                   </tr>
                 )

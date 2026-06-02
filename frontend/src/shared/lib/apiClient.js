@@ -64,6 +64,9 @@ export function getIntegrationsWebhookBase() {
   return normalizeBackendOrigin(trimmedBackend === '' ? undefined : trimmedBackend)
 }
 
+/** Use on Neon-backed routes that decrypt many rows (inbox feed, Customer 360, analytics). */
+export const SLOW_API_TIMEOUT_MS = 60000
+
 const api = axios.create({
   baseURL: apiBaseURL,
   timeout: 10000,

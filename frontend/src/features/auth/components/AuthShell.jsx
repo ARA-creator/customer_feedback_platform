@@ -172,14 +172,20 @@ export default function AuthShell({ onAuthenticated, adminPortal = false }) {
     } catch (err) {
       const status = err?.response?.status
       if (status === 404) {
-        setError('No account found for this email. Please create one first.')
-      } else if (status === 401) {
+        setMode('signup')
+        setError(null)
+        setInfo('No account exists for this email. Submit a request for access below.')
+        setPassword('')
+        setConfirmPassword('')
+        return
+      }
+      if (status === 401) {
         setError('Incorrect password. Please try again.')
       } else {
         setError(formatApiErrorMessage(err, 'Unable to sign in. Please try again.'))
       }
     } finally {
-      setPassword('')
+      if (!isSignup) setPassword('')
     }
   }
 

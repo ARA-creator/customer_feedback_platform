@@ -30,6 +30,26 @@ export function needsResponse(item) {
   return s === 'negative' || isHighPriority(item)
 }
 
+/**
+ * Stable unread count for the current inbox filter.
+ * Uses server total when available; unloaded rows count as unread until marked read.
+ */
+export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItems }) {
+  const totalN = Number(total)
+  if (Number.isFinite(totalN) && totalN > 0 && scopedIds?.size) {
+    let readKnown = 0
+    for (const id of scopedIds) {
+      if (readIds?.has?.(id)) readKnown += 1
+    }
+    const known = scopedIds.size
+    const unreadKnown = known - readKnown
+    const unreadUnknown = Math.max(0, totalN - known)
+    return unreadUnknown + unreadKnown
+  }
+  const arr = Array.isArray(loadedItems) ? loadedItems : []
+  return arr.filter((it) => !readIds?.has?.(it?.id)).length
+}
+
 export function computeInboxStats(items, { readIds, folder }) {
   const arr = Array.isArray(items) ? items : []
   const inboxItems = folder === 'archive' ? arr : arr

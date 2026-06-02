@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from flask import current_app, jsonify, make_response, request, session
 from sqlalchemy import asc, desc, func, or_
 from sqlalchemy import create_engine, text as sql_text
+from sqlalchemy.exc import SQLAlchemyError
 from passlib.hash import argon2
 
 from ...database import SessionLocal
@@ -27,6 +28,7 @@ from ...models import (
     FeedbackReplyDraft,
     FeedbackWorkflow,
     Notification,
+    NotificationPreference,
     Permission,
     ReportSchedule,
     Role,
@@ -43,6 +45,7 @@ from ...services.notification_policy import get_notification_prefs, is_platform_
 from ...services.rbac import normalize_role_name
 from . import api_bp
 from ._helpers import (
+    _append_audit_log,
     _audit_log,
     _get_setting_json,
     _notif_publish,
@@ -71,6 +74,16 @@ def _serialize_notification(row: Notification) -> Dict[str, Any]:
 
 def _is_admin_ui(user: User, perms: set[str]) -> bool:
     return is_platform_admin(perms=perms, user=user)
+
+
+def _purge_user_related_rows(db, user_id: int) -> None:
+    """Remove rows that block hard-deleting a user."""
+    db.query(Notification).filter(Notification.user_id == user_id).delete(synchronize_session=False)
+    db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(ReportSchedule).filter(ReportSchedule.user_id == user_id).delete(synchronize_session=False)
+    db.query(UserRole).filter(UserRole.user_id == user_id).delete(synchronize_session=False)
 
 
 def _get_notification_prefs(db, user_id: int, *, is_admin: bool) -> Dict[str, bool]:
@@ -1464,12 +1477,11 @@ def admin_reject_user(user_id: int):
 
         payload = request.get_json(silent=True) or {}
         reason = str(payload.get("reason") or "").strip() or None
-        user.deleted_at = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc)
+        user.deleted_at = now
         user.is_active = False
-        user.suspended_at = user.suspended_at or user.deleted_at
-        db.commit()
-
-        _audit_log(
+        user.suspended_at = user.suspended_at or now
+        _append_audit_log(
             db,
             actor_user_id=session.get("user_id"),
             action="admin.user.reject",
@@ -1477,6 +1489,8 @@ def admin_reject_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email, "reason": reason},
         )
+        db.commit()
+        db.refresh(user)
         try:
             notify_platform_admins(
                 db,
@@ -1504,12 +1518,11 @@ def admin_delete_user(user_id: int):
         if not user or getattr(user, "deleted_at", None):
             return jsonify({"error": "User not found"}), 404
 
-        user.deleted_at = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc)
+        user.deleted_at = now
         user.is_active = False
-        user.suspended_at = user.suspended_at or user.deleted_at
-        db.commit()
-
-        _audit_log(
+        user.suspended_at = user.suspended_at or now
+        _append_audit_log(
             db,
             actor_user_id=session.get("user_id"),
             action="admin.user.delete",
@@ -1517,6 +1530,8 @@ def admin_delete_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email},
         )
+        db.commit()
+        db.refresh(user)
         try:
             notify_platform_admins(
                 db,
@@ -1527,10 +1542,24 @@ def admin_delete_user(user_id: int):
             )
         except Exception:
             pass
-        return jsonify({"ok": True})
+        return jsonify(
+            {
+                "ok": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "deleted_at": user.deleted_at.isoformat() if user.deleted_at else None,
+                    "is_active": bool(user.is_active),
+                },
+            }
+        )
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except SQLAlchemyError:
+        logger.exception("Failed to soft-delete user_id=%s", user_id)
+        db.rollback()
+        return jsonify({"error": "Database error while removing user. Check server logs."}), 500
     finally:
         db.close()
 
@@ -1547,9 +1576,7 @@ def admin_restore_user(user_id: int):
         user.deleted_at = None
         user.is_active = True
         user.suspended_at = None
-        db.commit()
-
-        _audit_log(
+        _append_audit_log(
             db,
             actor_user_id=session.get("user_id"),
             action="admin.user.restore",
@@ -1557,7 +1584,19 @@ def admin_restore_user(user_id: int):
             target_id=str(user_id),
             meta={"email": user.email},
         )
-        return jsonify({"ok": True})
+        db.commit()
+        db.refresh(user)
+        return jsonify(
+            {
+                "ok": True,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "deleted_at": None,
+                    "is_active": bool(user.is_active),
+                },
+            }
+        )
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
@@ -1580,12 +1619,8 @@ def admin_purge_user(user_id: int):
             return jsonify({"error": "User not found or not in recycle bin"}), 404
 
         email = user.email
-        db.query(ReportSchedule).filter(ReportSchedule.user_id == user_id).delete()
-        db.query(UserRole).filter(UserRole.user_id == user_id).delete()
-        db.delete(user)
-        db.commit()
-
-        _audit_log(
+        _purge_user_related_rows(db, user_id)
+        _append_audit_log(
             db,
             actor_user_id=actor_id,
             action="admin.user.purge",
@@ -1593,10 +1628,16 @@ def admin_purge_user(user_id: int):
             target_id=str(user_id),
             meta={"email": email},
         )
-        return jsonify({"ok": True})
+        db.delete(user)
+        db.commit()
+        return jsonify({"ok": True, "purged": True, "user_id": user_id, "email": email})
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except SQLAlchemyError:
+        logger.exception("Failed to permanently delete user_id=%s", user_id)
+        db.rollback()
+        return jsonify({"error": "Database error while permanently deleting user."}), 500
     finally:
         db.close()
 
@@ -1850,6 +1891,7 @@ def channels_status():
     Only returns whether required env vars are present; never returns secrets.
     """
     from ...core.config import get_config
+    from ...services.channel_ingest import channel_ingest_public_view
 
     cfg = get_config()
 
@@ -1902,44 +1944,90 @@ def channels_status():
         instagram_last_seen = _last_seen_like("%instagram%")
         facebook_last_seen = _last_seen_like("%facebook%")
         x_last_seen = _last_seen_like("%x%") or _last_seen_like("%twitter%")
+        ingest = channel_ingest_public_view(db)
+
+        # "enabled" = at least one ingested feedback row; "configured" = env ready to receive.
+        return jsonify(
+            {
+                "ingest": ingest,
+                "whatsapp_twilio": {
+                    "enabled": whatsapp_seen,
+                    "configured": twilio_configured,
+                    "auto_poll": whatsapp_auto_poll,
+                    "last_ingested_at": whatsapp_last_seen,
+                    "ingest_on": ingest.get("whatsapp_twilio", True),
+                },
+                "meta": {
+                    "enabled": meta_seen,
+                    "configured": meta_configured,
+                },
+                "instagram": {
+                    "enabled": instagram_seen,
+                    "configured": meta_configured,
+                    "last_ingested_at": instagram_last_seen,
+                    "ingest_on": ingest.get("instagram", True),
+                },
+                "facebook": {
+                    "enabled": facebook_seen,
+                    "configured": meta_configured,
+                    "last_ingested_at": facebook_last_seen,
+                    "ingest_on": ingest.get("facebook", True),
+                },
+                "x": {
+                    "enabled": x_seen,
+                    "configured": x_configured,
+                    "auto_poll": bool(getattr(cfg, "X_POLL_ENABLED", False)),
+                    "last_ingested_at": x_last_seen,
+                    "ingest_on": ingest.get("x", True),
+                },
+                "tiktok": {
+                    "enabled": tiktok_seen,
+                    "auto_poll": bool(getattr(cfg, "TIKTOK_POLL_ENABLED", False)),
+                    "ingest_on": ingest.get("tiktok", True),
+                },
+                "google_forms": {
+                    "enabled": google_forms_seen,
+                    "ingest_on": ingest.get("google_forms", True),
+                },
+                "web": {"enabled": bool(web_seen), "ingest_on": ingest.get("web", True)},
+                "email": {"enabled": bool(email_seen), "ingest_on": ingest.get("email", True)},
+            }
+        )
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logging.getLogger(__name__).exception("channels_status failed")
+        return jsonify({"error": "Failed to load channel status"}), 500
     finally:
         db.close()
 
-    # "enabled" = at least one ingested feedback row; "configured" = env ready to receive.
-    return jsonify(
-        {
-            "whatsapp_twilio": {
-                "enabled": whatsapp_seen,
-                "configured": twilio_configured,
-                "auto_poll": whatsapp_auto_poll,
-                "last_ingested_at": whatsapp_last_seen,
-            },
-            "meta": {
-                "enabled": meta_seen,
-                "configured": meta_configured,
-            },
-            "instagram": {
-                "enabled": instagram_seen,
-                "configured": meta_configured,
-                "last_ingested_at": instagram_last_seen,
-            },
-            "facebook": {
-                "enabled": facebook_seen,
-                "configured": meta_configured,
-                "last_ingested_at": facebook_last_seen,
-            },
-            "x": {
-                "enabled": x_seen,
-                "configured": x_configured,
-                "auto_poll": bool(getattr(cfg, "X_POLL_ENABLED", False)),
-                "last_ingested_at": x_last_seen,
-            },
-            "tiktok": {"enabled": tiktok_seen, "auto_poll": bool(getattr(cfg, "TIKTOK_POLL_ENABLED", False))},
-            "google_forms": {"enabled": google_forms_seen},
-            "web": {"enabled": bool(web_seen)},
-            "email": {"enabled": bool(email_seen)},
-        }
-    )
+
+@api_bp.route("/channels/ingest", methods=["PATCH"])
+def channels_ingest_update():
+    """Enable or disable ingest per channel (admin-only)."""
+    from ...services.channel_ingest import CHANNEL_IDS, set_channel_ingest
+
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_integrations")
+        data = request.get_json(silent=True) or {}
+        raw = data.get("channels") if isinstance(data.get("channels"), dict) else data.get("ingest")
+        if not isinstance(raw, dict):
+            raw = data
+        updates = {str(k): bool(v) for k, v in raw.items() if str(k) in CHANNEL_IDS}
+        if not updates:
+            return jsonify({"error": "No valid channel keys in body"}), 400
+        ingest = set_channel_ingest(db, updates)
+        return jsonify({"ingest": ingest})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logging.getLogger(__name__).exception("channels_ingest_update failed")
+        return jsonify({"error": "Failed to update channel ingest settings"}), 500
+    finally:
+        db.close()
 
 
 @api_bp.route("/admin/templates", methods=["GET", "POST"])

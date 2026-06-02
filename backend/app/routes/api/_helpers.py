@@ -106,6 +106,27 @@ def _impact_score_for(feedback: Feedback, meta: Dict[str, Any]) -> int:
     return score_feedback(feedback=feedback, meta=meta).get("impact_score", 0)
 
 
+def _append_audit_log(
+    db,
+    *,
+    actor_user_id: Optional[int],
+    action: str,
+    target_type: str,
+    target_id: Optional[str] = None,
+    meta: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Stage an audit row on the current session (caller commits)."""
+    db.add(
+        AuditLog(
+            actor_user_id=actor_user_id,
+            action=action,
+            target_type=target_type,
+            target_id=str(target_id) if target_id is not None else None,
+            meta=json.dumps(meta or {}),
+        )
+    )
+
+
 def _audit_log(
     db,
     *,
@@ -116,14 +137,13 @@ def _audit_log(
     meta: Optional[Dict[str, Any]] = None,
 ) -> None:
     try:
-        db.add(
-            AuditLog(
-                actor_user_id=actor_user_id,
-                action=action,
-                target_type=target_type,
-                target_id=str(target_id) if target_id is not None else None,
-                meta=json.dumps(meta or {}),
-            )
+        _append_audit_log(
+            db,
+            actor_user_id=actor_user_id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            meta=meta,
         )
         db.commit()
     except Exception:
@@ -155,38 +175,6 @@ def _set_setting_json(db, key: str, value) -> None:
         row.value = payload
         row.updated_at = ts
     db.commit()
-
-
-def _audit_log(
-    db,
-    *,
-    actor_user_id: Optional[int],
-    action: str,
-    target_type: str,
-    target_id: Optional[str] = None,
-    meta: Optional[Dict[str, Any]] = None,
-) -> None:
-    try:
-        db.add(
-            AuditLog(
-                actor_user_id=actor_user_id,
-                action=action,
-                target_type=target_type,
-                target_id=str(target_id) if target_id is not None else None,
-                meta=json.dumps(meta or {}),
-            )
-        )
-        db.commit()
-    except Exception:
-        logger.exception("Failed to write audit log")
-        try:
-            db.rollback()
-        except Exception:
-            pass
-
-
-def _impact_score_for(feedback: Feedback, meta: Dict[str, Any]) -> int:
-    return score_feedback(feedback=feedback, meta=meta).get("impact_score", 0)
 
 
 def _require_any_permission(db, perms: List[str]) -> Tuple[User, set[str]]:
@@ -562,6 +550,93 @@ def _upsert_search_document(db, *, feedback: Feedback, message_plaintext: str):
             setattr(existing, key, value)
     else:
         db.add(FeedbackSearchDocument(**payload))
+
+
+def _serialize_feedback_batch(
+    db,
+    rows: List[Feedback],
+    *,
+    purchase_summary: Optional[Dict[str, Any]] = None,
+    ticket_summary: Optional[Dict[str, Any]] = None,
+    profile_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Serialize many feedback rows with one DB session and batched policy-match lookup."""
+    if not rows:
+        return []
+
+    purchase_summary = purchase_summary or {}
+    ticket_summary = ticket_summary or {}
+    ids = [int(r.id) for r in rows if getattr(r, "id", None)]
+    pol_by_fid: Dict[int, List[FeedbackPolicyMatch]] = {i: [] for i in ids}
+    if ids:
+        all_pol = (
+            db.query(FeedbackPolicyMatch)
+            .filter(FeedbackPolicyMatch.feedback_id.in_(ids))
+            .order_by(
+                desc(FeedbackPolicyMatch.is_primary),
+                desc(FeedbackPolicyMatch.confidence),
+                desc(FeedbackPolicyMatch.id),
+            )
+            .all()
+        )
+        for pm in all_pol:
+            fid = getattr(pm, "feedback_id", None)
+            if fid in pol_by_fid:
+                pol_by_fid[fid].append(pm)
+
+    out: List[Dict[str, Any]] = []
+    for feedback in rows:
+        meta = _normalize_metadata(feedback)
+        customer_key = meta.get("customer_key")
+        customer_label = meta.get("customer_label")
+        msg = decrypt_text(feedback.message_encrypted)
+        pol_rows = pol_by_fid.get(int(feedback.id), []) if feedback.id else []
+        score = score_feedback(
+            feedback=feedback,
+            meta=meta,
+            purchase_summary=purchase_summary,
+            ticket_summary=ticket_summary,
+        )
+        policy_matches = [
+            {
+                "policy_hash": r.policy_hash,
+                "policy_masked": r.policy_masked,
+                "product_prefix": r.product_prefix,
+                "product_group": r.product_group,
+                "product_description": r.product_description,
+                "confidence": r.confidence,
+                "is_primary": bool(r.is_primary),
+                "needs_review": bool(r.needs_review),
+            }
+            for r in pol_rows
+        ]
+        out.append(
+            {
+                "id": feedback.id,
+                "source": feedback.source,
+                "source_group": _normalize_source_group(feedback.source),
+                "customer_id": feedback.customer_id,
+                "customer_key": customer_key,
+                "customer_label": customer_label,
+                "message": msg or "[encrypted]",
+                "message_preview": (msg or "[encrypted]")[:180],
+                "rating": feedback.rating,
+                "category": feedback.category,
+                "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                "sentiment_label": feedback.sentiment_label,
+                "sentiment_score": feedback.sentiment_score,
+                "priority": feedback.priority,
+                "impact_score": score.get("impact_score"),
+                "impact_factors": score.get("impact_factors"),
+                "priority_reason_summary": score.get("priority_reason_summary"),
+                "tags": json.loads(feedback.tags) if feedback.tags else None,
+                "channel_metadata": meta,
+                "insurance_tags": meta.get("insurance_tags") if isinstance(meta, dict) else None,
+                "policy_matches": policy_matches,
+                "customer_profile_id": profile_id,
+            }
+        )
+    return out
 
 
 def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
