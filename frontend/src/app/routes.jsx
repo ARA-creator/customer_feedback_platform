@@ -13,7 +13,6 @@ export const VIEW_PATHS = {
   admin_users: '/admin/users',
   admin_roles: '/admin/roles',
   admin_integrations: '/admin/integrations',
-  admin_release_impact: '/admin/release-impact',
   admin_db: '/admin/db',
   admin_enterprise_auth: '/admin/enterprise-sso',
   admin_reply_approvals: '/admin/reply-approvals',
@@ -31,7 +30,6 @@ export const ADMIN_NOTIFICATION_HREFS = new Set([
   'admin_activity',
   'admin_db',
   'admin_enterprise_auth',
-  'admin_release_impact',
   'channels',
 ])
 

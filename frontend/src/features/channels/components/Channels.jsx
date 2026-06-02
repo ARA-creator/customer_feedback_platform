@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { FiCheckCircle, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
-import { getIntegrationsWebhookBase, USE_DEV_API_PROXY } from '../../../shared/lib/apiClient'
 import { getChannelsStatus, triggerXPoll, updateChannelIngest } from '../services/channels.api'
 
 function StatusPill({ tone = 'off', label }) {
@@ -82,15 +81,15 @@ function EnvCode({ children }) {
 }
 
 const CHANNEL_ROWS = [
-  { label: 'WhatsApp (Twilio)', path: '/integrations/whatsapp/twilio', method: 'POST', channelId: 'whatsapp_twilio' },
-  { label: 'WhatsApp (Meta)', path: '/integrations/whatsapp/meta', method: 'POST', channelId: 'whatsapp_meta' },
-  { label: 'Instagram (Meta)', path: '/integrations/instagram/webhook', method: 'GET/POST', channelId: 'instagram' },
-  { label: 'Facebook (Meta)', path: '/integrations/facebook/webhook', method: 'GET/POST', channelId: 'facebook' },
-  { label: 'Google Forms webhook', path: '/integrations/google/forms', method: 'POST', channelId: 'google_forms' },
-  { label: 'Email poller', path: '/integrations/email/poll', method: 'POST', channelId: 'email' },
-  { label: 'Web poller', path: '/integrations/web/poll', method: 'POST', channelId: 'web' },
-  { label: 'X poll trigger', path: '/integrations/x/poll', method: 'POST', channelId: 'x' },
-  { label: 'TikTok poll trigger', path: '/integrations/tiktok/poll', method: 'POST', channelId: 'tiktok' },
+  { label: 'WhatsApp (Twilio)', channelId: 'whatsapp_twilio' },
+  { label: 'WhatsApp (Meta)', channelId: 'whatsapp_meta' },
+  { label: 'Instagram (Meta)', channelId: 'instagram' },
+  { label: 'Facebook (Meta)', channelId: 'facebook' },
+  { label: 'Google Forms', channelId: 'google_forms' },
+  { label: 'Email', channelId: 'email' },
+  { label: 'Web', channelId: 'web' },
+  { label: 'X', channelId: 'x' },
+  { label: 'TikTok', channelId: 'tiktok' },
 ]
 
 export default function Channels() {
@@ -130,7 +129,6 @@ export default function Channels() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const integrationsBase = getIntegrationsWebhookBase()
   const ingest = status?.ingest || {}
   const wa = status?.whatsapp_twilio
   const ig = status?.instagram
@@ -161,7 +159,7 @@ export default function Channels() {
 
   const runXPoll = async () => {
     if (!isIngestOn('x')) {
-      setXPollError('X ingest is turned off. Enable it in the table below.')
+      setXPollError('X ingest is turned off. Enable it under Channel ingest.')
       return
     }
     setXPolling(true)
@@ -271,7 +269,7 @@ export default function Channels() {
                     <EnvCode>.env</EnvCode> (and Vercel env for production), then restart the backend.
                   </li>
                   <li>
-                    Register callback URLs below for Instagram and Facebook (use the same verify token in Meta).
+                    Register Instagram and Facebook webhook callbacks in Meta (use the same verify token for both).
                   </li>
                   <li>
                     Subscribe to Page Messenger + feed (Facebook) and Instagram messages + comments. Send a test DM or
@@ -311,7 +309,7 @@ export default function Channels() {
                     Set <EnvCode>TWILIO_ACCOUNT_SID</EnvCode>, <EnvCode>TWILIO_AUTH_TOKEN</EnvCode>, and optional{' '}
                     <EnvCode>TWILIO_WHATSAPP_TO_NUMBER</EnvCode> in <EnvCode>.env</EnvCode>.
                   </li>
-                  <li>In Twilio Console, set the inbound webhook URL from the table below.</li>
+                  <li>In Twilio Console, point the inbound WhatsApp webhook at your deployed API.</li>
                   <li>Send a test WhatsApp message, then refresh.</li>
                 </SetupSteps>
               )}
@@ -359,54 +357,34 @@ export default function Channels() {
       <div className="card p-6">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Channel ingest</h3>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Turn a channel off to stop new messages from being ingested (webhooks still respond OK). Turn it on to resume.
-          Callback URLs are shown for setup in Meta, Twilio, or cron.
-        </p>
-        <p className="mt-3 text-xs font-medium text-gray-700 dark:text-gray-300">
-          Integrations base{' '}
-          <span className="font-mono text-[11px] text-gray-600 dark:text-gray-400">
-            ({USE_DEV_API_PROXY ? 'dev proxy' : import.meta.env.VITE_BACKEND_ORIGIN ? 'VITE_BACKEND_ORIGIN' : 'same-origin /api'})
-          </span>
-        </p>
-        <p className="mt-1 break-all rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-          {integrationsBase}
+          Pause or resume ingestion per channel. When off, new messages are not added to the inbox; existing webhooks
+          still return successfully.
         </p>
 
         {toggleError && (
           <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">{toggleError}</p>
         )}
 
-        <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="w-full min-w-[32rem] text-left text-sm">
+        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+          <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
               <tr>
-                <th className="px-3 py-2">Channel</th>
-                <th className="px-3 py-2">Method</th>
-                <th className="px-3 py-2">URL</th>
-                <th className="px-3 py-2 w-28">Ingest</th>
+                <th className="px-4 py-2.5">Channel</th>
+                <th className="px-4 py-2.5 text-right w-32">Ingest</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {CHANNEL_ROWS.map((w) => {
-                const full = `${integrationsBase}${w.path}`
                 const on = isIngestOn(w.channelId)
                 return (
                   <tr
-                    key={w.path}
+                    key={w.channelId}
                     className={`bg-white dark:bg-gray-950 ${!on ? 'opacity-75' : ''}`}
                   >
-                    <td className="px-3 py-2 align-top text-gray-900 dark:text-gray-100">
+                    <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                       <span className="font-medium">{w.label}</span>
                     </td>
-                    <td className="px-3 py-2 align-top">
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                        {w.method}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 align-top">
-                      <code className="break-all text-[11px] text-gray-700 dark:text-gray-300">{full}</code>
-                    </td>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-4 py-3 text-right">
                       <IngestSwitch
                         label={`${w.label} ingest`}
                         checked={on}
@@ -420,10 +398,6 @@ export default function Channels() {
             </tbody>
           </table>
         </div>
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Instagram and Facebook use <strong className="font-medium">GET</strong> for Meta&apos;s verification handshake and{' '}
-          <strong className="font-medium">POST</strong> for events. X uses polling only (no inbound webhook).
-        </p>
         <a
           href="/admin/integrations"
           className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#009750] hover:text-[#007a42] dark:text-emerald-400"

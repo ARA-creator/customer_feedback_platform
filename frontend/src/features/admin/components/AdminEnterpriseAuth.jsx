@@ -7,6 +7,9 @@ import {
 
 const ROLE_OPTIONS = ['agent', 'team_lead', 'analyst', 'cx_manager', 'super_admin', 'auditor']
 
+const FIELD_CLASSES =
+  'w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500'
+
 function Field({ label, hint, children }) {
   return (
     <label className="block">
@@ -185,7 +188,7 @@ export default function AdminEnterpriseAuth() {
                 type="checkbox"
                 checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
-                className="rounded border-gray-300"
+                className="rounded border-gray-300 text-[#009750] focus:ring-[#009750]/30 dark:border-gray-600 dark:bg-gray-900"
               />
               Enable enterprise SSO
             </label>
@@ -193,7 +196,7 @@ export default function AdminEnterpriseAuth() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Tenant ID" hint="Directory (tenant) ID from Azure app registration">
                 <input
-                  className="input w-full"
+                  className={FIELD_CLASSES}
                   value={tenantId}
                   onChange={(e) => setTenantId(e.target.value)}
                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -202,7 +205,7 @@ export default function AdminEnterpriseAuth() {
               </Field>
               <Field label="Client ID" hint="Application (client) ID">
                 <input
-                  className="input w-full"
+                  className={FIELD_CLASSES}
                   value={clientId}
                   onChange={(e) => setClientId(e.target.value)}
                   autoComplete="off"
@@ -215,7 +218,7 @@ export default function AdminEnterpriseAuth() {
               hint="Must match the URI registered in Entra ID (what Flask receives after any /api rewrite)"
             >
               <input
-                className="input w-full font-mono text-sm"
+                className={`${FIELD_CLASSES} font-mono`}
                 value={redirectUri}
                 onChange={(e) => setRedirectUri(e.target.value)}
                 placeholder="http://127.0.0.1:5000/auth/enterprise/callback"
@@ -232,7 +235,7 @@ export default function AdminEnterpriseAuth() {
             >
               <input
                 type="password"
-                className="input w-full"
+                className={FIELD_CLASSES}
                 value={clientSecret}
                 onChange={(e) => setClientSecret(e.target.value)}
                 placeholder={secretConfigured ? '•••••••• (unchanged if empty)' : 'Paste client secret'}
@@ -244,6 +247,7 @@ export default function AdminEnterpriseAuth() {
                     type="checkbox"
                     checked={clearSecret}
                     onChange={(e) => setClearSecret(e.target.checked)}
+                    className="rounded border-gray-300 text-[#009750] dark:border-gray-600 dark:bg-gray-900"
                   />
                   Clear stored secret (falls back to env if set)
                 </label>
@@ -255,7 +259,7 @@ export default function AdminEnterpriseAuth() {
               hint="Comma-separated. Users with these domains use SSO; others use external signup."
             >
               <input
-                className="input w-full"
+                className={FIELD_CLASSES}
                 value={domainsText}
                 onChange={(e) => setDomainsText(e.target.value)}
                 placeholder="enterprisegroup.net.gh, enterprise-life.com"
@@ -263,7 +267,7 @@ export default function AdminEnterpriseAuth() {
             </Field>
 
             <Field label="Default role" hint="When no Azure AD group maps to a Customer Pulse role">
-              <select className="input w-full" value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)}>
+              <select className={FIELD_CLASSES} value={defaultRole} onChange={(e) => setDefaultRole(e.target.value)}>
                 {ROLE_OPTIONS.map((r) => (
                   <option key={r} value={r}>
                     {r}
@@ -281,13 +285,13 @@ export default function AdminEnterpriseAuth() {
                 {roleMapping.map((row, idx) => (
                   <div key={idx} className="flex flex-wrap gap-2">
                     <input
-                      className="input min-w-[12rem] flex-1"
+                      className={`${FIELD_CLASSES} min-w-[12rem] flex-1`}
                       value={row.azure_group}
                       onChange={(e) => updateMapping(idx, 'azure_group', e.target.value)}
                       placeholder="Azure group display name"
                     />
                     <select
-                      className="input w-40"
+                      className={`${FIELD_CLASSES} w-40`}
                       value={row.role}
                       onChange={(e) => updateMapping(idx, 'role', e.target.value)}
                     >
@@ -299,7 +303,7 @@ export default function AdminEnterpriseAuth() {
                     </select>
                     <button
                       type="button"
-                      className="rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                       onClick={() => setRoleMapping((rows) => rows.filter((_, i) => i !== idx))}
                       disabled={roleMapping.length <= 1}
                     >

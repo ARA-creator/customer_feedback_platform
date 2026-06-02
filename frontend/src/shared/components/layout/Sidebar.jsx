@@ -344,15 +344,6 @@ function Sidebar({
             )}
             {canManageIntegrations && (
               <NavButton
-                active={currentView === 'admin_release_impact'}
-                collapsed={c}
-                icon={FiActivity}
-                label="Release impact"
-                onClick={() => go('admin_release_impact')}
-              />
-            )}
-            {canManageIntegrations && (
-              <NavButton
                 active={currentView === 'admin_db'}
                 collapsed={c}
                 icon={FiServer}

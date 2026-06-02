@@ -98,11 +98,6 @@ export function buildHelpGuide(auth) {
       description: 'Monitor ingestion pipelines and integration errors.',
     })
     adminSections.push({
-      to: '/admin/release-impact',
-      title: 'Release impact',
-      description: 'Review feedback volume around releases.',
-    })
-    adminSections.push({
       to: '/admin/db',
       title: 'Database connection',
       description: 'Verify database connectivity for operations.',

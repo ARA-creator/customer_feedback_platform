@@ -12,7 +12,6 @@ import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminIntegrations from '../features/admin/components/AdminIntegrations'
 import AdminOverview from '../features/admin/components/AdminOverview'
-import AdminReleaseImpact from '../features/admin/components/AdminReleaseImpact'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
 import AdminReplyApprovals from '../features/admin/components/AdminReplyApprovals'
@@ -344,10 +343,6 @@ function AuthenticatedApp({ auth, setAuth }) {
           <Route
             path="/admin/integrations"
             element={isAdminUI ? <AdminIntegrations /> : <Navigate to="/" replace />}
-          />
-          <Route
-            path="/admin/release-impact"
-            element={isAdminUI ? <AdminReleaseImpact /> : <Navigate to="/" replace />}
           />
           <Route
             path="/admin/db"
