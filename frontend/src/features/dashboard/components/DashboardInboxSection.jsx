@@ -694,7 +694,7 @@ export default function DashboardInboxSection({
             description={
               isAdminUser
                 ? 'Once your email, WhatsApp, and social channels are connected, new customer messages will stream into this inbox.'
-                : 'New customer messages will show here as your team receives them. A user with integration access can set up webhooks and channels in Admin → Webhooks & channels.'
+                : 'New customer messages will show here as your team receives them. A user with integration access can configure ingest under Admin → Channels.'
             }
             primaryLabel={isAdminUser ? 'Connect email or WhatsApp' : 'Refresh'}
             primaryOnClick={() => {

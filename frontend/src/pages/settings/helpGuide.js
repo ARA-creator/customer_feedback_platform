@@ -72,7 +72,7 @@ export function buildHelpGuide(auth) {
   if (canWebhooks) {
     adminSections.push({
       to: '/admin/channels',
-      title: 'Webhooks & channels',
+      title: 'Channels',
       description:
         'Connection status for email, WhatsApp, and other ingest channels. Copy webhook URLs and follow setup steps for Twilio and integrations.',
     })
@@ -178,7 +178,7 @@ export function buildHelpGuide(auth) {
     workflowSteps: isAdmin
       ? [
           'Open Admin overview for platform status and pending user approvals.',
-          'Use Webhooks & channels to confirm email and WhatsApp ingestion.',
+          'Use Channels to confirm email and WhatsApp ingestion.',
           'Manage users and roles when onboarding or changing access.',
           'Check Notifications for admin events (user changes, integrations).',
         ]

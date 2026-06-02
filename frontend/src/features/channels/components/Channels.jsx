@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { FiCheckCircle, FiXCircle, FiRefreshCw, FiExternalLink } from 'react-icons/fi'
 import { getChannelsStatus, triggerXPoll, updateChannelIngest } from '../services/channels.api'
 
@@ -71,6 +71,9 @@ function EnvCode({ children }) {
   )
 }
 
+/** Background status refresh — does not flash the UI. */
+const STATUS_POLL_MS = 30_000
+
 const CHANNEL_ROWS = [
   { label: 'WhatsApp (Twilio)', channelId: 'whatsapp_twilio' },
   { label: 'WhatsApp (Meta)', channelId: 'whatsapp_meta' },
@@ -86,39 +89,49 @@ const CHANNEL_ROWS = [
 export default function Channels() {
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [savingChannel, setSavingChannel] = useState(null)
   const [toggleError, setToggleError] = useState(null)
   const [xPolling, setXPolling] = useState(false)
   const [xPollResult, setXPollResult] = useState(null)
   const [xPollError, setXPollError] = useState(null)
+  const hasStatusRef = useRef(false)
 
-  const load = async () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(async ({ background = false, manual = false } = {}) => {
+    const silent = background || (manual && hasStatusRef.current)
+    if (manual && hasStatusRef.current) setRefreshing(true)
+    else if (!silent) {
+      setLoading(true)
+      setError(null)
+    }
     try {
       const data = await getChannelsStatus()
       setStatus(data)
+      hasStatusRef.current = true
+      if (silent) setError(null)
     } catch (e) {
-      setError(e?.message || 'Failed to load channel status')
+      if (!silent) setError(e?.message || 'Failed to load channel status')
     } finally {
-      setLoading(false)
+      if (manual && hasStatusRef.current) setRefreshing(false)
+      else if (!silent) setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    load()
-    const interval = setInterval(load, 5000)
+    load({ background: false })
+    const interval = setInterval(() => load({ background: true }), STATUS_POLL_MS)
     const onVis = () => {
-      if (document.visibilityState === 'visible') load()
+      if (document.visibilityState === 'visible') {
+        load({ background: hasStatusRef.current })
+      }
     }
     document.addEventListener('visibilitychange', onVis)
     return () => {
       clearInterval(interval)
       document.removeEventListener('visibilitychange', onVis)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [load])
 
   const ingest = status?.ingest || {}
   const wa = status?.whatsapp_twilio
@@ -159,7 +172,7 @@ export default function Channels() {
     try {
       const data = await triggerXPoll({ max_results: 25 })
       setXPollResult(data)
-      await load()
+      await load({ background: true })
     } catch (e) {
       setXPollError(e?.response?.data?.error || e?.message || 'X poll failed')
     } finally {
@@ -179,18 +192,21 @@ export default function Channels() {
           </div>
           <button
             type="button"
-            onClick={load}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            onClick={() => load({ manual: true })}
+            disabled={refreshing}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            <FiRefreshCw className="h-4 w-4" />
+            <FiRefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
           </button>
         </div>
 
-        {loading && <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">Loading status…</p>}
-        {error && <p className="mt-4 text-sm text-rose-700 dark:text-rose-300">{error}</p>}
+        {loading && !status && (
+          <p className="mt-4 text-sm text-gray-600 dark:text-gray-300">Loading status…</p>
+        )}
+        {error && !status && <p className="mt-4 text-sm text-rose-700 dark:text-rose-300">{error}</p>}
 
-        {!loading && !error && status && (
+        {status && (
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-950">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-gray-400">

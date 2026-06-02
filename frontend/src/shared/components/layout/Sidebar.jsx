@@ -327,7 +327,7 @@ function Sidebar({
                 active={currentView === 'channels'}
                 collapsed={c}
                 icon={FiLink2}
-                label="Webhooks & channels"
+                label="Channels"
                 onClick={() => go('channels')}
               />
             )}

@@ -13,7 +13,7 @@ export default function SettingsTipsPanel({ auth }) {
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tips</p>
           <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
             {isAdmin
-              ? 'Confirm channels are ingesting under Admin → Webhooks & channels. Set quiet hours under Notifications.'
+              ? 'Confirm channels are ingesting under Admin → Channels. Set quiet hours under Notifications.'
               : 'Use the same time filter on Overview for all charts. Open Insights from Overview for deeper themes.'}
           </p>
         </div>
