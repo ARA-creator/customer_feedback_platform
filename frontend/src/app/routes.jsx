@@ -14,7 +14,6 @@ export const VIEW_PATHS = {
   admin_roles: '/admin/roles',
   admin_db: '/admin/db',
   admin_enterprise_auth: '/admin/enterprise-sso',
-  admin_reply_approvals: '/admin/reply-approvals',
   admin_activity: '/admin/activity',
   reports: '/reports',
 }
@@ -24,7 +23,6 @@ export const ADMIN_NOTIFICATION_HREFS = new Set([
   'admin_users',
   'admin_roles',
   'admin_overview',
-  'admin_reply_approvals',
   'admin_activity',
   'admin_db',
   'admin_enterprise_auth',
@@ -41,6 +39,8 @@ const SORTED_PATHS = Object.entries(VIEW_PATHS).sort((a, b) => b[1].length - a[1
 export function pathForView(view) {
   if (!view) return '/'
   const key = String(view).trim()
+  if (key === 'admin_integrations') return VIEW_PATHS.channels
+  if (key === 'admin_reply_approvals') return VIEW_PATHS.admin_overview
   if (VIEW_PATHS[key]) return VIEW_PATHS[key]
   if (key.startsWith('/')) return key
   return '/'

@@ -14,7 +14,6 @@ import {
   FiLogOut,
   FiServer,
   FiSettings,
-  FiShield,
   FiUsers,
   FiDownload,
 } from 'react-icons/fi'
@@ -109,7 +108,6 @@ function Sidebar({
     perms.includes('reports.export') ||
     canManageUsers ||
     isSuperAdmin
-  const canApproveReplies = perms.includes('feedback.approve') || canManageUsers
   const canViewActivity =
     canManageUsers || perms.includes('admin.view_audit_logs') || canManageRoles
 
@@ -370,15 +368,6 @@ function Sidebar({
                 label="Enterprise SSO"
                 onClick={() => go('admin_enterprise_auth')}
                 testId="nav-admin-enterprise-auth"
-              />
-            )}
-            {canApproveReplies && (
-              <NavButton
-                active={currentView === 'admin_reply_approvals'}
-                collapsed={c}
-                icon={FiShield}
-                label="Reply approvals"
-                onClick={() => go('admin_reply_approvals')}
               />
             )}
             {canViewActivity && (

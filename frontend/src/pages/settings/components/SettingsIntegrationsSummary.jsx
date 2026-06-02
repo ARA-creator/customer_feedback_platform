@@ -88,10 +88,10 @@ export default function SettingsIntegrationsSummary() {
         </ul>
       )}
       <Link
-        to="/admin/integrations"
+        to="/admin/channels"
         className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
       >
-        Integrations health
+        Manage channels
         <FiChevronRight className="h-3.5 w-3.5" aria-hidden />
       </Link>
     </div>

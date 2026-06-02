@@ -1,5 +1,4 @@
 import {
-  userCanApproveReplies,
   userCanViewReports,
   userIsAdminUI,
 } from '../../app/routes'
@@ -22,8 +21,6 @@ export function buildHelpGuide(auth) {
     perms.includes('admin.manage_users') ||
     perms.includes('admin.view_audit_logs') ||
     perms.includes('admin.manage_roles')
-  const canApprove = userCanApproveReplies(auth)
-
   const agentSections = [
     {
       to: '/',
@@ -101,13 +98,6 @@ export function buildHelpGuide(auth) {
       to: '/admin/enterprise-sso',
       title: 'Enterprise SSO',
       description: 'Configure Microsoft / Azure AD sign-in for your organization.',
-    })
-  }
-  if (canApprove) {
-    adminSections.push({
-      to: '/admin/reply-approvals',
-      title: 'Reply approvals',
-      description: 'Review and approve outbound reply drafts before they are sent.',
     })
   }
   if (canActivity) {

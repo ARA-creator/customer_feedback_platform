@@ -15,7 +15,6 @@ import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminOverview from '../features/admin/components/AdminOverview'
 import AdminDbConnection from '../features/admin/components/AdminDbConnection'
 import AdminEnterpriseAuth from '../features/admin/components/AdminEnterpriseAuth'
-import AdminReplyApprovals from '../features/admin/components/AdminReplyApprovals'
 import AdminUserActivity from '../features/admin/components/AdminUserActivity'
 import ReportsPage from '../pages/reports/ReportsPage'
 import Notifications from '../features/notifications/components/Notifications'
@@ -38,7 +37,6 @@ import { notificationSoundsEnabled } from '../shared/lib/displayPreferences'
 import {
   defaultPathForUser,
   isAdminPath,
-  userCanApproveReplies,
   userCanViewReports,
   userIsAdminUI,
   viewFromPathname,
@@ -90,7 +88,6 @@ const HEADER_TITLES = {
   admin_roles: 'Roles & permissions',
   admin_db: 'Database connection',
   admin_enterprise_auth: 'Enterprise SSO',
-  admin_reply_approvals: 'Reply approvals',
   admin_activity: 'User activity',
 }
 
@@ -175,8 +172,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     [canManageIntegrations, isSuperAdmin],
   )
   const canViewReports = useMemo(() => userCanViewReports(auth), [auth])
-  const canApproveReplies = useMemo(() => userCanApproveReplies(auth), [auth])
-
   const currentView = viewFromPathname(location.pathname)
   const showDashboardRefresh =
     !isAdminUI && (currentView === 'overview' || currentView === 'insights')
@@ -353,16 +348,7 @@ function AuthenticatedApp({ auth, setAuth }) {
             path="/admin/enterprise-sso"
             element={isAdminUI ? <AdminEnterpriseAuth /> : <Navigate to="/" replace />}
           />
-          <Route
-            path="/admin/reply-approvals"
-            element={
-              isAdminUI && canApproveReplies ? (
-                <AdminReplyApprovals />
-              ) : (
-                <Navigate to={isAdminUI ? '/admin' : '/'} replace />
-              )
-            }
-          />
+          <Route path="/admin/reply-approvals" element={<Navigate to="/admin" replace />} />
           <Route
             path="/admin/activity"
             element={isAdminUI ? <AdminUserActivity /> : <Navigate to="/" replace />}

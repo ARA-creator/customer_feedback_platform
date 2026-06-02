@@ -43,14 +43,12 @@ ADMIN_HREF_VIEWS = frozenset(
     {
         "admin_users",
         "admin_roles",
-        "admin_integrations",
+        "channels",
         "admin_overview",
-        "admin_reply_approvals",
         "admin_activity",
         "admin_db",
         "admin_enterprise_auth",
         "admin_release_impact",
-        "channels",
     }
 )
 
