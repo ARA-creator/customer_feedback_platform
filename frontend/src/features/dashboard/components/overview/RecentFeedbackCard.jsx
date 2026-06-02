@@ -4,7 +4,8 @@ import {
   categoryPillClass,
   feedbackCategoryLabel,
   feedbackMetaLine,
-  sentimentEmoji,
+  getSentimentIcon,
+  sentimentIconGlyphClass,
   sentimentIconStyles,
 } from './recentFeedbackUi'
 
@@ -28,6 +29,7 @@ function FeedbackRow({ item, onOpen }) {
   const msg = String(item.message || item.summary || '').trim()
   const preview = msg.length > 85 ? `${msg.slice(0, 85)}…` : msg || '—'
   const tagLabel = feedbackCategoryLabel(item)
+  const SentimentIcon = getSentimentIcon(item.sentiment_label)
 
   return (
     <li>
@@ -38,12 +40,15 @@ function FeedbackRow({ item, onOpen }) {
       >
         <div className="flex items-center gap-3">
           <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg leading-none ${sentimentIconStyles(
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sentimentIconStyles(
               item.sentiment_label,
             )}`}
             aria-hidden
           >
-            {sentimentEmoji(item.sentiment_label)}
+            <SentimentIcon
+              className={`h-5 w-5 ${sentimentIconGlyphClass(item.sentiment_label)}`}
+              aria-hidden
+            />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium leading-snug text-gray-900 dark:text-gray-100">{preview}</p>

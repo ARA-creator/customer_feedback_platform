@@ -1,11 +1,10 @@
 import { FiArchive } from 'react-icons/fi'
+import {
+  getSentimentIcon,
+  sentimentAvatarRingClass,
+  sentimentIconGlyphClass,
+} from '../../../shared/lib/sentimentDisplay'
 import { extractFeedbackTitle, getPriorityBadge } from '../utils/inboxDerivedStats'
-
-const SENTIMENT_EMOJI = {
-  positive: '😊',
-  negative: '😞',
-  neutral: '😐',
-}
 
 const PRIORITY_STYLES = {
   new: 'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
@@ -40,7 +39,7 @@ export default function InboxFeedbackRow({
   SourceIcon,
 }) {
   const sentiment = String(item?.sentiment_label || 'unknown').toLowerCase()
-  const emoji = SENTIMENT_EMOJI[sentiment] || '😐'
+  const SentimentIcon = getSentimentIcon(sentiment)
   const title = extractFeedbackTitle(item)
   const preview = String(item?.message || item?.message_preview || '').trim()
   const snippet =
@@ -83,8 +82,11 @@ export default function InboxFeedbackRow({
         />
       </label>
 
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center text-2xl" aria-hidden>
-        {emoji}
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${sentimentAvatarRingClass(sentiment)}`}
+        aria-hidden
+      >
+        <SentimentIcon className={`h-5 w-5 ${sentimentIconGlyphClass(sentiment)}`} aria-hidden />
       </span>
 
       <div className="min-w-0 flex-1">

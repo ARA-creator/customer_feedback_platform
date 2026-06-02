@@ -12,23 +12,11 @@ export function formatFeedbackListDate(iso) {
   })
 }
 
-export function sentimentEmoji(label) {
-  const s = String(label || '').toLowerCase()
-  if (s === 'positive') return '😊'
-  if (s === 'negative') return '😞'
-  return '😐'
-}
-
-export function sentimentIconStyles(label) {
-  const s = String(label || '').toLowerCase()
-  if (s === 'positive') {
-    return 'bg-emerald-50 ring-1 ring-emerald-100/80 dark:bg-emerald-950/40 dark:ring-emerald-900/50'
-  }
-  if (s === 'negative') {
-    return 'bg-rose-50 ring-1 ring-rose-100/80 dark:bg-rose-950/40 dark:ring-rose-900/50'
-  }
-  return 'bg-amber-50 ring-1 ring-amber-100/80 dark:bg-amber-950/40 dark:ring-amber-900/50'
-}
+export {
+  getSentimentIcon,
+  sentimentAvatarRingClass as sentimentIconStyles,
+  sentimentIconGlyphClass,
+} from '../../../../shared/lib/sentimentDisplay'
 
 export function categoryPillClass(category) {
   const c = String(category || '').toLowerCase()
