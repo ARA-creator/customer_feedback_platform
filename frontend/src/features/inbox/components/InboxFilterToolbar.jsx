@@ -191,45 +191,49 @@ export default function InboxFilterToolbar({
           options={dateRangeOptions}
         />
 
-        <div
-          className="inline-flex shrink-0 rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
-          role="tablist"
-          aria-label="Inbox folders"
-        >
-          {[
-            { key: 'inbox', label: 'Inbox', Icon: FiInbox, count: inboxCount },
-            { key: 'archive', label: 'Archive', Icon: FiArchive, count: archiveCount },
-          ].map(({ key, label, Icon, count }) => {
-            const active = folder === key
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => onFolderChange?.(key)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${
-                  active
-                    ? 'bg-[#009750] text-white'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
-                }`}
-                role="tab"
-                aria-selected={active}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span>{label}</span>
-                <CountBadge count={count} active={active} />
-              </button>
-            )
-          })}
-        </div>
+        <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2 max-sm:w-full">
+          <div
+            className="inline-flex shrink-0 rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
+            role="tablist"
+            aria-label="Inbox folders"
+          >
+            {[
+              { key: 'inbox', label: 'Inbox', Icon: FiInbox, count: inboxCount },
+              { key: 'archive', label: 'Archive', Icon: FiArchive, count: archiveCount },
+            ].map(({ key, label, Icon, count }) => {
+              const active = folder === key
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onFolderChange?.(key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${
+                    active
+                      ? 'bg-[#009750] text-white'
+                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                  }`}
+                  role="tab"
+                  aria-selected={active}
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span>{label}</span>
+                  <CountBadge count={count} active={active} />
+                </button>
+              )
+            })}
+          </div>
 
-        <button
-          type="button"
-          onClick={onRefresh}
-          className={`${TOOLBAR_CONTROL} ml-auto shrink-0`}
-        >
-          <FiRefreshCw className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-          Refresh
-        </button>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={loading}
+            aria-label="Refresh inbox"
+            title="Refresh"
+            className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <FiRefreshCw className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+          </button>
+        </div>
       </div>
     </div>
   )
