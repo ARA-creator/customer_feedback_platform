@@ -5,6 +5,7 @@ import Header from '../shared/components/layout/Header'
 import Channels from '../features/channels/components/Channels'
 import AuthShell from '../features/auth/components/AuthShell'
 import { authLogout, authMe } from '../features/auth/services/auth.api'
+import { markIdleLogout, useIdleLogout } from '../features/auth/hooks/useIdleLogout'
 import { captureApiSessionFromUrl } from '../shared/lib/authSession'
 import { useNotificationPrefs } from '../features/notifications/hooks/useNotificationPrefs'
 import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
@@ -191,6 +192,13 @@ function AuthenticatedApp({ auth, setAuth }) {
       }
     })()
   }, [location.pathname, navigate, setAuth])
+
+  const signOutFromIdle = useCallback(() => {
+    markIdleLogout()
+    signOut()
+  }, [signOut])
+
+  useIdleLogout({ enabled: Boolean(auth?.email), onIdle: signOutFromIdle })
 
   const { realtimeEnabled, deliveryPrefs, loaded: notificationPrefsLoaded } = useNotificationPrefs()
 

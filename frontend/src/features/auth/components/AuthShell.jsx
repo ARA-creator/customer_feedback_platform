@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { FiEye, FiEyeOff } from 'react-icons/fi'
 import { authLogin, authMe, authSignup } from '../services/auth.api'
+import { consumeIdleLogoutFlag } from '../hooks/useIdleLogout'
 import { captureApiSessionFromUrl } from '../../../shared/lib/authSession'
 import { ToastStack } from '../../../shared/components/ui'
 import AuthGate from './AuthGate'
@@ -58,6 +59,10 @@ export default function AuthShell({ onAuthenticated, adminPortal = false }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (consumeIdleLogoutFlag()) {
+      setInfo('You were signed out after 5 minutes of inactivity.')
+      setError(null)
+    }
     captureApiSessionFromUrl()
     const params = new URLSearchParams(window.location.search)
     if (params.get('enterprise_signed_in') === '1') {
