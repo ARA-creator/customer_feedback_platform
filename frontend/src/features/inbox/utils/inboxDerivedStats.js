@@ -34,6 +34,12 @@ export function needsResponse(item) {
  * Stable unread count for the current inbox filter.
  * Uses server total when available; unloaded rows count as unread until marked read.
  */
+function isUnreadId(readIds, id) {
+  const n = Number(id)
+  if (!Number.isFinite(n)) return true
+  return !readIds?.has?.(n)
+}
+
 export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItems }) {
   const totalN = Number(total)
   const scoped = scopedIds?.size ? scopedIds : null
@@ -42,14 +48,14 @@ export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItem
     if (scoped.size >= totalN) {
       let unread = 0
       for (const id of scoped) {
-        if (!readIds?.has?.(id)) unread += 1
+        if (isUnreadId(readIds, id)) unread += 1
       }
       return unread
     }
     if (totalN > 0) {
       let readKnown = 0
       for (const id of scoped) {
-        if (readIds?.has?.(id)) readKnown += 1
+        if (!isUnreadId(readIds, id)) readKnown += 1
       }
       const known = scoped.size
       const unreadKnown = known - readKnown
@@ -58,7 +64,7 @@ export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItem
     }
   }
   const arr = Array.isArray(loadedItems) ? loadedItems : []
-  return arr.filter((it) => !readIds?.has?.(it?.id)).length
+  return arr.filter((it) => isUnreadId(readIds, it?.id)).length
 }
 
 export function computeInboxStats(items, { readIds, folder }) {
@@ -68,7 +74,7 @@ export function computeInboxStats(items, { readIds, folder }) {
   let negative = 0
   let unread = 0
   for (const it of inboxItems) {
-    if (!readIds?.has?.(it?.id)) unread += 1
+    if (isUnreadId(readIds, it?.id)) unread += 1
     if (isHighPriority(it)) high += 1
     if (String(it?.sentiment_label || '').toLowerCase() === 'negative') negative += 1
   }
@@ -125,18 +131,28 @@ export function buildDailySparkline(items, { days = 7, predicate } = {}) {
   return buckets
 }
 
-export function sortInboxItems(items, sortBy) {
+export function sortInboxItems(items, sortBy, pinnedIds) {
   const arr = [...(items || [])]
+  let sorted = arr
   if (sortBy === 'oldest') {
-    return arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-  }
-  if (sortBy === 'priority') {
-    return arr.sort((a, b) => {
+    sorted = arr.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  } else if (sortBy === 'priority') {
+    sorted = arr.sort((a, b) => {
       const pa = Number(a?.priority ?? a?.impact_score ?? 0)
       const pb = Number(b?.priority ?? b?.impact_score ?? 0)
       if (pb !== pa) return pb - pa
       return new Date(b.created_at) - new Date(a.created_at)
     })
+  } else {
+    sorted = arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }
-  return arr.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  if (!pinnedIds?.size) return sorted
+  const pinned = []
+  const rest = []
+  for (const it of sorted) {
+    const id = Number(it?.id)
+    if (Number.isFinite(id) && pinnedIds.has(id)) pinned.push(it)
+    else rest.push(it)
+  }
+  return [...pinned, ...rest]
 }

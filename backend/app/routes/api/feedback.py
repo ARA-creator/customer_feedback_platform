@@ -31,6 +31,11 @@ from ...sentiment_analyzer import analyze_sentiment
 from ...services.insurance_tags import categorize_insurance_tags
 from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
 from ...services.notification_maintenance import archive_read_notifications_before_month, current_month_start_utc
+from ...services.inbox_state import (
+    apply_inbox_state_patch,
+    get_inbox_state_for_feedback_ids,
+    get_user_inbox_state_maps,
+)
 from ...services.notification_policy import (
     apply_notification_visibility_filter,
     get_notification_prefs,
@@ -781,10 +786,104 @@ def feedback_feed():
             logger.exception("Failed legacy customer identity backfill")
 
         items = [_serialize_feedback(f) for f in page]
+        if user:
+            read_ids, pinned_ids = get_user_inbox_state_maps(db, int(user.id))
+            for item in items:
+                fid = item.get("id")
+                if fid is None:
+                    continue
+                try:
+                    fid_int = int(fid)
+                except (TypeError, ValueError):
+                    continue
+                item["inbox_read"] = fid_int in read_ids
+                item["inbox_pinned"] = fid_int in pinned_ids
+        else:
+            for item in items:
+                item["inbox_read"] = False
+                item["inbox_pinned"] = False
         return jsonify({"items": items, "next_cursor": next_cursor, "has_more": has_more})
     except Exception:
         logger.exception("Error fetching unified feedback feed")
         return jsonify({"error": "Failed to fetch feedback feed"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/feedback/inbox-state", methods=["GET"])
+def feedback_inbox_state_get():
+    """Return read/pinned feedback ids for the current user."""
+    db = SessionLocal()
+    try:
+        user = _require_authenticated_user(db)
+        feedback_ids_raw = (request.args.get("feedback_ids") or "").strip()
+        if feedback_ids_raw:
+            ids = []
+            for part in feedback_ids_raw.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    ids.append(int(part))
+                except ValueError:
+                    continue
+            payload = get_inbox_state_for_feedback_ids(db, int(user.id), ids)
+        else:
+            read_ids, pinned_ids = get_user_inbox_state_maps(db, int(user.id))
+            payload = {
+                "read_feedback_ids": sorted(read_ids),
+                "pinned_feedback_ids": sorted(pinned_ids),
+            }
+        return jsonify(payload)
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Error loading inbox state")
+        return jsonify({"error": "Failed to load inbox state"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/feedback/inbox-state", methods=["PATCH"])
+def feedback_inbox_state_patch():
+    """
+    Update read/unread/pin state for feedback items.
+
+    JSON body (all optional):
+      mark_read: [feedback_id, ...]
+      mark_unread: [feedback_id, ...]
+      pin: [{ feedback_id, pinned: bool }, ...]
+    """
+    db = SessionLocal()
+    try:
+        user = _require_authenticated_user(db)
+        data = request.get_json(silent=True) or {}
+        mark_read = data.get("mark_read")
+        mark_unread = data.get("mark_unread")
+        pin_raw = data.get("pin")
+        pin_updates = []
+        if isinstance(pin_raw, list):
+            for entry in pin_raw:
+                if not isinstance(entry, dict):
+                    continue
+                fid = entry.get("feedback_id") or entry.get("id")
+                if fid is None:
+                    continue
+                pin_updates.append((fid, bool(entry.get("pinned"))))
+        result = apply_inbox_state_patch(
+            db,
+            int(user.id),
+            mark_read=mark_read if isinstance(mark_read, list) else None,
+            mark_unread=mark_unread if isinstance(mark_unread, list) else None,
+            pin_updates=pin_updates or None,
+        )
+        return jsonify({"ok": True, **result})
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Error updating inbox state")
+        db.rollback()
+        return jsonify({"error": "Failed to update inbox state"}), 500
     finally:
         db.close()
 

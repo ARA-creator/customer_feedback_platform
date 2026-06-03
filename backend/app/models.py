@@ -469,6 +469,27 @@ class ReleaseEvent(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class UserFeedbackInboxState(Base):
+    """Per-user read/pin state for feedback in the unified inbox."""
+
+    __tablename__ = "user_feedback_inbox_state"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    feedback_id = Column(Integer, nullable=False, index=True)
+    read_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    pinned_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+Index(
+    "ix_user_feedback_inbox_state_user_feedback",
+    UserFeedbackInboxState.user_id,
+    UserFeedbackInboxState.feedback_id,
+    unique=True,
+)
+
+
 class ExternalIngestedItem(Base):
     """
     Tracks external items we've already ingested (e.g., RSS/web mentions).

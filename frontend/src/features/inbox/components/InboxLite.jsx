@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FiAlertCircle, FiArchive, FiEye, FiInbox, FiRefreshCw, FiX } from 'react-icons/fi'
+import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe } from 'react-icons/fi'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
+import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
 import InboxFilterToolbar from './InboxFilterToolbar'
@@ -41,7 +42,6 @@ const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
 )
 
 const INBOX_PAGE_SIZE = 25
-const READ_IDS_KEY = 'cfp_inbox_read_feedback_ids'
 
 const SENTIMENT_COLORS = {
   positive: '#6FBF73',
@@ -262,15 +262,8 @@ export default function InboxLite({ onNavigate }) {
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
   const [activeQuickFilter, setActiveQuickFilter] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
-  const [readIds, setReadIds] = useState(() => {
-    try {
-      const raw = localStorage.getItem(READ_IDS_KEY)
-      const arr = raw ? JSON.parse(raw) : []
-      return new Set(Array.isArray(arr) ? arr : [])
-    } catch {
-      return new Set()
-    }
-  })
+  const { readIds, pinnedIds, mergeFromFeedItems, markIdsRead, markIdsUnread, togglePinned, setPinnedMany } =
+    useInboxUserState()
   const [scopedInboxIds, setScopedInboxIds] = useState(() => new Set())
   const feedCursorRef = useRef(null)
   const [feedHasMore, setFeedHasMore] = useState(false)
@@ -294,24 +287,7 @@ export default function InboxLite({ onNavigate }) {
   }, [archivedIds])
 
   useEffect(() => {
-    try {
-      localStorage.setItem(READ_IDS_KEY, JSON.stringify(Array.from(readIds)))
-    } catch {
-      // ignore
-    }
-  }, [readIds])
-
-  useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === READ_IDS_KEY) {
-        try {
-          const arr = e.newValue ? JSON.parse(e.newValue) : []
-          setReadIds(new Set(Array.isArray(arr) ? arr : []))
-        } catch {
-          // ignore
-        }
-        return
-      }
       if (e.key === 'cfp_archived_feedback_ids') {
         try {
           const arr = e.newValue ? JSON.parse(e.newValue) : []
@@ -563,7 +539,10 @@ export default function InboxLite({ onNavigate }) {
         const feed = await getFeedbackFeed(params)
         if (seq !== loadSeq.current) return
         const newItems = Array.isArray(feed?.items) ? feed.items : []
-        const inboxIds = newItems.filter((it) => it?.id && !archivedIds.has(it.id)).map((it) => it.id)
+        const inboxIds = newItems
+          .filter((it) => it?.id && !archivedIds.has(it.id))
+          .map((it) => normFeedbackId(it.id))
+          .filter(Boolean)
         if (append && !isPriority) {
           setItems((prev) => [...prev, ...newItems])
           setScopedInboxIds((prev) => {
@@ -575,6 +554,7 @@ export default function InboxLite({ onNavigate }) {
           setItems(newItems)
           setScopedInboxIds(new Set(inboxIds))
         }
+        mergeFromFeedItems(newItems)
         feedCursorRef.current = feed?.next_cursor ?? null
         setFeedHasMore(Boolean(feed?.has_more))
         if (!append) {
@@ -629,6 +609,7 @@ export default function InboxLite({ onNavigate }) {
       peakRangeDays,
       sortBy,
       archivedIds,
+      mergeFromFeedItems,
     ],
   )
 
@@ -665,7 +646,10 @@ export default function InboxLite({ onNavigate }) {
   const sortedVisibleItems = useMemo(() => {
     let arr = visibleItems
     if (activeQuickFilter === 'unread' || listTab === 'unread') {
-      arr = arr.filter((it) => !readIds.has(it?.id))
+      arr = arr.filter((it) => {
+        const id = normFeedbackId(it?.id)
+        return id != null && !readIds.has(id)
+      })
     }
     if (activeQuickFilter === 'high_priority') {
       arr = arr.filter(isHighPriority)
@@ -673,8 +657,8 @@ export default function InboxLite({ onNavigate }) {
     if (activeQuickFilter === 'needs_response') {
       arr = arr.filter(needsResponse)
     }
-    return sortInboxItems(arr, sortBy)
-  }, [visibleItems, activeQuickFilter, listTab, readIds, sortBy])
+    return sortInboxItems(arr, sortBy, pinnedIds)
+  }, [visibleItems, activeQuickFilter, listTab, readIds, sortBy, pinnedIds])
 
   const displayedItems = sortedVisibleItems
   const hasMoreToShow = feedHasMore
@@ -704,7 +688,11 @@ export default function InboxLite({ onNavigate }) {
   const unreadTabActive = listTab === 'unread' || activeQuickFilter === 'unread'
 
   const loadedUnreadOnPage = useMemo(
-    () => visibleItems.filter((it) => !readIds.has(it?.id)).length,
+    () =>
+      visibleItems.filter((it) => {
+        const id = normFeedbackId(it?.id)
+        return id != null && !readIds.has(id)
+      }).length,
     [visibleItems, readIds],
   )
 
@@ -754,23 +742,62 @@ export default function InboxLite({ onNavigate }) {
     }).length
   }, [inboxItemsForStats])
 
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
   const toggleSelected = useCallback((id) => {
-    if (!id) return
+    const fid = normFeedbackId(id)
+    if (!fid) return
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(fid)) next.delete(fid)
+      else next.add(fid)
       return next
     })
   }, [])
 
-  const markIdsRead = useCallback((ids) => {
-    setReadIds((prev) => {
+  const displayedIds = useMemo(
+    () => displayedItems.map((it) => normFeedbackId(it?.id)).filter(Boolean),
+    [displayedItems],
+  )
+
+  const allDisplayedSelected = useMemo(() => {
+    if (!displayedIds.length) return false
+    return displayedIds.every((id) => selectedIds.has(id))
+  }, [displayedIds, selectedIds])
+
+  const toggleSelectAllDisplayed = useCallback(() => {
+    setSelectedIds((prev) => {
       const next = new Set(prev)
-      for (const id of ids) next.add(id)
+      const shouldSelect = !displayedIds.every((id) => next.has(id))
+      for (const id of displayedIds) {
+        if (shouldSelect) next.add(id)
+        else next.delete(id)
+      }
       return next
     })
-  }, [])
+  }, [displayedIds])
+
+  const markSelectedRead = useCallback(() => {
+    const ids = Array.from(selectedIds)
+    markIdsRead(ids)
+    clearSelection()
+  }, [selectedIds, markIdsRead, clearSelection])
+
+  const markSelectedUnread = useCallback(() => {
+    const ids = Array.from(selectedIds)
+    markIdsUnread(ids)
+    clearSelection()
+  }, [selectedIds, markIdsUnread, clearSelection])
+
+  const pinSelected = useCallback(() => {
+    setPinnedMany(Array.from(selectedIds), true)
+    clearSelection()
+  }, [selectedIds, setPinnedMany, clearSelection])
+
+  const unpinSelected = useCallback(() => {
+    setPinnedMany(Array.from(selectedIds), false)
+    clearSelection()
+  }, [selectedIds, setPinnedMany, clearSelection])
 
   const handleQuickFilter = useCallback((id) => {
     if (id === 'clear') {
@@ -793,7 +820,8 @@ export default function InboxLite({ onNavigate }) {
 
   const openFeedback = useCallback(
     (it) => {
-      if (it?.id) markIdsRead([it.id])
+      const fid = normFeedbackId(it?.id)
+      if (fid) markIdsRead([fid])
       setOpenItem(it)
     },
     [markIdsRead],
@@ -1011,10 +1039,20 @@ export default function InboxLite({ onNavigate }) {
             listHighlightId={listHighlightId}
             loadingMore={loadingMore}
             selectedIds={selectedIds}
+            selectedCount={selectedIds.size}
             readIds={readIds}
+            pinnedIds={pinnedIds}
             archivedIds={archivedIds}
+            allDisplayedSelected={allDisplayedSelected}
+            onToggleSelectAll={toggleSelectAllDisplayed}
+            onClearSelection={clearSelection}
+            onMarkSelectedRead={markSelectedRead}
+            onMarkSelectedUnread={markSelectedUnread}
+            onPinSelected={pinSelected}
+            onUnpinSelected={unpinSelected}
             onOpenItem={openFeedback}
             onToggleSelected={toggleSelected}
+            onTogglePinned={togglePinned}
             onArchiveToggle={(id) => {
               setArchivedIds((prev) => {
                 const next = new Set(prev)
@@ -1108,6 +1146,39 @@ export default function InboxLite({ onNavigate }) {
                     >
                       <FiEye className="h-5 w-5" aria-hidden />
                     </button>
+                  )
+                })()}
+                {(() => {
+                  const fid = normFeedbackId(openItem?.id)
+                  const isRead = fid != null && readIds.has(fid)
+                  const isPinned = fid != null && pinnedIds.has(fid)
+                  return (
+                    <>
+                      {isRead ? (
+                        <button
+                          type="button"
+                          onClick={() => fid && markIdsUnread([fid])}
+                          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                          title="Mark as unread"
+                        >
+                          <FiMail className="h-4 w-4" aria-hidden />
+                          Unread
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => fid && togglePinned(fid)}
+                        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border px-2 py-2 ${
+                          isPinned
+                            ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200'
+                            : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                        }`}
+                        title={isPinned ? 'Unpin' : 'Pin'}
+                        aria-label={isPinned ? 'Unpin feedback' : 'Pin feedback'}
+                      >
+                        <FiBookmark className="h-5 w-5" aria-hidden />
+                      </button>
+                    </>
                   )
                 })()}
                 <button

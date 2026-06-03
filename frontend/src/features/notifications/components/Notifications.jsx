@@ -121,14 +121,14 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
 
   const unreadItems = useMemo(() => visibleItems.filter((x) => !x?.read_at), [visibleItems])
   const selectedCount = useMemo(() => selectedIds.size, [selectedIds])
-  const unreadIds = useMemo(() => unreadItems.map((n) => n.id).filter(Boolean), [unreadItems])
-  const allUnreadSelected = useMemo(() => {
-    if (!unreadIds.length) return false
-    for (const id of unreadIds) {
+  const visibleIds = useMemo(() => visibleItems.map((n) => n.id).filter(Boolean), [visibleItems])
+  const allVisibleSelected = useMemo(() => {
+    if (!visibleIds.length) return false
+    for (const id of visibleIds) {
       if (!selectedIds.has(id)) return false
     }
     return true
-  }, [selectedIds, unreadIds])
+  }, [selectedIds, visibleIds])
 
   const clearSelection = () => setSelectedIds(new Set())
   const toggleSelected = (id) => {
@@ -139,13 +139,13 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       return next
     })
   }
-  const toggleSelectAllUnread = () => {
+  const toggleSelectAllVisible = () => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (!unreadIds.length) return next
-      const shouldSelectAll = !allUnreadSelected
-      if (shouldSelectAll) unreadIds.forEach((id) => next.add(id))
-      else unreadIds.forEach((id) => next.delete(id))
+      if (!visibleIds.length) return next
+      const shouldSelectAll = !allVisibleSelected
+      if (shouldSelectAll) visibleIds.forEach((id) => next.add(id))
+      else visibleIds.forEach((id) => next.delete(id))
       return next
     })
   }
@@ -395,13 +395,13 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
               <input
                 type="checkbox"
                 className="h-4 w-4 rounded-full border-gray-300 text-[#009750] focus:ring-[#009750]/30"
-                checked={allUnreadSelected}
-                onChange={toggleSelectAllUnread}
-                aria-label="Select all unread notifications"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAllVisible}
+                aria-label="Select all notifications"
               />
               <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Select all</span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                ({unreadItems.length} unread)
+                ({visibleItems.length})
               </span>
             </div>
           )}

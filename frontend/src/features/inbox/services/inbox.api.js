@@ -7,6 +7,20 @@ export const getFeedbackFeed = async (params = {}) => {
   return response.data
 }
 
+export const getInboxState = async ({ feedbackIds } = {}) => {
+  const params = {}
+  if (Array.isArray(feedbackIds) && feedbackIds.length) {
+    params.feedback_ids = feedbackIds.join(',')
+  }
+  const response = await api.get('/feedback/inbox-state', withInboxTimeout({ params }))
+  return response.data
+}
+
+export const patchInboxState = async (payload = {}) => {
+  const response = await api.patch('/feedback/inbox-state', payload)
+  return response.data
+}
+
 export const listTeams = async () => {
   const response = await api.get('/teams')
   return response.data
