@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FiActivity, FiAlertTriangle, FiInbox, FiLink2, FiRefreshCw, FiUsers } from 'react-icons/fi'
 import { adminGetOverview, adminReprocessInsuranceTags, adminReprocessSentiment } from '../services/admin.api'
 
@@ -17,8 +17,7 @@ export default function AdminOverview({ auth, onNavigate }) {
   const [sentimentReprocessBusy, setSentimentReprocessBusy] = useState(false)
   const [sentimentReprocessLog, setSentimentReprocessLog] = useState('')
 
-  const ingestion = useMemo(() => health?.ingestion || [], [health])
-  const queue = useMemo(() => health?.queue || {}, [health])
+  const queue = health?.queue || {}
 
   const load = async () => {
     setLoading(true)
@@ -55,9 +54,6 @@ export default function AdminOverview({ auth, onNavigate }) {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Admin overview</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Org health and governance tools. Access is controlled by RBAC permissions.
-            </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -77,7 +73,7 @@ export default function AdminOverview({ auth, onNavigate }) {
           </div>
         )}
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
               <FiInbox className="h-4 w-4" />
@@ -86,17 +82,13 @@ export default function AdminOverview({ auth, onNavigate }) {
             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
               {loading ? '…' : queue.open ?? '—'}
             </div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Not resolved or closed</div>
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
-            <div className="flex items-center gap-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
-              <FiActivity className="h-4 w-4" />
-              SLA breaches
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {loading
+                ? 'Not resolved or closed'
+                : Number.isFinite(Number(queue.sla_breaches))
+                  ? `${queue.sla_breaches} past due (SLA) · not resolved or closed`
+                  : 'Not resolved or closed'}
             </div>
-            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
-              {loading ? '…' : queue.sla_breaches ?? '—'}
-            </div>
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Past due, still open</div>
           </div>
           <div
             className={`rounded-2xl border p-4 ${
@@ -131,40 +123,6 @@ export default function AdminOverview({ auth, onNavigate }) {
             </button>
           </div>
         )}
-
-        <div className="mt-6">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Org health</h2>
-          {loading ? (
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-          ) : (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                  <tr>
-                    <th className="px-4 py-3">Channel</th>
-                    <th className="px-4 py-3">Last sync (proxy)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {ingestion.length === 0 ? (
-                    <tr>
-                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400" colSpan={2}>
-                        No ingestion data yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    ingestion.map((row) => (
-                      <tr key={row.source} className="bg-white dark:bg-gray-950">
-                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{row.source}</td>
-                        <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{row.last_seen_at || '—'}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
 
         <div className="mt-6">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick actions</h2>

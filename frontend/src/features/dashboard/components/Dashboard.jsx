@@ -481,12 +481,12 @@ function Dashboard({
       const data = await getFeedbackAnalyzer(analyzerParams)
       setAnalyzerResult(data)
       setAnalyzerError(null)
-    } catch (err) {
+      } catch (err) {
       const msg =
         err?.response?.data?.error || err?.message || 'Could not analyze feedback for this period.'
       setAnalyzerError(msg)
       if (openModal) pushToast?.('Analyzer failed', msg, 'error')
-    } finally {
+      } finally {
       setAnalyzerLoading(false)
     }
   }
@@ -497,7 +497,7 @@ function Dashboard({
     if (mode !== 'overview') return undefined
     if (loading || !analyticsDelayPassed) return undefined
     let cancelled = false
-    ;(async () => {
+          ;(async () => {
       if (cancelled) return
       await loadAnalyzerInsight({ openModal: false })
     })()

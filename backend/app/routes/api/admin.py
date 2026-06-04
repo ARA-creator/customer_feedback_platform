@@ -54,6 +54,7 @@ from ._helpers import (
     _require_permission,
     _safe_json_dumps,
     _set_setting_json,
+    _user_permission_keys,
 )
 
 logger = logging.getLogger(__name__)
@@ -889,6 +890,312 @@ def admin_set_role_permissions(role_id: int):
         db.close()
 
 
+_WORKFLOW_CLOSED = ("closed", "resolved")
+_OPEN_WORKLOAD_CAP = 50
+
+
+def _parse_user_profile(user: User) -> Dict[str, Any]:
+    raw = getattr(user, "profile_json", None)
+    data = safe_json_loads(raw) if raw else {}
+    if not isinstance(data, dict):
+        data = {}
+    skills = data.get("skills")
+    if not isinstance(skills, list):
+        skills = []
+    skills_out = [str(s).strip() for s in skills if s and str(s).strip()]
+    manager_name = data.get("manager_name")
+    if manager_name is not None:
+        manager_name = str(manager_name).strip() or None
+    return {"skills": skills_out, "manager_name": manager_name}
+
+
+def _merge_user_profile_patch(user: User, payload: Dict[str, Any]) -> bool:
+    """Update profile_json from PATCH fields skills / manager_name. Returns True if changed."""
+    if "skills" not in payload and "manager_name" not in payload:
+        return False
+    profile = _parse_user_profile(user)
+    if "skills" in payload:
+        raw = payload.get("skills")
+        if raw is None:
+            profile["skills"] = []
+        elif isinstance(raw, list):
+            profile["skills"] = [str(s).strip() for s in raw if s and str(s).strip()][:24]
+        else:
+            return False
+    if "manager_name" in payload:
+        mn = payload.get("manager_name")
+        profile["manager_name"] = (str(mn).strip() if mn is not None and str(mn).strip() else None)
+    user.profile_json = json.dumps(profile)
+    return True
+
+
+def _role_display_name(role_key: Optional[str]) -> str:
+    key = normalize_role_name(str(role_key or "").strip()) or str(role_key or "").strip()
+    labels = {
+        "super_admin": "Super Admin",
+        "cx_manager": "CX Manager",
+        "team_lead": "Team Lead",
+        "agent": "CX Agent",
+        "analyst": "Analyst",
+        "auditor": "Auditor",
+    }
+    return labels.get(key) or (key.replace("_", " ").title() if key else "—")
+
+
+def _team_display_name(team: Optional[str]) -> str:
+    t = str(team or "").strip()
+    if not t:
+        return "—"
+    return t.replace("_", " ").strip().title()
+
+
+def _workflow_metrics_for_users(db, user_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    ids = sorted({int(i) for i in user_ids if i})
+    out: Dict[int, Dict[str, Any]] = {
+        uid: {"open_items": 0, "sla_breaches": 0, "sla_health_pct": 100, "workload_pct": 0}
+        for uid in ids
+    }
+    if not ids:
+        return out
+    now = datetime.now(tz=timezone.utc)
+    open_rows = (
+        db.query(FeedbackWorkflow.assigned_user_id, func.count(FeedbackWorkflow.id))
+        .select_from(FeedbackWorkflow)
+        .join(Feedback, Feedback.id == FeedbackWorkflow.feedback_id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(FeedbackWorkflow.assigned_user_id.in_(ids))
+        .filter(
+            or_(
+                FeedbackWorkflow.status.is_(None),
+                func.lower(FeedbackWorkflow.status).notin_(_WORKFLOW_CLOSED),
+            )
+        )
+        .group_by(FeedbackWorkflow.assigned_user_id)
+        .all()
+    )
+    breach_rows = (
+        db.query(FeedbackWorkflow.assigned_user_id, func.count(FeedbackWorkflow.id))
+        .select_from(FeedbackWorkflow)
+        .join(Feedback, Feedback.id == FeedbackWorkflow.feedback_id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(FeedbackWorkflow.assigned_user_id.in_(ids))
+        .filter(FeedbackWorkflow.sla_due_at.isnot(None))
+        .filter(FeedbackWorkflow.sla_due_at < now)
+        .filter(
+            or_(
+                FeedbackWorkflow.status.is_(None),
+                func.lower(FeedbackWorkflow.status).notin_(_WORKFLOW_CLOSED),
+            )
+        )
+        .group_by(FeedbackWorkflow.assigned_user_id)
+        .all()
+    )
+    sla_rows = (
+        db.query(FeedbackWorkflow.assigned_user_id, func.count(FeedbackWorkflow.id))
+        .select_from(FeedbackWorkflow)
+        .join(Feedback, Feedback.id == FeedbackWorkflow.feedback_id)
+        .filter(Feedback.deleted_at.is_(None))
+        .filter(FeedbackWorkflow.assigned_user_id.in_(ids))
+        .filter(FeedbackWorkflow.sla_due_at.isnot(None))
+        .filter(
+            or_(
+                FeedbackWorkflow.status.is_(None),
+                func.lower(FeedbackWorkflow.status).notin_(_WORKFLOW_CLOSED),
+            )
+        )
+        .group_by(FeedbackWorkflow.assigned_user_id)
+        .all()
+    )
+    open_map = {int(r[0]): int(r[1]) for r in open_rows if r[0] is not None}
+    breach_map = {int(r[0]): int(r[1]) for r in breach_rows if r[0] is not None}
+    sla_map = {int(r[0]): int(r[1]) for r in sla_rows if r[0] is not None}
+    for uid in ids:
+        open_n = open_map.get(uid, 0)
+        breaches = breach_map.get(uid, 0)
+        with_sla = sla_map.get(uid, 0)
+        if with_sla > 0:
+            health = int(round(100.0 * max(0, with_sla - breaches) / with_sla))
+        else:
+            health = 100
+        workload = min(100, int(round(100.0 * open_n / _OPEN_WORKLOAD_CAP)))
+        out[uid] = {
+            "open_items": open_n,
+            "sla_breaches": breaches,
+            "sla_health_pct": health,
+            "workload_pct": workload,
+        }
+    return out
+
+
+def _security_status_for_user(user: User) -> Dict[str, Any]:
+    if not getattr(user, "is_active", True):
+        return {"level": "warning", "label": "Suspended", "detail": "Account suspended"}
+    last_login = getattr(user, "last_login_at", None)
+    if not last_login:
+        return {"level": "neutral", "label": "No login yet", "detail": "Password healthy"}
+    now = datetime.now(tz=timezone.utc)
+    if last_login.tzinfo is None:
+        last_login = last_login.replace(tzinfo=timezone.utc)
+    age = now - last_login
+    if age > timedelta(days=30):
+        return {"level": "warning", "label": "Inactive", "detail": "No recent login"}
+    return {"level": "ok", "label": "Password healthy", "detail": "Password healthy"}
+
+
+def _serialize_directory_user(
+    u: User,
+    *,
+    role_names: List[str],
+    team: Optional[str],
+    region: Optional[str],
+    metrics: Dict[str, Any],
+) -> Dict[str, Any]:
+    profile = _parse_user_profile(u)
+    primary_role = (role_names[0] if role_names else None) or u.role
+    return {
+        "id": u.id,
+        "email": u.email,
+        "full_name": getattr(u, "full_name", None),
+        "role": primary_role,
+        "role_label": _role_display_name(primary_role),
+        "roles": role_names,
+        "team": team,
+        "team_label": _team_display_name(team),
+        "region": region,
+        "is_active": bool(getattr(u, "is_active", True)),
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+        "last_login_at": (
+            u.last_login_at.isoformat() if getattr(u, "last_login_at", None) else None
+        ),
+        "skills": profile["skills"],
+        "manager_name": profile["manager_name"],
+        "open_items": metrics.get("open_items", 0),
+        "sla_breaches": metrics.get("sla_breaches", 0),
+        "sla_health_pct": metrics.get("sla_health_pct", 100),
+        "workload_pct": metrics.get("workload_pct", 0),
+        "security": _security_status_for_user(u),
+        "auth_provider": getattr(u, "auth_provider", None),
+        "account_type": getattr(u, "account_type", None),
+        "approved_at": (u.approved_at.isoformat() if getattr(u, "approved_at", None) else None),
+        "pending_approval": (
+            getattr(u, "account_type", None) == "external"
+            and getattr(u, "approved_at", None) is None
+            and getattr(u, "deleted_at", None) is None
+        ),
+        "deleted_at": (u.deleted_at.isoformat() if getattr(u, "deleted_at", None) else None),
+    }
+
+
+def _load_users_for_scope(db, scope: str) -> List[User]:
+    q = db.query(User)
+    if scope == "active":
+        q = q.filter(User.deleted_at.is_(None)).filter(
+            or_(
+                User.account_type.is_(None),
+                User.account_type != "external",
+                User.approved_at.isnot(None),
+            )
+        )
+    elif scope == "pending":
+        q = q.filter(
+            User.deleted_at.is_(None),
+            User.account_type == "external",
+            User.approved_at.is_(None),
+        )
+    elif scope == "recycle":
+        q = q.filter(User.deleted_at.isnot(None))
+    return q.order_by(User.created_at.desc(), User.id.desc()).all()
+
+
+def _user_scope_maps(
+    db, users: List[User]
+) -> tuple:
+    if not users:
+        return {}, {}
+    user_ids = [u.id for u in users]
+    roles = db.query(Role).all()
+    role_by_id = {r.id: r for r in roles}
+    mappings = db.query(UserRole).filter(UserRole.user_id.in_(user_ids)).all()
+    role_names_by_user: Dict[int, List[str]] = {}
+    scope_by_user: Dict[int, Dict[str, Optional[str]]] = {}
+    for m in mappings:
+        r = role_by_id.get(m.role_id)
+        if r:
+            role_names_by_user.setdefault(m.user_id, []).append(r.name)
+        if m.user_id not in scope_by_user:
+            scope_by_user[m.user_id] = {"team": m.team, "region": m.region}
+    return role_names_by_user, scope_by_user
+
+
+@api_bp.route("/admin/users/directory", methods=["GET"])
+def admin_users_directory():
+    """Enriched user directory for the admin Users page (metrics, skills, filters)."""
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        scope = (request.args.get("scope") or "active").strip().lower()
+        if scope not in ("active", "recycle", "pending"):
+            scope = "active"
+        users = _load_users_for_scope(db, scope)
+        role_names_by_user, scope_by_user = _user_scope_maps(db, users)
+        metrics_by_user = _workflow_metrics_for_users(db, [u.id for u in users])
+        rows = []
+        for u in users:
+            roles_sorted = sorted(list(set(role_names_by_user.get(u.id, []))))
+            scope_row = scope_by_user.get(u.id) or {}
+            rows.append(
+                _serialize_directory_user(
+                    u,
+                    role_names=roles_sorted,
+                    team=scope_row.get("team"),
+                    region=scope_row.get("region"),
+                    metrics=metrics_by_user.get(u.id, {}),
+                )
+            )
+        return jsonify({"users": rows, "total": len(rows), "scope": scope})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/admin/users/<int:user_id>/directory", methods=["GET"])
+def admin_user_directory_detail(user_id: int):
+    db = SessionLocal()
+    try:
+        _require_permission(db, "admin.manage_users")
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        role_names_by_user, scope_by_user = _user_scope_maps(db, [user])
+        metrics = _workflow_metrics_for_users(db, [user_id]).get(user_id, {})
+        scope_row = scope_by_user.get(user_id) or {}
+        serialized = _serialize_directory_user(
+            user,
+            role_names=sorted(list(set(role_names_by_user.get(user_id, [])))),
+            team=scope_row.get("team"),
+            region=scope_row.get("region"),
+            metrics=metrics,
+        )
+        perms = sorted(_user_permission_keys(db, user_id))
+        activity_rows = (
+            db.query(AuditLog)
+            .filter(AuditLog.actor_user_id == user_id)
+            .order_by(desc(AuditLog.created_at), desc(AuditLog.id))
+            .limit(30)
+            .all()
+        )
+        users_by_id = _lookup_user_emails(db, [user_id])
+        activity = [_serialize_audit_entry(db, r, users_by_id=users_by_id) for r in activity_rows]
+        return jsonify({"user": serialized, "permissions": perms, "activity": activity})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
 @api_bp.route("/admin/users", methods=["GET", "POST"])
 def admin_users():
     db = SessionLocal()
@@ -1206,6 +1513,11 @@ def admin_update_user(user_id: int):
                     row.region = region
             changed["team"] = team if "team" in payload else None
             changed["region"] = region if "region" in payload else None
+
+        if _merge_user_profile_patch(user, payload):
+            profile = _parse_user_profile(user)
+            changed["skills"] = profile["skills"]
+            changed["manager_name"] = profile["manager_name"]
 
         if "is_active" in payload:
             is_active = payload.get("is_active")
@@ -1810,8 +2122,11 @@ def admin_audit_logs():
         limit = min(max(int(request.args.get("limit") or 100), 1), 500)
         action_filter = (request.args.get("action") or "").strip()
         target_type = (request.args.get("target_type") or "").strip()
+        actor_user_id = request.args.get("actor_user_id", type=int)
 
         q = db.query(AuditLog)
+        if actor_user_id:
+            q = q.filter(AuditLog.actor_user_id == int(actor_user_id))
         if action_filter:
             q = q.filter(AuditLog.action.ilike(f"%{action_filter}%"))
         if target_type:

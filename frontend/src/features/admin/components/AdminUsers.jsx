@@ -13,6 +13,7 @@ import {
 } from '../services/admin.api'
 import AdminEditUserDialog from './AdminEditUserDialog'
 import AdminResetPasswordDialog from './AdminResetPasswordDialog'
+import AdminUsersDirectory from './AdminUsersDirectory'
 
 export default function AdminUsers() {
   const [loading, setLoading] = useState(true)
@@ -27,6 +28,7 @@ export default function AdminUsers() {
   const [resetUser, setResetUser] = useState(null)
   const [resetNotice, setResetNotice] = useState(null)
   const [saveNotice, setSaveNotice] = useState(null)
+  const [directoryKey, setDirectoryKey] = useState(0)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -62,6 +64,7 @@ export default function AdminUsers() {
   }, [])
 
   useEffect(() => {
+    if (userScope === 'active') return
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userScope])
@@ -185,13 +188,13 @@ export default function AdminUsers() {
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Users</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Manage users and their roles. Backend enforces RBAC (least privilege).
+              Team directory, workload, and user profiles.
             </p>
           </div>
           <div className="ml-auto">
             <button
               type="button"
-              onClick={load}
+              onClick={() => (userScope === 'active' ? setDirectoryKey((k) => k + 1) : load())}
               className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
             >
               <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -332,7 +335,7 @@ export default function AdminUsers() {
                 ? 'External access requests awaiting approval. Assign a role when approving.'
                 : 'Users here were removed from the active list. Restore to reinstate access, or permanently delete to free the email for a new signup.'}
           </p>
-          {loading ? (
+          {loading && userScope !== 'active' ? (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
           ) : userScope === 'pending' ? (
             <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
@@ -429,106 +432,15 @@ export default function AdminUsers() {
               </table>
             </div>
           ) : userScope === 'active' ? (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs font-semibold text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                  <tr>
-                    <th className="px-4 py-3">Email</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Role</th>
-                    <th className="px-4 py-3">Team</th>
-                    <th className="px-4 py-3">Region</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {users.map((u) => (
-                    <tr key={u.id} className="bg-white dark:bg-gray-950">
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{u.email}</td>
-                      <td className="px-4 py-3">
-                        {u.is_active ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">Active</span>
-                        ) : (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">Suspended</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.full_name || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                        {(u.roles && u.roles[0]) || u.role || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.team || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{u.region || '—'}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 whitespace-nowrap flex-wrap">
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => setEditUser(u)}
-                            title="Edit user"
-                            aria-label="Edit user"
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                          >
-                            <FiEdit2 className="h-4 w-4" />
-                          </button>
-                          {u.auth_provider !== 'azure_ad' && (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => setResetUser(u)}
-                              title="Reset password"
-                              aria-label="Reset password"
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                            >
-                              <FiKey className="h-4 w-4" />
-                            </button>
-                          )}
-                          {u.is_active ? (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => setStatus(u.id, false)}
-                              title="Suspend user"
-                              aria-label="Suspend user"
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
-                            >
-                              <FiUserX className="h-4 w-4" />
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => setStatus(u.id, true)}
-                              title="Activate user"
-                              aria-label="Activate user"
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
-                            >
-                              <FiUserCheck className="h-4 w-4" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={() => removeUser(u)}
-                            title="Move to recycle bin"
-                            aria-label="Move to recycle bin"
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-800 hover:bg-rose-100 disabled:opacity-60 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200"
-                          >
-                            <FiArchive className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {users.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                        No active users.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="mt-3">
+              <AdminUsersDirectory
+                key={directoryKey}
+                saving={saving}
+                onEditUser={setEditUser}
+                onResetPassword={setResetUser}
+                onSetStatus={(u, active) => setStatus(u.id, active)}
+                onRemoveUser={removeUser}
+              />
             </div>
           ) : (
             <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
@@ -601,7 +513,8 @@ export default function AdminUsers() {
         onSuccess={async () => {
           setSaveNotice(`Saved changes for ${editUser?.email || 'user'}.`)
           setEditUser(null)
-          await load()
+          setDirectoryKey((k) => k + 1)
+          if (userScope !== 'active') await load()
         }}
       />
 

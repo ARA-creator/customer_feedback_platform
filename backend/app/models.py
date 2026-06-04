@@ -38,6 +38,7 @@ class User(Base):
     password_reset_code_hash = Column(String(128), nullable=True)
     password_reset_code_expires_at = Column(DateTime(timezone=True), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+    profile_json = Column(Text, nullable=True)  # JSON: skills[], manager_name, etc.
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

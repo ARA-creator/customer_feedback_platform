@@ -62,7 +62,7 @@ export function buildHelpGuide(auth) {
       to: '/admin',
       title: 'Admin overview',
       description:
-        'Platform health, user approvals, theme backfill, and high-level admin actions. This is the default home for admin accounts.',
+        'Queue metrics, user approvals, theme backfill, and high-level admin actions. Channel ingestion health lives under Channels.',
     },
   ]
 
@@ -78,7 +78,8 @@ export function buildHelpGuide(auth) {
     adminSections.push({
       to: '/admin/users',
       title: 'Users',
-      description: 'Approve, suspend, and manage user accounts, roles, and access.',
+      description:
+        'Team directory with workload and SLA columns, filters, and a profile drawer (activity, performance, permissions). Approve pending signups from the Pending tab.',
     })
   }
   if (canRoles) {

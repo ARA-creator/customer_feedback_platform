@@ -5,6 +5,16 @@ export const adminListUsers = async ({ scope = 'active' } = {}) => {
   return response.data
 }
 
+export const adminListUsersDirectory = async ({ scope = 'active' } = {}) => {
+  const response = await api.get('/admin/users/directory', { params: { scope } })
+  return response.data
+}
+
+export const adminGetUserDirectory = async (userId) => {
+  const response = await api.get(`/admin/users/${userId}/directory`)
+  return response.data
+}
+
 export const adminCreateUser = async (payload) => {
   const response = await api.post('/admin/users', payload)
   return response.data
@@ -97,9 +107,9 @@ export const adminReprocessSentiment = async (params = {}) => {
   return response.data
 }
 
-export const adminListActivity = async ({ limit = 100, action, target_type } = {}) => {
+export const adminListActivity = async ({ limit = 100, action, target_type, actor_user_id } = {}) => {
   const response = await api.get('/admin/activity', {
-    params: { limit, action, target_type },
+    params: { limit, action, target_type, actor_user_id },
   })
   return response.data
 }

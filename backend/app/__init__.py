@@ -221,6 +221,7 @@ def create_app() -> Flask:
                         ("auth_provider", "VARCHAR(20)"),
                         ("provider_subject", "VARCHAR(128)"),
                         ("approved_at", dt),
+                        ("profile_json", "TEXT"),
                     ]
 
                     for name, col_type in add_if_missing:

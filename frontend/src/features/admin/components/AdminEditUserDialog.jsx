@@ -15,6 +15,7 @@ export default function AdminEditUserDialog({
   const [role, setRole] = useState('agent')
   const [team, setTeam] = useState('')
   const [region, setRegion] = useState('')
+  const [managerName, setManagerName] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -33,6 +34,7 @@ export default function AdminEditUserDialog({
     setRole((user.roles && user.roles[0]) || user.role || 'agent')
     setTeam(user.team || '')
     setRegion(user.region || '')
+    setManagerName(user.manager_name || '')
     setIsActive(user.is_active !== false)
     setError(null)
   }, [open, user])
@@ -55,6 +57,7 @@ export default function AdminEditUserDialog({
         primary_role: role,
         team: team.trim() || null,
         region: region.trim() || null,
+        manager_name: managerName.trim() || null,
       }
       if (!isEnterprise) {
         payload.email = email.trim().toLowerCase()
@@ -205,6 +208,20 @@ export default function AdminEditUserDialog({
                 onChange={(e) => setRegion(e.target.value)}
                 disabled={loading}
                 placeholder="e.g. Ghana"
+                className="w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label htmlFor="admin-edit-manager" className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                Manager
+              </label>
+              <input
+                id="admin-edit-manager"
+                type="text"
+                value={managerName}
+                onChange={(e) => setManagerName(e.target.value)}
+                disabled={loading}
+                placeholder="Optional"
                 className="w-full min-h-[44px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
               />
             </div>
