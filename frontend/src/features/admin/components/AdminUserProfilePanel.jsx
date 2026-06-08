@@ -183,8 +183,22 @@ export default function AdminUserProfilePanel({
             </div>
           ) : null}
 
+          {error && !loading ? (
+            <button
+              type="button"
+              onClick={load}
+              className="mb-4 inline-flex min-h-[40px] items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            >
+              Retry loading profile
+            </button>
+          ) : null}
+
           {loading ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">Loading profile…</p>
+          ) : error ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Profile details could not be loaded. Use Retry above after the server is updated.
+            </p>
           ) : tab === 'activity' ? (
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -223,7 +237,7 @@ export default function AdminUserProfilePanel({
             </div>
           ) : null}
 
-          {!loading && tab === 'overview' ? (
+          {!loading && !error && tab === 'overview' ? (
             <div className="space-y-6">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -279,7 +293,7 @@ export default function AdminUserProfilePanel({
             </div>
           ) : null}
 
-          {!loading && tab === 'performance' ? (
+          {!loading && !error && tab === 'performance' ? (
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Open items', value: user?.open_items ?? 0 },
@@ -302,7 +316,7 @@ export default function AdminUserProfilePanel({
             </div>
           ) : null}
 
-          {!loading && tab === 'permissions' ? (
+          {!loading && !error && tab === 'permissions' ? (
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Effective permissions

@@ -43,6 +43,7 @@ from ...services.metadata_normalization import normalize_channel_metadata, safe_
 from ...services.admin_notifications import notify_platform_admins
 from ...services.notification_policy import get_notification_prefs, is_platform_admin, prefs_allow
 from ...services.rbac import normalize_role_name
+from ...services.schema_maintenance import ensure_users_profile_json_column
 from . import api_bp
 from ._helpers import (
     _append_audit_log,
@@ -1133,6 +1134,7 @@ def admin_users_directory():
     db = SessionLocal()
     try:
         _require_permission(db, "admin.manage_users")
+        ensure_users_profile_json_column(db)
         scope = (request.args.get("scope") or "active").strip().lower()
         if scope not in ("active", "recycle", "pending"):
             scope = "active"
@@ -1156,6 +1158,10 @@ def admin_users_directory():
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("admin_users_directory failed")
+        db.rollback()
+        return jsonify({"error": "Failed to load user directory"}), 500
     finally:
         db.close()
 
@@ -1165,6 +1171,7 @@ def admin_user_directory_detail(user_id: int):
     db = SessionLocal()
     try:
         _require_permission(db, "admin.manage_users")
+        ensure_users_profile_json_column(db)
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return jsonify({"error": "User not found"}), 404
@@ -1181,7 +1188,12 @@ def admin_user_directory_detail(user_id: int):
         perms = sorted(_user_permission_keys(db, user_id))
         activity_rows = (
             db.query(AuditLog)
-            .filter(AuditLog.actor_user_id == user_id)
+            .filter(
+                or_(
+                    AuditLog.actor_user_id == user_id,
+                    (AuditLog.target_type == "user") & (AuditLog.target_id == str(user_id)),
+                )
+            )
             .order_by(desc(AuditLog.created_at), desc(AuditLog.id))
             .limit(30)
             .all()
@@ -1192,6 +1204,10 @@ def admin_user_directory_detail(user_id: int):
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("admin_user_directory_detail failed user_id=%s", user_id)
+        db.rollback()
+        return jsonify({"error": "Failed to load user profile"}), 500
     finally:
         db.close()
 
@@ -1514,6 +1530,8 @@ def admin_update_user(user_id: int):
             changed["team"] = team if "team" in payload else None
             changed["region"] = region if "region" in payload else None
 
+        if "skills" in payload or "manager_name" in payload:
+            ensure_users_profile_json_column(db)
         if _merge_user_profile_patch(user, payload):
             profile = _parse_user_profile(user)
             changed["skills"] = profile["skills"]
@@ -2149,6 +2167,10 @@ def admin_audit_logs():
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("admin_audit_logs failed")
+        db.rollback()
+        return jsonify({"error": "Failed to load activity"}), 500
     finally:
         db.close()
 
