@@ -21,6 +21,7 @@ export default function AdminUserActivity() {
       setItems(data?.items || [])
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to load activity')
+      setItems([])
     } finally {
       setLoading(false)
     }
@@ -57,13 +58,20 @@ export default function AdminUserActivity() {
 
         {error && (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200">
-            {error}
+            <p>{error}</p>
+            <button
+              type="button"
+              onClick={load}
+              className="mt-2 text-xs font-semibold underline hover:no-underline"
+            >
+              Retry
+            </button>
           </div>
         )}
 
         {loading ? (
           <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">Loading…</p>
-        ) : items.length === 0 ? (
+        ) : error ? null : items.length === 0 ? (
           <p className="mt-6 text-sm text-gray-500 dark:text-gray-400">No activity recorded yet.</p>
         ) : (
           <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">

@@ -15,12 +15,9 @@ import {
   filterDirectoryUsers,
   formatDateTime,
   formatRelativeLogin,
-  skillPillClass,
-  slaHealthPillClass,
   uniqueFilterOptions,
   userDisplayName,
   userInitials,
-  workloadBarClass,
 } from '../utils/adminUsersDirectory.utils'
 import AdminUserProfilePanel from './AdminUserProfilePanel'
 
@@ -62,9 +59,6 @@ export default function AdminUsersDirectory({
   const [team, setTeam] = useState('all')
   const [region, setRegion] = useState('all')
   const [role, setRole] = useState('all')
-  const [skill, setSkill] = useState('all')
-  const [workload, setWorkload] = useState('all')
-  const [sla, setSla] = useState('all')
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [profileUserId, setProfileUserId] = useState(null)
@@ -92,8 +86,8 @@ export default function AdminUsersDirectory({
   const filterOpts = useMemo(() => uniqueFilterOptions(users), [users])
 
   const filtered = useMemo(
-    () => filterDirectoryUsers(users, { q, team, region, role, skill, workload, sla }),
-    [users, q, team, region, role, skill, workload, sla],
+    () => filterDirectoryUsers(users, { q, team, region, role }),
+    [users, q, team, region, role],
   )
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -102,7 +96,7 @@ export default function AdminUsersDirectory({
 
   useEffect(() => {
     setPage(1)
-  }, [q, team, region, role, skill, workload, sla])
+  }, [q, team, region, role])
 
   const openProfile = (u, tab = 'activity') => {
     setProfileUserId(u.id)
@@ -134,43 +128,12 @@ export default function AdminUsersDirectory({
           ]}
         />
         <FilterSelect
-          label="Skill"
-          value={skill}
-          onChange={setSkill}
-          options={[
-            { value: 'all', label: 'Skill: All' },
-            ...filterOpts.skills.map((s) => ({ value: s, label: `Skill: ${s}` })),
-          ]}
-        />
-        <FilterSelect
           label="Region"
           value={region}
           onChange={setRegion}
           options={[
             { value: 'all', label: 'Region: All' },
             ...filterOpts.regions.map((r) => ({ value: r, label: `Region: ${r}` })),
-          ]}
-        />
-        <FilterSelect
-          label="Workload"
-          value={workload}
-          onChange={setWorkload}
-          options={[
-            { value: 'all', label: 'Workload: All' },
-            { value: 'low', label: 'Workload: Low' },
-            { value: 'medium', label: 'Workload: Medium' },
-            { value: 'high', label: 'Workload: High' },
-          ]}
-        />
-        <FilterSelect
-          label="SLA"
-          value={sla}
-          onChange={setSla}
-          options={[
-            { value: 'all', label: 'SLA: All' },
-            { value: 'healthy', label: 'SLA: Healthy' },
-            { value: 'watch', label: 'SLA: Watch' },
-            { value: 'risk', label: 'SLA: At risk' },
           ]}
         />
         <button
@@ -213,16 +176,12 @@ export default function AdminUsersDirectory({
       ) : null}
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-sky-100/60 bg-white/60 dark:border-gray-800 dark:bg-gray-950/40">
-        <table className="w-full min-w-[960px] text-left text-sm">
+        <table className="w-full min-w-[720px] text-left text-sm">
           <thead>
             <tr className="border-b border-sky-100/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
               <th className="px-4 py-3">User</th>
               <th className="px-3 py-3">Role</th>
               <th className="px-3 py-3">Team</th>
-              <th className="px-3 py-3">Expertise (Skills)</th>
-              <th className="px-3 py-3">Workload</th>
-              <th className="px-3 py-3">Open Items</th>
-              <th className="px-3 py-3">SLA Health</th>
               <th className="px-3 py-3">Security Status</th>
               <th className="px-3 py-3">Last Login</th>
               <th className="px-4 py-3 text-right">Actions</th>
@@ -231,21 +190,18 @@ export default function AdminUsersDirectory({
           <tbody className="divide-y divide-sky-50 dark:divide-gray-800/80">
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   Loading users…
                 </td>
               </tr>
             ) : pageItems.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                   No users match these filters.
                 </td>
               </tr>
             ) : (
               pageItems.map((u) => {
-                const skills = Array.isArray(u.skills) ? u.skills : []
-                const visibleSkills = skills.slice(0, 3)
-                const extraSkills = skills.length - visibleSkills.length
                 const sec = u.security || {}
                 const secDot =
                   sec.level === 'ok'
@@ -268,47 +224,6 @@ export default function AdminUsersDirectory({
                     </td>
                     <td className="px-3 py-3 text-gray-800 dark:text-gray-200">{u.role_label || u.role || '—'}</td>
                     <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{u.team_label || u.team || '—'}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1 max-w-[14rem]">
-                        {visibleSkills.map((s, i) => (
-                          <span
-                            key={s}
-                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${skillPillClass(i)}`}
-                          >
-                            {s}
-                          </span>
-                        ))}
-                        {extraSkills > 0 ? (
-                          <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                            +{extraSkills}
-                          </span>
-                        ) : null}
-                        {skills.length === 0 ? (
-                          <span className="text-xs text-gray-400">—</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="min-w-[4.5rem]">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {u.workload_pct ?? 0}%
-                        </span>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                          <div
-                            className={`h-full rounded-full ${workloadBarClass(u.workload_pct)}`}
-                            style={{ width: `${Math.min(100, Number(u.workload_pct) || 0)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-gray-100">{u.open_items ?? 0}</td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${slaHealthPillClass(u.sla_health_pct)}`}
-                      >
-                        {u.sla_health_pct ?? 100}%
-                      </span>
-                    </td>
                     <td className="px-3 py-3">
                       <div className="flex items-start gap-2">
                         <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${secDot}`} aria-hidden />

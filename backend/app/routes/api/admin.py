@@ -43,7 +43,7 @@ from ...services.metadata_normalization import normalize_channel_metadata, safe_
 from ...services.admin_notifications import notify_platform_admins
 from ...services.notification_policy import get_notification_prefs, is_platform_admin, prefs_allow
 from ...services.rbac import normalize_role_name
-from ...services.schema_maintenance import ensure_users_profile_json_column
+from ...services.schema_maintenance import ensure_audit_logs_table, ensure_users_profile_json_column
 from . import api_bp
 from ._helpers import (
     _append_audit_log,
@@ -1172,6 +1172,7 @@ def admin_user_directory_detail(user_id: int):
     try:
         _require_permission(db, "admin.manage_users")
         ensure_users_profile_json_column(db)
+        ensure_audit_logs_table(db)
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return jsonify({"error": "User not found"}), 404
@@ -1199,7 +1200,7 @@ def admin_user_directory_detail(user_id: int):
             .all()
         )
         users_by_id = _lookup_user_emails(db, [user_id])
-        activity = [_serialize_audit_entry(db, r, users_by_id=users_by_id) for r in activity_rows]
+        activity = _safe_serialize_audit_entries(db, activity_rows, users_by_id)
         return jsonify({"user": serialized, "permissions": perms, "activity": activity})
     except PermissionError as e:
         msg = str(e)
@@ -2127,6 +2128,37 @@ def _serialize_audit_entry(db, row: AuditLog, users_by_id: Optional[Dict[int, st
     }
 
 
+def _safe_serialize_audit_entries(db, rows: List[AuditLog], users_by_id: Dict[int, str]) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    for row in rows:
+        try:
+            items.append(_serialize_audit_entry(db, row, users_by_id=users_by_id))
+        except Exception:
+            logger.exception("Skipping audit row id=%s during serialization", getattr(row, "id", None))
+            items.append(
+                {
+                    "id": getattr(row, "id", None),
+                    "action": getattr(row, "action", None) or "activity",
+                    "target_type": getattr(row, "target_type", None),
+                    "target_id": getattr(row, "target_id", None),
+                    "meta": {},
+                    "created_at": (
+                        row.created_at.isoformat()
+                        if getattr(row, "created_at", None) is not None
+                        else None
+                    ),
+                    "actor_user_id": getattr(row, "actor_user_id", None),
+                    "actor_email": None,
+                    "actor_display": (
+                        f"User #{row.actor_user_id}" if getattr(row, "actor_user_id", None) else "System"
+                    ),
+                    "target_email": None,
+                    "target_display": str(getattr(row, "target_id", None) or "—"),
+                }
+            )
+    return items
+
+
 @api_bp.route("/admin/audit-logs", methods=["GET"])
 @api_bp.route("/admin/activity", methods=["GET"])
 def admin_audit_logs():
@@ -2137,7 +2169,13 @@ def admin_audit_logs():
             db,
             ["admin.manage_users", "admin.manage_roles", "admin.view_audit_logs"],
         )
-        limit = min(max(int(request.args.get("limit") or 100), 1), 500)
+        ensure_audit_logs_table(db)
+        ensure_users_profile_json_column(db)
+        try:
+            limit_raw = request.args.get("limit")
+            limit = min(max(int(limit_raw if limit_raw not in (None, "") else 100), 1), 500)
+        except (TypeError, ValueError):
+            limit = 100
         action_filter = (request.args.get("action") or "").strip()
         target_type = (request.args.get("target_type") or "").strip()
         actor_user_id = request.args.get("actor_user_id", type=int)
@@ -2158,12 +2196,8 @@ def admin_audit_logs():
                 meta = {}
             user_ids.extend(_user_ids_referenced_by_audit_row(r, meta))
         users_by_id = _lookup_user_emails(db, user_ids)
-        return jsonify(
-            {
-                "items": [_serialize_audit_entry(db, r, users_by_id=users_by_id) for r in rows],
-                "count": len(rows),
-            }
-        )
+        items = _safe_serialize_audit_entries(db, rows, users_by_id)
+        return jsonify({"items": items, "count": len(items)})
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403

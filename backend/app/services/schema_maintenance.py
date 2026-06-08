@@ -6,6 +6,8 @@ import logging
 
 from sqlalchemy import text
 
+from ..models import AuditLog
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,3 +27,14 @@ def ensure_users_profile_json_column(db) -> None:
     except Exception:
         db.rollback()
         logger.exception("Failed to ensure users.profile_json column")
+
+
+def ensure_audit_logs_table(db) -> None:
+    """Create audit_logs if an older deployment predates the AuditLog model."""
+    try:
+        bind = db.get_bind()
+        AuditLog.__table__.create(bind=bind, checkfirst=True)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to ensure audit_logs table")

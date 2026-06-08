@@ -1,4 +1,4 @@
-import { api } from '../../../shared/lib/apiClient'
+import { api, SLOW_API_TIMEOUT_MS } from '../../../shared/lib/apiClient'
 
 export const adminListUsers = async ({ scope = 'active' } = {}) => {
   const response = await api.get('/admin/users', { params: { scope } })
@@ -110,6 +110,7 @@ export const adminReprocessSentiment = async (params = {}) => {
 export const adminListActivity = async ({ limit = 100, action, target_type, actor_user_id } = {}) => {
   const response = await api.get('/admin/activity', {
     params: { limit, action, target_type, actor_user_id },
+    timeout: SLOW_API_TIMEOUT_MS,
   })
   return response.data
 }
