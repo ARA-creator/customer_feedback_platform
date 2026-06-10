@@ -472,11 +472,11 @@ function App() {
         path.startsWith('/verify-email') || path.startsWith('/reset-password') ? (
           <Navigate to="/" replace />
         ) : (
-          <AuthShell
+      <AuthShell
             adminPortal={isAdminPath(location.pathname)}
             onAuthenticated={handleAuthenticated}
-          />
-        )
+      />
+    )
     } else {
       content = <Routes><Route path="*" element={<AuthenticatedApp auth={auth} setAuth={setAuth} />} /></Routes>
     }
