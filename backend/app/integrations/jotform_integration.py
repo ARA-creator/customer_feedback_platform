@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 _MESSAGE_KEYS = (
     "feedback",
+    "give your feedback",
     "message",
     "comments",
     "comment",
@@ -18,10 +19,35 @@ _MESSAGE_KEYS = (
     "details",
     "your feedback",
     "tell us",
+    "how do you feel",
 )
 _EMAIL_KEYS = ("email", "email address", "e-mail")
 _RATING_KEYS = ("rating", "score", "nps")
-_CATEGORY_KEYS = ("category", "topic", "type", "department")
+_CATEGORY_KEYS = (
+    "category",
+    "which category",
+    "feedback fall in",
+    "topic",
+    "type",
+    "department",
+)
+_NAME_FIRST_KEYS = ("first name", "firstname", "given name")
+_NAME_LAST_KEYS = ("last name", "lastname", "surname", "family name")
+_OTHER_CATEGORY_KEYS = ("if other", "complaint fall under", "other category")
+_CONSENT_KEYS = ("recorded your feedback", "record feedback", "consent")
+_SKIP_IN_MESSAGE_FALLBACK = (
+    "first name",
+    "last name",
+    "name",
+    "category",
+    "which category",
+    "if other",
+    "complaint fall under",
+    "recorded your feedback",
+    "record feedback",
+    "consent",
+    "email",
+)
 
 
 def _norm_key(value: Any) -> str:
@@ -84,6 +110,30 @@ def _pick_by_keys(answers: Dict[str, str], candidates: Tuple[str, ...]) -> Optio
     return None
 
 
+def _should_skip_in_message_fallback(key: str) -> bool:
+    nk = _norm_key(key)
+    return any(part in nk for part in _SKIP_IN_MESSAGE_FALLBACK)
+
+
+def _customer_name_from_answers(answers: Dict[str, str]) -> Optional[str]:
+    first = _pick_by_keys(answers, _NAME_FIRST_KEYS)
+    last = _pick_by_keys(answers, _NAME_LAST_KEYS)
+    combined = " ".join(p for p in [first, last] if p).strip()
+    if combined:
+        return combined
+    return _pick_by_keys(answers, ("name", "full name"))
+
+
+def _resolve_category(answers: Dict[str, str]) -> Optional[str]:
+    category = _pick_by_keys(answers, _CATEGORY_KEYS)
+    other_detail = _pick_by_keys(answers, _OTHER_CATEGORY_KEYS)
+    if category and "other" in _norm_key(category) and other_detail:
+        return other_detail
+    if not category and other_detail:
+        return other_detail
+    return category
+
+
 def _coerce_rating(value: Any) -> Optional[int]:
     if value is None:
         return None
@@ -124,14 +174,32 @@ def parse_jotform_submission(
         or (next(iter(answers.values())).strip() if len(answers) == 1 else None)
     )
     if not message and answers:
-        # Fallback: concatenate all answers
-        message = "\n".join(f"{k}: {v}" for k, v in answers.items() if v).strip()
+        # Fallback: concatenate substantive answers only (skip name/category/consent fields).
+        parts = [f"{k}: {v}" for k, v in answers.items() if v and not _should_skip_in_message_fallback(k)]
+        message = "\n".join(parts).strip()
     if not message:
         return None
 
     email = _pick_by_keys(answers, _EMAIL_KEYS)
-    category = _pick_by_keys(answers, _CATEGORY_KEYS)
+    category = _resolve_category(answers)
     rating = _coerce_rating(_pick_by_keys(answers, _RATING_KEYS))
+    customer_name = _customer_name_from_answers(answers)
+    recording_consent = _pick_by_keys(answers, _CONSENT_KEYS)
+
+    channel_metadata = {
+        "provider": "jotform",
+        "form_id": form_id or None,
+        "submission_id": submission_id or None,
+        "timestamp": timestamp or None,
+        "ip": ip or None,
+        "answers": answers or None,
+        "pretty": pretty or None,
+    }
+    if customer_name:
+        channel_metadata["customer_name"] = customer_name
+        channel_metadata["customer_label"] = customer_name
+    if recording_consent:
+        channel_metadata["recording_consent"] = recording_consent
 
     return {
         "message": message,
@@ -139,15 +207,7 @@ def parse_jotform_submission(
         "email": email,
         "rating": rating,
         "category": category,
-        "channel_metadata": {
-            "provider": "jotform",
-            "form_id": form_id or None,
-            "submission_id": submission_id or None,
-            "timestamp": timestamp or None,
-            "ip": ip or None,
-            "answers": answers or None,
-            "pretty": pretty or None,
-        },
+        "channel_metadata": channel_metadata,
     }
 
 

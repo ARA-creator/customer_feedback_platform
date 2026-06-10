@@ -42,3 +42,20 @@ def test_parse_jotform_json_payload():
     result = parse_jotform_webhook_request({}, json_payload=payload)
     assert result is not None
     assert result["message"] == "Direct JSON test"
+
+
+def test_parse_enterprise_life_customer_pulse_form():
+    answers = {
+        "First Name": "Ama",
+        "Last Name": "Mensah",
+        "Give your feedback.": "Claims took too long to process",
+        "Which category does your feedback fall in?": "Other",
+        "If other, what does your complaint fall under": "Maturity payout delay",
+        "Do you mind if we recorded your feedback for analysis?": "Yes",
+    }
+    result = parse_jotform_submission(form_id="261602995063056", submission_id="sub-1", raw_request=answers)
+    assert result is not None
+    assert result["message"] == "Claims took too long to process"
+    assert result["category"] == "Maturity payout delay"
+    assert result["channel_metadata"]["customer_name"] == "Ama Mensah"
+    assert result["channel_metadata"]["recording_consent"] == "Yes"
