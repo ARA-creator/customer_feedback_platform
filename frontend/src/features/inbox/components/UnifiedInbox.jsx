@@ -6,6 +6,7 @@ import {
   FiGlobe,
   FiImage,
   FiInbox,
+  FiLayers,
   FiLink2,
   FiLoader,
   FiMessageSquare,
@@ -90,6 +91,8 @@ function SourceLogo({ source }) {
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} />
+  if (s === 'all') return <FiLayers className={className} aria-label="All channels" />
+  if (s === 'web') return <FiGlobe className={className} aria-label="Web" />
   return <FiGlobe className={className} />
 }
 
@@ -1250,7 +1253,7 @@ export default function UnifiedInbox({ permissions = [] }) {
                 onClick={() => setSourceFilter(source)}
                 className={`inline-flex min-h-[44px] items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold ${active ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'}`}
               >
-                {source !== 'all' && <SourceLogo source={source} />}
+                <SourceLogo source={source} />
                 <span>{source === 'all' ? 'All' : source === 'x' ? 'X' : source.replace(/_/g, ' ')}</span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? 'bg-emerald-700 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
                   {count}

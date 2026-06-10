@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { FiArchive, FiCalendar, FiChevronDown, FiGlobe, FiInbox, FiRefreshCw, FiSearch } from 'react-icons/fi'
+import { FiArchive, FiCalendar, FiChevronDown, FiInbox, FiLayers, FiRefreshCw, FiSearch } from 'react-icons/fi'
 import { useCloseOnOutsidePointer } from '../../../shared/hooks/useCloseOnOutsidePointer'
 
 const TOOLBAR_CONTROL =
@@ -69,7 +69,11 @@ function ChannelFilterMenu({
         onClick={() => setOpen((v) => !v)}
         className={`${TOOLBAR_CONTROL} cursor-pointer select-none`}
       >
-        <FiGlobe className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+        {source === 'all' ? (
+          <FiLayers className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+        ) : (
+          <SourceIcon source={source} />
+        )}
         <span className="max-w-[7rem] truncate sm:max-w-[9rem]">{selectedSourceLabel}</span>
         <CountBadge count={selectedSourceCount} />
         <FiChevronDown
@@ -106,7 +110,11 @@ function ChannelFilterMenu({
                       : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900'
                   }`}
                 >
-                  {k !== 'all' ? <SourceIcon source={k} /> : <FiGlobe className="h-3.5 w-3.5 text-gray-500" />}
+                  {k === 'all' ? (
+                    <FiLayers className="h-3.5 w-3.5 text-gray-500" aria-hidden />
+                  ) : (
+                    <SourceIcon source={k} />
+                  )}
                   <span className="min-w-0 flex-1 truncate">{label}</span>
                   <CountBadge count={count} active={false} />
                 </button>

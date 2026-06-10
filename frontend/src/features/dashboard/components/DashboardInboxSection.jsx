@@ -227,7 +227,7 @@ export default function DashboardInboxSection({
                           : 'border-gray-200 bg-white/70 text-gray-800 hover:bg-white dark:border-white/10 dark:bg-gray-950/35 dark:text-gray-100 dark:hover:bg-gray-950/55'
                       }`}
                     >
-                      {t.id !== 'all' && <SourceLogo source={t.id} />}
+                      <SourceLogo source={t.id} />
                       <span className="whitespace-nowrap">{t.label}</span>
                       <span
                         className={`ml-0.5 inline-flex min-w-[28px] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${

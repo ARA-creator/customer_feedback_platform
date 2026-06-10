@@ -1,3 +1,4 @@
+import { FiLayers } from 'react-icons/fi'
 import {
   FaXTwitter,
   FaTwitter,
@@ -29,6 +30,7 @@ export function SourceLogo({ source }) {
     channel: '#6B7280',
   }
 
+  if (s === 'all') return <FiLayers className={className} style={{ color: brand.channel }} aria-label="All channels" />
   if (s.includes('whatsapp')) return <FaWhatsapp className={className} style={{ color: brand.whatsapp }} aria-label="WhatsApp" />
   if (s.includes('instagram')) return <FaInstagram className={className} style={{ color: brand.instagram }} aria-label="Instagram" />
   if (s.includes('facebook')) return <FaFacebook className={className} style={{ color: brand.facebook }} aria-label="Facebook" />

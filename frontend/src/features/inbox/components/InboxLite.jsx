@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
-import { FiGlobe } from 'react-icons/fi'
+import { FiGlobe, FiLayers } from 'react-icons/fi'
 import JotformIcon from '../../../shared/components/icons/JotformIcon'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
@@ -76,6 +76,7 @@ function SourceIcon({ source }) {
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} aria-label="Google Forms" />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} aria-label="Email" />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} aria-label="X" />
+  if (s === 'all') return <FiLayers className={className} aria-label="All channels" />
   if (s === 'web') return <FiGlobe className={className} aria-label="Web" />
   return <FiGlobe className={className} aria-label="Channel" />
 }
