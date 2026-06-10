@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { FiChevronDown } from 'react-icons/fi'
+import { useCloseOnOutsidePointer } from '../../../../shared/hooks/useCloseOnOutsidePointer'
 
 /**
  * Compact chart header filter (mockup-style pill dropdown).
@@ -17,21 +18,7 @@ export default function ChartFilterSelect({
   const rows = Array.isArray(options) ? options : []
   const selected = rows.find((o) => o.id === value) || rows[0]
 
-  useEffect(() => {
-    if (!open) return undefined
-    const onDoc = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  useCloseOnOutsidePointer(rootRef, open, setOpen)
 
   if (rows.length === 0) return null
 

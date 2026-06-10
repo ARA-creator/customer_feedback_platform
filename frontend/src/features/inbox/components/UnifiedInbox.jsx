@@ -3,7 +3,6 @@ import {
   FiAlertTriangle,
   FiChevronDown,
   FiChevronRight,
-  FiFileText,
   FiGlobe,
   FiImage,
   FiInbox,
@@ -26,6 +25,7 @@ import {
   FaWhatsapp,
   FaXTwitter,
 } from 'react-icons/fa6'
+import JotformIcon from '../../../shared/components/icons/JotformIcon'
 import {
   approveReplyDraft,
   createFeedbackNote,
@@ -86,7 +86,7 @@ function SourceLogo({ source }) {
   if (s === 'instagram') return <FaInstagram className={className} style={{ color: '#E1306C' }} />
   if (s === 'facebook') return <FaFacebook className={className} style={{ color: '#1877F2' }} />
   if (s === 'tiktok') return <FaTiktok className={className} style={{ color: '#00F2EA' }} />
-  if (s === 'jotform') return <FiFileText className={className} style={{ color: '#FF6100' }} aria-label="JotForm" />
+  if (s === 'jotform') return <JotformIcon className={className} />
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} />

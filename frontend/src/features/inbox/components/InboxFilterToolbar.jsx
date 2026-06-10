@@ -1,4 +1,6 @@
+import { useId, useRef, useState } from 'react'
 import { FiArchive, FiCalendar, FiChevronDown, FiGlobe, FiInbox, FiRefreshCw, FiSearch } from 'react-icons/fi'
+import { useCloseOnOutsidePointer } from '../../../shared/hooks/useCloseOnOutsidePointer'
 
 const TOOLBAR_CONTROL =
   'inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
@@ -51,57 +53,69 @@ function ChannelFilterMenu({
   formatSourceLabel,
   SourceIcon,
 }) {
+  const menuId = useId()
+  const rootRef = useRef(null)
+  const [open, setOpen] = useState(false)
+  useCloseOnOutsidePointer(rootRef, open, setOpen)
+
   return (
-    <details className="relative shrink-0">
-      <summary
-        className={`${TOOLBAR_CONTROL} list-none cursor-pointer select-none [&::-webkit-details-marker]:hidden`}
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
         aria-label="Filter by channel"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((v) => !v)}
+        className={`${TOOLBAR_CONTROL} cursor-pointer select-none`}
       >
         <FiGlobe className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
         <span className="max-w-[7rem] truncate sm:max-w-[9rem]">{selectedSourceLabel}</span>
         <CountBadge count={selectedSourceCount} />
-        <FiChevronDown className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
-      </summary>
-      <div
-        className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
-        role="menu"
-        aria-label="Channel options"
-      >
-        <div className="max-h-72 overflow-y-auto p-1">
-          {sourceTabs.map((k) => {
-            const label = formatSourceLabel(k)
-            const n = Number(counts?.[k] ?? counts?.[k.toLowerCase()] ?? 0)
-            const count = Number.isFinite(n) ? n : 0
-            const active = source === k
-            return (
-              <button
-                key={k}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                onClick={() => {
-                  onSourceChange?.(k)
-                  try {
-                    document.activeElement?.closest?.('details')?.removeAttribute?.('open')
-                  } catch {
-                    // ignore
-                  }
-                }}
-                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${
-                  active
-                    ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900'
-                }`}
-              >
-                {k !== 'all' ? <SourceIcon source={k} /> : <FiGlobe className="h-3.5 w-3.5 text-gray-500" />}
-                <span className="min-w-0 flex-1 truncate">{label}</span>
-                <CountBadge count={count} active={false} />
-              </button>
-            )
-          })}
+        <FiChevronDown
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          aria-hidden
+        />
+      </button>
+      {open ? (
+        <div
+          id={menuId}
+          className="absolute left-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          role="menu"
+          aria-label="Channel options"
+        >
+          <div className="max-h-72 overflow-y-auto p-1">
+            {sourceTabs.map((k) => {
+              const label = formatSourceLabel(k)
+              const n = Number(counts?.[k] ?? counts?.[k.toLowerCase()] ?? 0)
+              const count = Number.isFinite(n) ? n : 0
+              const active = source === k
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  onClick={() => {
+                    onSourceChange?.(k)
+                    setOpen(false)
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm ${
+                    active
+                      ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
+                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900'
+                  }`}
+                >
+                  {k !== 'all' ? <SourceIcon source={k} /> : <FiGlobe className="h-3.5 w-3.5 text-gray-500" />}
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                  <CountBadge count={count} active={false} />
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
-    </details>
+      ) : null}
+    </div>
   )
 }
 

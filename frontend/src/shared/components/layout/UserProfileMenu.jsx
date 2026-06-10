@@ -1,8 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FiChevronDown, FiLogOut, FiSettings, FiBell } from 'react-icons/fi'
 import { pathForView } from '../../../app/routes'
 import { displayNameFromUser, formatUserRole, getUserInitialsFromUser } from '../../lib/userDisplay'
+import { useCloseOnOutsidePointer } from '../../hooks/useCloseOnOutsidePointer'
 
 export default function UserProfileMenu({ user, onSignOut, hideAgentLinks = false }) {
   const navigate = useNavigate()
@@ -15,21 +16,7 @@ export default function UserProfileMenu({ user, onSignOut, hideAgentLinks = fals
   const initials = getUserInitialsFromUser(user)
   const roleLabel = formatUserRole(user?.role)
 
-  useEffect(() => {
-    if (!open) return undefined
-    const onDoc = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  useCloseOnOutsidePointer(rootRef, open, setOpen)
 
   const go = (view) => {
     setOpen(false)

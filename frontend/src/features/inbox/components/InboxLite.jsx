@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiFileText, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
+import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe } from 'react-icons/fi'
+import JotformIcon from '../../../shared/components/icons/JotformIcon'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
@@ -71,7 +72,7 @@ function SourceIcon({ source }) {
   if (s === 'instagram') return <FaInstagram className={className} style={{ color: '#E1306C' }} aria-label="Instagram" />
   if (s === 'facebook') return <FaFacebook className={className} style={{ color: '#1877F2' }} aria-label="Facebook" />
   if (s === 'tiktok') return <FaTiktok className={className} style={{ color: '#00F2EA' }} aria-label="TikTok" />
-  if (s === 'jotform') return <FiFileText className={className} style={{ color: '#FF6100' }} aria-label="JotForm" />
+  if (s === 'jotform') return <JotformIcon className={className} />
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} aria-label="Google Forms" />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} aria-label="Email" />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} aria-label="X" />
