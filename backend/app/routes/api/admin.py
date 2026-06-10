@@ -2406,7 +2406,7 @@ def channels_status():
         whatsapp_auto_poll = bool(getattr(cfg, "WHATSAPP_POLL_ENABLED", False)) or (
             getattr(cfg, "ENV", "development") == "development" and twilio_configured
         )
-        google_forms_seen = _seen_like("%google%")
+        jotform_seen = _seen_like("%jotform%")
         x_seen = _seen_like("%x%") or _seen_like("%twitter%")
         tiktok_seen = _seen_like("%tiktok%")
         instagram_seen = _seen_like("%instagram%")
@@ -2463,9 +2463,11 @@ def channels_status():
                     "auto_poll": bool(getattr(cfg, "TIKTOK_POLL_ENABLED", False)),
                     "ingest_on": ingest.get("tiktok", True),
                 },
-                "google_forms": {
-                    "enabled": google_forms_seen,
-                    "ingest_on": ingest.get("google_forms", True),
+                "jotform": {
+                    "enabled": jotform_seen,
+                    "configured": present(getattr(cfg, "JOTFORM_WEBHOOK_SECRET", "")),
+                    "last_ingested_at": _last_seen_like("%jotform%"),
+                    "ingest_on": ingest.get("jotform", True),
                 },
                 "web": {"enabled": bool(web_seen), "ingest_on": ingest.get("web", True)},
                 "email": {"enabled": bool(email_seen), "ingest_on": ingest.get("email", True)},

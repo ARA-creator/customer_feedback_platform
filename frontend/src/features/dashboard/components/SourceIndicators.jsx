@@ -9,6 +9,7 @@ import {
   FaTiktok,
   FaGoogle,
 } from 'react-icons/fa6'
+import { FiFileText } from 'react-icons/fi'
 
 export function SourceLogo({ source }) {
   const s = String(source || '').toLowerCase()
@@ -19,6 +20,7 @@ export function SourceLogo({ source }) {
     instagram: '#E1306C',
     facebook: '#1877F2',
     tiktok: '#00F2EA',
+    jotform: '#FF6100',
     google_forms: '#4285F4',
     email: '#6B7280',
     web: '#0EA5E9',
@@ -31,6 +33,7 @@ export function SourceLogo({ source }) {
   if (s.includes('instagram')) return <FaInstagram className={className} style={{ color: brand.instagram }} aria-label="Instagram" />
   if (s.includes('facebook')) return <FaFacebook className={className} style={{ color: brand.facebook }} aria-label="Facebook" />
   if (s.includes('tiktok')) return <FaTiktok className={className} style={{ color: brand.tiktok }} aria-label="TikTok" />
+  if (s.includes('jotform')) return <FiFileText className={className} style={{ color: brand.jotform }} aria-label="JotForm" />
   if (s.includes('google')) return <FaGoogle className={className} style={{ color: brand.google_forms }} aria-label="Google Forms" />
   if (s === 'email' || s.includes('mail')) return <FaEnvelope className={className} style={{ color: brand.email }} aria-label="Email" />
   if (s === 'web' || s.includes('web')) return <FaGlobe className={className} style={{ color: brand.web }} aria-label="Web" />

@@ -115,7 +115,7 @@ export default function CustomReport({ onBack, embedded = false }) {
               value={source}
               onChange={(e) => setSource(e.target.value)}
               className={FIELD_CLASSES}
-              placeholder="all, email, web, google_forms…"
+              placeholder="all, email, web, jotform…"
             />
           </div>
           <div className="md:col-span-2">

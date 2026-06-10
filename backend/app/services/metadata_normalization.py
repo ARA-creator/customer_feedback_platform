@@ -140,6 +140,8 @@ def normalize_channel_metadata(source: Optional[str], raw_meta: Any) -> Dict[str
     elif src == "tiktok":
         out.setdefault("provider", "tiktok")
         out.setdefault("author_handle", out.get("author_username"))
+    elif src == "jotform":
+        out.setdefault("provider", "jotform")
     elif src in {"facebook", "instagram"}:
         out.setdefault("provider", src)
     elif src == "email":

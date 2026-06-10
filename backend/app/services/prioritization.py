@@ -60,7 +60,7 @@ def score_feedback(*, feedback, meta: Dict[str, Any], purchase_summary: Optional
             factors["rating"] = 8
 
     source = (normalize_source_group(getattr(feedback, "source", None)) or getattr(feedback, "source", "") or "").lower()
-    source_weights = {"x": 16, "twitter": 14, "tiktok": 15, "facebook": 12, "instagram": 12, "web": 10, "whatsapp": 8, "email": 6}
+    source_weights = {"x": 16, "twitter": 14, "tiktok": 15, "facebook": 12, "instagram": 12, "web": 10, "jotform": 9, "whatsapp": 8, "email": 6}
     factors["channel_reach"] = source_weights.get(source, 6)
 
     engagement = meta.get("engagement") if isinstance(meta.get("engagement"), dict) else {}

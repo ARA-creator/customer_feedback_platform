@@ -19,6 +19,7 @@ from ..integrations.web_monitor import (
     url_hash as web_url_hash,
 )
 from ..integrations.email_integration import fetch_emails, process_email_to_feedback
+from ..integrations.jotform_integration import parse_jotform_webhook_request
 from ..integrations.meta_integration import (
     meta_event_dedupe_hash,
     parse_facebook_webhook,
@@ -612,64 +613,66 @@ def poll_twilio_whatsapp_and_ingest(
     }
 
 
-@integrations_bp.route("/google/forms", methods=["GET", "POST"])
-def google_forms_webhook():
-    """
-    Google Forms ingestion via Apps Script webhook.
+def _jotform_webhook_secret_ok(config, provided: str) -> bool:
+    expected = (getattr(config, "JOTFORM_WEBHOOK_SECRET", "") or "").strip()
+    if not expected:
+        return True
+    return (provided or "").strip() == expected
 
-    Expected: JSON payload from Apps Script (doPost).
-    Security: validate `X-Webhook-Secret` header matches GOOGLE_FORMS_WEBHOOK_SECRET.
-    Dedupe: uses form_id + response_id if provided; else falls back to a content fingerprint.
+
+@integrations_bp.route("/jotform/webhook", methods=["GET", "POST"])
+def jotform_webhook():
+    """
+    JotForm ingestion via native webhook (multipart/form-data with rawRequest).
+
+    Security: validate `X-Webhook-Secret` header or `?secret=` query param against
+    JOTFORM_WEBHOOK_SECRET (query param is required for JotForm's webhook UI).
+    Dedupe: uses form_id + submission_id when available.
     """
     config = get_config()
-    expected = (getattr(config, "GOOGLE_FORMS_WEBHOOK_SECRET", "") or "").strip()
+    expected = (getattr(config, "JOTFORM_WEBHOOK_SECRET", "") or "").strip()
 
     if request.method == "GET":
         return jsonify(
             {
-                "name": "Google Forms webhook",
+                "name": "JotForm webhook",
                 "method": "POST",
-                "path": "/integrations/google/forms",
-                "requires_env": ["GOOGLE_FORMS_WEBHOOK_SECRET"],
-                "expects": {
-                    "form_id": "string",
-                    "response_id": "string",
-                    "timestamp": "ISO string",
-                    "email": "string (optional)",
-                    "message": "string (required)",
-                    "rating": "int 1-5 (optional)",
-                    "category": "string (optional)",
-                    "answers": "object (optional)",
+                "path": "/integrations/jotform/webhook",
+                "requires_env": ["JOTFORM_WEBHOOK_SECRET"],
+                "auth": {
+                    "header": "X-Webhook-Secret",
+                    "query_param": "secret",
+                    "note": "JotForm cannot set custom headers — append ?secret=<JOTFORM_WEBHOOK_SECRET> to the webhook URL.",
                 },
+                "jotform_url_example": "https://YOUR_DOMAIN/api/integrations/jotform/webhook?secret=YOUR_SECRET",
+                "expects_multipart_fields": ["formID", "submissionID", "rawRequest", "pretty"],
             }
         )
 
-    if expected:
-        provided = (request.headers.get("X-Webhook-Secret", "") or "").strip()
-        if provided != expected:
-            return jsonify({"error": "Invalid webhook secret"}), 403
+    provided_secret = (request.headers.get("X-Webhook-Secret", "") or request.args.get("secret", "") or "").strip()
+    if expected and not _jotform_webhook_secret_ok(config, provided_secret):
+        return jsonify({"error": "Invalid webhook secret"}), 403
 
-    blocked = _channel_ingest_blocked_response("google_forms")
+    blocked = _channel_ingest_blocked_response("jotform")
     if blocked:
         return blocked
 
-    payload = request.get_json(silent=True) or {}
-    message = (payload.get("message") or "").strip()
-    if not message:
+    json_payload = request.get_json(silent=True) if request.is_json else None
+    form_data = request.form.to_dict(flat=True) if request.form else {}
+    feedback_payload = parse_jotform_webhook_request(form_data, json_payload=json_payload)
+    if not feedback_payload or not (feedback_payload.get("message") or "").strip():
         return jsonify({"error": "Missing message"}), 400
 
-    form_id = (payload.get("form_id") or "").strip()
-    response_id = (payload.get("response_id") or "").strip()
-    timestamp = (payload.get("timestamp") or "").strip()
-    email = (payload.get("email") or "").strip() or None
-    category = (payload.get("category") or "").strip() or None
-    rating = payload.get("rating")
-    answers = payload.get("answers")
+    meta = feedback_payload.get("channel_metadata") or {}
+    form_id = str(meta.get("form_id") or form_data.get("formID") or "").strip()
+    submission_id = str(meta.get("submission_id") or form_data.get("submissionID") or "").strip()
+    message = str(feedback_payload.get("message") or "").strip()
+    email = feedback_payload.get("email")
 
-    if form_id and response_id:
-        dedupe_key = f"google-forms:{form_id}:{response_id}"
+    if form_id and submission_id:
+        dedupe_key = f"jotform:{form_id}:{submission_id}"
     else:
-        dedupe_key = f"google-forms:fp:{email or ''}|{timestamp}|{message[:200]}"
+        dedupe_key = f"jotform:fp:{email or ''}|{message[:200]}"
     h = _sha256_hex(dedupe_key)
 
     db = SessionLocal()
@@ -678,23 +681,8 @@ def google_forms_webhook():
         if exists:
             return jsonify({"status": "duplicate_skipped"}), 200
 
-        db.add(ExternalIngestedItem(source="google_forms", url=dedupe_key, url_hash=h))
+        db.add(ExternalIngestedItem(source="jotform", url=dedupe_key, url_hash=h))
         db.commit()
-
-        feedback_payload = {
-            "message": message,
-            "source": "google_forms",
-            "email": email,
-            "rating": rating if isinstance(rating, int) else None,
-            "category": category,
-            "channel_metadata": {
-                "provider": "google_forms",
-                "form_id": form_id or None,
-                "response_id": response_id or None,
-                "timestamp": timestamp or None,
-                "answers": answers if isinstance(answers, dict) else None,
-            },
-        }
 
         result = _submit_to_feedback_api(feedback_payload)
         if result:
@@ -705,10 +693,23 @@ def google_forms_webhook():
         return jsonify({"error": "Failed to process"}), 500
     except Exception as e:
         db.rollback()
-        logger.exception("Error ingesting Google Forms payload")
+        logger.exception("Error ingesting JotForm payload")
         return jsonify({"error": str(e)}), 500
     finally:
         db.close()
+
+
+@integrations_bp.route("/google/forms", methods=["GET", "POST"])
+def google_forms_webhook_deprecated():
+    """Deprecated — use /integrations/jotform/webhook instead."""
+    if request.method == "GET":
+        return jsonify(
+            {
+                "error": "Google Forms ingestion was removed. Use /integrations/jotform/webhook instead.",
+                "replacement": "/integrations/jotform/webhook",
+            }
+        ), 410
+    return jsonify({"error": "Google Forms ingestion was removed. Use /integrations/jotform/webhook instead."}), 410
 
 
 def _email_poll_payload_from_request():

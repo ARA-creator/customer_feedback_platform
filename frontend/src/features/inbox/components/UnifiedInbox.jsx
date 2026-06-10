@@ -3,6 +3,7 @@ import {
   FiAlertTriangle,
   FiChevronDown,
   FiChevronRight,
+  FiFileText,
   FiGlobe,
   FiImage,
   FiInbox,
@@ -46,7 +47,7 @@ import {
   updateFeedbackWorkflow,
 } from '../services/inbox.api'
 
-const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'x', 'tiktok', 'instagram', 'facebook']
+const SOURCE_ORDER = ['all', 'email', 'web', 'jotform', 'whatsapp', 'x', 'tiktok', 'instagram', 'facebook']
 
 function formatRelativeTime(iso) {
   if (!iso) return ''
@@ -73,6 +74,7 @@ function normalizeSourceGroup(value) {
   if (s.includes('tiktok')) return 'tiktok'
   if (s.includes('instagram')) return 'instagram'
   if (s.includes('facebook')) return 'facebook'
+  if (s.includes('jotform')) return 'jotform'
   if (s.includes('google')) return 'google_forms'
   return s
 }
@@ -84,6 +86,7 @@ function SourceLogo({ source }) {
   if (s === 'instagram') return <FaInstagram className={className} style={{ color: '#E1306C' }} />
   if (s === 'facebook') return <FaFacebook className={className} style={{ color: '#1877F2' }} />
   if (s === 'tiktok') return <FaTiktok className={className} style={{ color: '#00F2EA' }} />
+  if (s === 'jotform') return <FiFileText className={className} style={{ color: '#FF6100' }} aria-label="JotForm" />
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} />

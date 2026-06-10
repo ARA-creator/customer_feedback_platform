@@ -80,7 +80,7 @@ const CHANNEL_ROWS = [
   { label: 'WhatsApp (Meta)', channelId: 'whatsapp_meta' },
   { label: 'Instagram (Meta)', channelId: 'instagram' },
   { label: 'Facebook (Meta)', channelId: 'facebook' },
-  { label: 'Google Forms', channelId: 'google_forms' },
+  { label: 'JotForm', channelId: 'jotform' },
   { label: 'Email', channelId: 'email' },
   { label: 'Web', channelId: 'web' },
   { label: 'X', channelId: 'x' },
@@ -247,7 +247,11 @@ export default function Channels() {
                     autoPoll: !!x?.auto_poll,
                   })}
                 />
-                <StatusPill tone={status?.google_forms?.enabled ? 'on' : 'off'} label="Google Forms" />
+                <StatusPill tone={status?.jotform?.enabled ? 'on' : 'pending'} label={channelLabel({
+                    enabled: !!status?.jotform?.enabled,
+                    configured: !!status?.jotform?.configured,
+                    name: 'JotForm',
+                  })} />
                 <StatusPill tone={status?.email?.enabled ? 'on' : 'off'} label="Email" />
                 <StatusPill tone={status?.web?.enabled ? 'on' : 'off'} label="Web" />
               </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
+import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiFileText, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe } from 'react-icons/fi'
 import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
@@ -19,7 +19,7 @@ import {
   sortInboxItems,
 } from '../utils/inboxDerivedStats'
 
-const SOURCE_ORDER = ['all', 'email', 'web', 'google_forms', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
+const SOURCE_ORDER = ['all', 'email', 'web', 'jotform', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
 const SENTIMENT_FILTER_OPTIONS = ['negative', 'neutral', 'positive']
 
@@ -59,6 +59,7 @@ function normalizeSourceGroup(value) {
   if (s.includes('tiktok')) return 'tiktok'
   if (s.includes('instagram')) return 'instagram'
   if (s.includes('facebook')) return 'facebook'
+  if (s.includes('jotform')) return 'jotform'
   if (s.includes('google')) return 'google_forms'
   return s
 }
@@ -70,6 +71,7 @@ function SourceIcon({ source }) {
   if (s === 'instagram') return <FaInstagram className={className} style={{ color: '#E1306C' }} aria-label="Instagram" />
   if (s === 'facebook') return <FaFacebook className={className} style={{ color: '#1877F2' }} aria-label="Facebook" />
   if (s === 'tiktok') return <FaTiktok className={className} style={{ color: '#00F2EA' }} aria-label="TikTok" />
+  if (s === 'jotform') return <FiFileText className={className} style={{ color: '#FF6100' }} aria-label="JotForm" />
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} aria-label="Google Forms" />
   if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} aria-label="Email" />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} aria-label="X" />

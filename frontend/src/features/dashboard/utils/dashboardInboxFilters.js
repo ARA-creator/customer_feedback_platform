@@ -1,7 +1,7 @@
 export const CANONICAL_SOURCES = [
   'email',
   'web',
-  'google_forms',
+  'jotform',
   'whatsapp',
   'x',
   'twitter',

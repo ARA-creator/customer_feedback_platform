@@ -166,8 +166,8 @@ class BaseConfig:
     TIKTOK_POLL_QUERY = os.getenv("TIKTOK_POLL_QUERY", "enterprise ghana")
     TIKTOK_POLL_LIMIT = int(os.getenv("TIKTOK_POLL_LIMIT", "25"))
 
-    # Google Forms (Apps Script -> webhook)
-    GOOGLE_FORMS_WEBHOOK_SECRET = os.getenv("GOOGLE_FORMS_WEBHOOK_SECRET", "")
+    # JotForm (webhook -> multipart rawRequest)
+    JOTFORM_WEBHOOK_SECRET = os.getenv("JOTFORM_WEBHOOK_SECRET", "")
 
     # Gemini API
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")

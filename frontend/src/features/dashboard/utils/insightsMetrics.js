@@ -15,6 +15,7 @@ export function fmtPct(n) {
 export function humanizeSource(key) {
   const s = String(key || '').trim()
   if (!s) return 'Unknown'
+  if (s === 'jotform') return 'JotForm'
   if (s === 'google_forms') return 'Google Forms'
   if (s === 'whatsapp') return 'WhatsApp'
   if (s === 'email') return 'Email'

@@ -16,7 +16,7 @@ CHANNEL_IDS = (
     "whatsapp_meta",
     "instagram",
     "facebook",
-    "google_forms",
+    "jotform",
     "web",
     "x",
     "tiktok",
@@ -51,6 +51,9 @@ def _normalize_map(raw: Any) -> Dict[str, bool]:
     out = dict(_DEFAULTS)
     if not isinstance(raw, dict):
         return out
+    # Migrate legacy google_forms toggle to jotform.
+    if "google_forms" in raw and "jotform" not in raw:
+        raw = {**raw, "jotform": raw["google_forms"]}
     for key in CHANNEL_IDS:
         if key in raw:
             out[key] = bool(raw[key])

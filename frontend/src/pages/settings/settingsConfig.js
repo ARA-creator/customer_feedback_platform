@@ -121,7 +121,7 @@ export const HELP_RESOURCES = [
 export const INTEGRATION_CHANNEL_ROWS = [
   { id: 'email', label: 'Email', statusPath: 'email' },
   { id: 'whatsapp', label: 'WhatsApp', statusPath: 'whatsapp_twilio' },
-  { id: 'google_forms', label: 'Google Forms', statusPath: 'google_forms' },
+  { id: 'jotform', label: 'JotForm', statusPath: 'jotform' },
   { id: 'instagram', label: 'Instagram', statusPath: 'instagram' },
   { id: 'facebook', label: 'Facebook', statusPath: 'facebook' },
   { id: 'x', label: 'X (Twitter)', statusPath: 'x' },

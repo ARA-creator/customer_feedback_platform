@@ -40,6 +40,7 @@ export function channelFillColor(source, index = 0) {
     .toLowerCase()
   const map = {
     web_form: '#5ec962',
+    jotform: '#FF6100',
     google_forms: '#5ec962',
     email: '#2F855A',
     mobile_app: '#E6C76B',
