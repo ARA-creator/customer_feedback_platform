@@ -5,6 +5,7 @@ import {
   sentimentIconGlyphClass,
   sentimentLabelFromItem,
 } from '../../../shared/lib/sentimentDisplay'
+import { getPolicySummary, policyHolderBadge } from '../../../shared/utils/policyMatch'
 import { extractFeedbackTitle, getPriorityBadge } from '../utils/inboxDerivedStats'
 
 const PRIORITY_STYLES = {
@@ -56,6 +57,8 @@ export default function InboxFeedbackRow({
     : Array.isArray(item?.channel_metadata?.insurance_tags)
       ? item.channel_metadata.insurance_tags
       : []
+  const policySummary = getPolicySummary(item)
+  const holderBadge = policyHolderBadge(item)
 
   return (
     <div
@@ -177,6 +180,23 @@ export default function InboxFeedbackRow({
               {formatThemeLabel(t)}
             </span>
           ))}
+          {holderBadge ? (
+            <span
+              className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${holderBadge.className}`}
+              title={holderBadge.title}
+            >
+              {holderBadge.label}
+            </span>
+          ) : null}
+          {policySummary ? (
+            <span
+              className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              title={policySummary.labelRight}
+            >
+              {policySummary.labelLeft}
+              {policySummary.extra > 0 ? ` +${policySummary.extra}` : ''}
+            </span>
+          ) : null}
           <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
             {item.created_at ? formatRelativeTime(item.created_at) : ''}
           </span>

@@ -89,7 +89,13 @@ def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str
     if getattr(feedback, "email_hash", None):
         value = str(feedback.email_hash).strip()
         if value:
-            label = meta.get("sender_name") or meta.get("sender_email") or "Email contact"
+            label = (
+                meta.get("customer_label")
+                or meta.get("customer_name")
+                or meta.get("sender_name")
+                or meta.get("sender_email")
+                or "Email contact"
+            )
             return f"email_hash:{value}", str(label)
 
     for key, prefix, label_key in [

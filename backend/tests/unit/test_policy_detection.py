@@ -1,6 +1,6 @@
 """Policy detection: avoid false product name matches from HTML/CSS."""
 
-from app.services.policy_detection import detect_policies
+from app.services.policy_detection import build_policy_scan_text, detect_policies, summarize_policy_matches
 
 
 def test_html_transition_css_does_not_name_match():
@@ -28,3 +28,24 @@ def test_policy_number_still_detected_in_plain_text():
     policies, debug = detect_policies(msg)
     assert debug.get("policy_number_candidates", 0) >= 1
     assert any("•••••" in (p.masked or "") for p in policies)
+
+
+def test_policy_number_hint_field_detected_without_being_in_message():
+    scan = build_policy_scan_text("My claim is still pending", ["GH9V1234567"])
+    policies, debug = detect_policies(scan)
+    assert debug.get("policy_number_candidates", 0) >= 1
+    assert any(p.product_prefix == "GH9V" for p in policies)
+
+
+def test_summarize_policy_matches_verified_vs_estimated():
+    verified = summarize_policy_matches(
+        [{"policy_masked": "GH9V•••••567", "is_primary": True, "product_group": "TRANSITION"}]
+    )
+    assert verified["policy_holder_status"] == "verified"
+    assert verified["has_policy_number"] is True
+
+    estimated = summarize_policy_matches(
+        [{"policy_masked": "GH9V:TRANSITION (name match)", "is_primary": True, "product_group": "TRANSITION"}]
+    )
+    assert estimated["policy_holder_status"] == "estimated"
+    assert estimated["has_policy_number"] is False

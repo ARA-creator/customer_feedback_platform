@@ -262,7 +262,7 @@ export default function InboxLite({ onNavigate }) {
     }
   })
   const [folder, setFolder] = useState('inbox') // inbox | archive
-  const [listTab, setListTab] = useState('unread') // unread | all
+  const [listTab, setListTab] = useState('unread') // all | read | unread
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
   const [activeQuickFilter, setActiveQuickFilter] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -654,6 +654,11 @@ export default function InboxLite({ onNavigate }) {
         const id = normFeedbackId(it?.id)
         return id != null && !readIds.has(id)
       })
+    } else if (listTab === 'read') {
+      arr = arr.filter((it) => {
+        const id = normFeedbackId(it?.id)
+        return id != null && readIds.has(id)
+      })
     }
     if (activeQuickFilter === 'high_priority') {
       arr = arr.filter(isHighPriority)
@@ -689,7 +694,18 @@ export default function InboxLite({ onNavigate }) {
     [counts?.all, scopedInboxIds, readIds, inboxItemsForStats],
   )
 
+  const readInboxCount = useMemo(() => {
+    const total = totalInboxCount
+    const unread = unreadInboxCount
+    if (Number.isFinite(total) && total >= unread) return total - unread
+    return inboxItemsForStats.filter((it) => {
+      const id = normFeedbackId(it?.id)
+      return id != null && readIds.has(id)
+    }).length
+  }, [totalInboxCount, unreadInboxCount, inboxItemsForStats, readIds])
+
   const unreadTabActive = listTab === 'unread' || activeQuickFilter === 'unread'
+  const readTabActive = listTab === 'read'
 
   const loadedUnreadOnPage = useMemo(
     () =>
@@ -700,18 +716,38 @@ export default function InboxLite({ onNavigate }) {
     [visibleItems, readIds],
   )
 
-  /** Unread tab filters client-side; paginate until unread rows appear or feed ends. */
+  const loadedReadOnPage = useMemo(
+    () =>
+      visibleItems.filter((it) => {
+        const id = normFeedbackId(it?.id)
+        return id != null && readIds.has(id)
+      }).length,
+    [visibleItems, readIds],
+  )
+
+  /** Read/Unread tabs filter client-side; paginate until matching rows appear or feed ends. */
   useEffect(() => {
-    if (!unreadTabActive) return
+    if (!unreadTabActive && !readTabActive) return
     if (loading || loadingMore) return
     if (!feedHasMore) return
-    if (loadedUnreadOnPage > 0) return
+    const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
+    if (loadedOnPage > 0) return
     if (items.length === 0) return
     load({ append: true })
-  }, [unreadTabActive, loadedUnreadOnPage, feedHasMore, loading, loadingMore, items.length, load])
+  }, [
+    unreadTabActive,
+    readTabActive,
+    loadedUnreadOnPage,
+    loadedReadOnPage,
+    feedHasMore,
+    loading,
+    loadingMore,
+    items.length,
+    load,
+  ])
 
-  const prefetchingUnread =
-    unreadTabActive &&
+  const prefetchingList =
+    (unreadTabActive || readTabActive) &&
     !loading &&
     displayedItems.length === 0 &&
     items.length > 0 &&
@@ -1035,8 +1071,9 @@ export default function InboxLite({ onNavigate }) {
             listTab={listTab}
             onListTabChange={setListTab}
             allCount={totalInboxCount}
-            prefetchingUnread={prefetchingUnread}
+            readCount={readInboxCount}
             unreadCount={unreadInboxCount}
+            prefetchingList={prefetchingList}
             sortBy={sortBy}
             onSortChange={setSortBy}
             displayedItems={displayedItems}

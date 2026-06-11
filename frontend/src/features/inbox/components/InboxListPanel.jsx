@@ -9,6 +9,7 @@ export default function InboxListPanel({
   listTab,
   onListTabChange,
   allCount,
+  readCount,
   unreadCount,
   sortBy,
   onSortChange,
@@ -37,7 +38,7 @@ export default function InboxListPanel({
   loadMoreSentinelRef,
   onLoadMore,
   onClearFilters,
-  prefetchingUnread = false,
+  prefetchingList = false,
 }) {
   const showListControls = !loading && !error && displayedItems.length > 0
 
@@ -45,6 +46,38 @@ export default function InboxListPanel({
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
         <div className="flex items-center gap-4" role="tablist" aria-label="Inbox list tabs">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={listTab === 'all'}
+            onClick={() => onListTabChange?.('all')}
+            className={`relative pb-2 text-sm font-semibold transition-colors ${
+              listTab === 'all'
+                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
+                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            All feedback
+            {allCount > 0 ? (
+              <span className="ml-1.5 text-xs font-bold text-gray-400">({allCount})</span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={listTab === 'read'}
+            onClick={() => onListTabChange?.('read')}
+            className={`relative pb-2 text-sm font-semibold transition-colors ${
+              listTab === 'read'
+                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
+                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+          >
+            Read
+            {readCount > 0 ? (
+              <span className="ml-1.5 text-xs font-bold text-gray-400">{readCount}</span>
+            ) : null}
+          </button>
           <button
             type="button"
             role="tab"
@@ -60,19 +93,6 @@ export default function InboxListPanel({
             {unreadCount > 0 ? (
               <span className="ml-1.5 text-xs font-bold text-gray-400">{unreadCount}</span>
             ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={listTab === 'all'}
-            onClick={() => onListTabChange?.('all')}
-            className={`relative pb-2 text-sm font-semibold transition-colors ${
-              listTab === 'all'
-                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
-                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            All feedback ({allCount})
           </button>
         </div>
 
@@ -161,7 +181,7 @@ export default function InboxListPanel({
       ) : null}
 
       <div className="mt-4 space-y-2">
-        {loading || prefetchingUnread ? (
+        {loading || prefetchingList ? (
           <InboxListSkeleton rows={5} />
         ) : error ? null : displayedItems.length === 0 ? (
           <EmptyState

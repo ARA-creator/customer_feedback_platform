@@ -696,6 +696,9 @@ def _serialize_feedback_batch(
             }
             for r in pol_rows
         ]
+        from ...services.policy_detection import summarize_policy_matches
+
+        policy_summary = summarize_policy_matches(policy_matches)
         out.append(
             {
                 "id": feedback.id,
@@ -719,6 +722,8 @@ def _serialize_feedback_batch(
                 "channel_metadata": meta,
                 "insurance_tags": meta.get("insurance_tags") if isinstance(meta, dict) else None,
                 "policy_matches": policy_matches,
+                "policy_holder_status": policy_summary.get("policy_holder_status"),
+                "has_policy_number": policy_summary.get("has_policy_number"),
                 "customer_profile_id": profile_id,
             }
         )
@@ -769,6 +774,9 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         }
         for r in (pol_rows or [])
     ]
+    from ...services.policy_detection import summarize_policy_matches
+
+    policy_summary = summarize_policy_matches(policy_matches)
     return {
         "id": feedback.id,
         "source": feedback.source,
@@ -791,6 +799,8 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         "channel_metadata": meta,
         "insurance_tags": meta.get("insurance_tags") if isinstance(meta, dict) else None,
         "policy_matches": policy_matches,
+        "policy_holder_status": policy_summary.get("policy_holder_status"),
+        "has_policy_number": policy_summary.get("has_policy_number"),
         "customer_profile_id": getattr(profile, "id", None),
     }
 

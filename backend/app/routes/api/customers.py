@@ -193,6 +193,21 @@ def customer_profile(customer_key: str):
                     "metadata": safe_json_loads(demographics.demographics_metadata),
                 }
 
+        policy_holder_status = None
+        linked_policy_count = 0
+        verified_policy_count = 0
+        for ident in identifiers:
+            if str(getattr(ident, "identifier_type", "") or "").lower() != "policy_hash":
+                continue
+            linked_policy_count += 1
+            label = str(getattr(ident, "label", "") or "")
+            if "•••••" in label:
+                verified_policy_count += 1
+        if verified_policy_count:
+            policy_holder_status = "verified"
+        elif linked_policy_count:
+            policy_holder_status = "estimated"
+
         return jsonify(
             {
                 "customer": {
@@ -208,6 +223,9 @@ def customer_profile(customer_key: str):
                     "last_seen_at": rows[0].created_at.isoformat() if rows[0].created_at else None,
                     "source_counts": source_counts,
                     "sentiment_counts": sentiment_counts,
+                    "policy_holder_status": policy_holder_status,
+                    "linked_policy_count": linked_policy_count,
+                    "verified_policy_count": verified_policy_count,
                 },
                 "identifiers": [
                     {

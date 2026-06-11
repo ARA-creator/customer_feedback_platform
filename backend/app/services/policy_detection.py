@@ -242,6 +242,65 @@ def _mask_product_name(prefix: str, group_name: str) -> str:
     return f"{prefix}:{label} (name match)"
 
 
+def is_policy_number_match(masked: Optional[str]) -> bool:
+    """True when the match came from a detected policy number (masked middle digits)."""
+    return "•••••" in (masked or "")
+
+
+def is_product_name_match(masked: Optional[str]) -> bool:
+    """True when the match was inferred from a product/plan name only."""
+    return "(name match)" in (masked or "")
+
+
+def build_policy_scan_text(message: str, policy_number_hints: Optional[Sequence[str]] = None) -> str:
+    """
+    Build plaintext for policy detection.
+
+    Feedback message is scanned as-is; optional dedicated policy-number fields
+    are appended with context keywords (never stored raw).
+    """
+    parts: List[str] = []
+    msg = str(message or "").strip()
+    if msg:
+        parts.append(msg)
+    for hint in policy_number_hints or []:
+        h = str(hint or "").strip()
+        if h:
+            parts.append(f"policy number {h}")
+    return "\n".join(parts)
+
+
+def _match_field(row: Any, key: str, default: Any = None) -> Any:
+    if isinstance(row, dict):
+        return row.get(key, default)
+    return getattr(row, key, default)
+
+
+def summarize_policy_matches(matches: Optional[Sequence[Any]]) -> Dict[str, Any]:
+    """Derive policyholder status for API/UI from stored policy match rows."""
+    rows = list(matches or [])
+    verified = [m for m in rows if is_policy_number_match(_match_field(m, "policy_masked"))]
+    estimated_only = [m for m in rows if not is_policy_number_match(_match_field(m, "policy_masked"))]
+
+    status = None
+    if verified:
+        status = "verified"
+    elif rows:
+        status = "estimated"
+
+    primary = next((m for m in rows if _match_field(m, "is_primary")), None) or (rows[0] if rows else None)
+    return {
+        "policy_holder_status": status,
+        "has_policy_number": bool(verified),
+        "policy_match_count": len(rows),
+        "verified_policy_count": len(verified),
+        "estimated_match_count": len(estimated_only),
+        "primary_product_group": _match_field(primary, "product_group") if primary else None,
+        "primary_policy_masked": _match_field(primary, "policy_masked") if primary else None,
+        "needs_policy_review": any(bool(_match_field(m, "needs_review")) for m in rows),
+    }
+
+
 def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[str, Any]]:
     """
     Detect policy numbers from plaintext.

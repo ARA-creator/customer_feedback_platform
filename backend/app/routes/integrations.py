@@ -45,7 +45,7 @@ from ..integrations.twilio_whatsapp_poll import fetch_recent_inbound_whatsapp_fo
 from ..models import Feedback, FeedbackPolicyMatch, ExternalIngestedItem
 from ..security import encrypt_text, hash_email
 from ..sentiment_analyzer import analyze_sentiment
-from ..services.policy_detection import detect_policies
+from ..services.policy_detection import build_policy_scan_text, detect_policies
 from ..services.metadata_normalization import normalize_channel_metadata
 from ..services.insurance_tags import categorize_insurance_tags
 
@@ -331,7 +331,11 @@ def _submit_to_feedback_api(payload: dict) -> dict:
 
         # Policy tracing (best-effort; privacy-safe: persist hash + masked only)
         try:
-            detected, _debug = detect_policies(message)
+            hints = payload.get("policy_number_hints") or []
+            if isinstance(hints, str):
+                hints = [hints]
+            scan_text = build_policy_scan_text(message, hints)
+            detected, _debug = detect_policies(scan_text)
             for d in detected:
                 db.add(
                     FeedbackPolicyMatch(

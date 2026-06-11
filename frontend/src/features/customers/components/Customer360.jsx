@@ -160,14 +160,26 @@ export default function Customer360({ onNavigate }) {
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#009750]/10 text-[#009750] dark:bg-emerald-500/10 dark:text-emerald-300">
             <FiUser className="h-5 w-5" aria-hidden />
           </div>
-          <PageIntro
-            title={data?.customer?.label || 'Customer 360'}
-            subtitle={
-              customerKey
-                ? 'One view of every touchpoint we can link to this customer—including products inferred from their messages.'
-                : 'Search or open a profile from the inbox to load a customer.'
-            }
-          />
+          <div className="min-w-0">
+            <PageIntro
+              title={data?.customer?.label || 'Customer 360'}
+              subtitle={
+                customerKey
+                  ? 'One view of every touchpoint we can link to this customer—including products inferred from their messages.'
+                  : 'Search or open a profile from the inbox to load a customer.'
+              }
+            />
+            {data?.customer?.policy_holder_status === 'verified' ? (
+              <p className="mt-2 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                Policyholder · {data.customer.verified_policy_count || data.customer.linked_policy_count || 1} linked{' '}
+                {data.customer.verified_policy_count === 1 ? 'policy' : 'policies'} detected from policy numbers
+              </p>
+            ) : data?.customer?.policy_holder_status === 'estimated' ? (
+              <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
+                Possible policyholder · product inferred from feedback (no policy number confirmed yet)
+              </p>
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className="flex flex-wrap gap-2 justify-end">
