@@ -45,7 +45,7 @@ def parse_overview_time_window(
         label = "This month"
         range_days = min((now.date() - filter_from.date()).days + 1, 62)
     else:
-        label = "All time (last 30 days for trends)"
+        label = "All time"
         range_days = 30
 
     return tw, filter_from, filter_to, label, range_days

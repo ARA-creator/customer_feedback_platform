@@ -74,11 +74,17 @@ def get_analytics():
         tw, filter_from, filter_to, _time_label, range_days = parse_overview_time_window(time_window, now=now)
         time_window = tw
 
+        metrics_from = filter_from
+        metrics_to = filter_to
+        trend_from = filter_from
+        trend_to = filter_to
         if time_window == "all":
             req_range = request.args.get("range_days", type=int) or 30
             range_days = req_range if req_range in (7, 30, 90) else 30
-            filter_from = now - timedelta(days=range_days)
-            filter_to = None
+            metrics_from = None
+            metrics_to = None
+            trend_from = now - timedelta(days=range_days)
+            trend_to = None
 
         pf_prefix = (request.args.get("product_prefix") or "").strip()
         pf_group_raw = request.args.get("product_group")
@@ -87,11 +93,11 @@ def get_analytics():
         def _pf(q):
             return _apply_primary_product_exists(q, pf_prefix, pf_group)
 
-        def _apply_created_filter(q):
-            if filter_from is not None:
-                q = q.filter(Feedback.created_at >= filter_from)
-            if filter_to is not None:
-                q = q.filter(Feedback.created_at < filter_to)
+        def _apply_created_filter(q, *, start, end):
+            if start is not None:
+                q = q.filter(Feedback.created_at >= start)
+            if end is not None:
+                q = q.filter(Feedback.created_at < end)
             return q
 
         sentiment_arg = (request.args.get("sentiment") or "").strip().lower()
@@ -101,12 +107,15 @@ def get_analytics():
                 return q.filter(func.lower(Feedback.sentiment_label) == sentiment_arg)
             return q
 
-        def _apply_feedback_filters(q):
-            return _apply_sentiment_filter(_apply_created_filter(q))
+        def _apply_metrics_filters(q):
+            return _apply_sentiment_filter(_apply_created_filter(q, start=metrics_from, end=metrics_to))
+
+        def _apply_trend_filters(q):
+            return _apply_sentiment_filter(_apply_created_filter(q, start=trend_from, end=trend_to))
 
         sentiment_counts = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(Feedback.sentiment_label, func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None))
                 )
             )
@@ -117,7 +126,7 @@ def get_analytics():
 
         category_counts = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -132,7 +141,7 @@ def get_analytics():
 
         category_negative_counts = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -149,7 +158,7 @@ def get_analytics():
         day_col = func.date(Feedback.created_at)
         daily_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_trend_filters(
                     db.query(
                         day_col.label("day"),
                         Feedback.sentiment_label,
@@ -179,12 +188,12 @@ def get_analytics():
             bucket[sentiment_key] += count
             bucket["total"] += count
 
-        if filter_to is not None:
-            chart_end = filter_to.date() - timedelta(days=1)
+        if trend_to is not None:
+            chart_end = trend_to.date() - timedelta(days=1)
         else:
             chart_end = now.date()
-        if filter_from is not None:
-            chart_start = filter_from.date()
+        if trend_from is not None:
+            chart_start = trend_from.date()
         else:
             chart_start = chart_end - timedelta(days=max(range_days - 1, 0))
         trends_filled: list[Dict[str, Any]] = []
@@ -215,7 +224,7 @@ def get_analytics():
             count = len(rows)
             return round(total_hours / count, 2) if count > 0 else None
 
-        base_age_query = _pf(_apply_feedback_filters(db.query(Feedback.created_at).filter(Feedback.deleted_at.is_(None))))
+        base_age_query = _pf(_apply_metrics_filters(db.query(Feedback.created_at).filter(Feedback.deleted_at.is_(None))))
         base_age_query = base_age_query.filter(~func.lower(Feedback.source).in_(["api", "web"]))
         avg_age_all = _avg_age_hours(base_age_query)
         high_priority_age_query = base_age_query.filter(Feedback.priority.isnot(None)).filter(Feedback.priority >= 100)
@@ -224,7 +233,7 @@ def get_analytics():
 
         recent_times = (
             _pf(
-                _apply_feedback_filters(
+                _apply_trend_filters(
                     db.query(Feedback.created_at, Feedback.sentiment_label)
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -264,7 +273,7 @@ def get_analytics():
 
         total_feedback = (
             _pf(
-                _apply_feedback_filters(db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None)))
+                _apply_metrics_filters(db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None)))
             )
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
             .scalar()
@@ -275,7 +284,7 @@ def get_analytics():
         neutral_count = sum(count for label, count in sentiment_counts if label == "neutral")
         high_priority_count = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None), Feedback.priority >= 100)
                 )
             )
@@ -286,7 +295,7 @@ def get_analytics():
 
         score_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(Feedback.sentiment_score)
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(Feedback.sentiment_score.isnot(None))
@@ -313,7 +322,7 @@ def get_analytics():
 
         category_trend_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_trend_filters(
                     db.query(func.date(Feedback.created_at).label("day"), Feedback.category, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -332,7 +341,7 @@ def get_analytics():
 
         source_trend_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_trend_filters(
                     db.query(func.date(Feedback.created_at).label("day"), Feedback.source, func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -380,7 +389,7 @@ def get_analytics():
 
         source_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(
                         Feedback.source,
                         func.count(Feedback.id).label("total"),
@@ -416,7 +425,7 @@ def get_analytics():
 
         rating_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_trend_filters(
                     db.query(func.date(Feedback.created_at).label("day"), func.avg(cast(Feedback.rating, Float)), func.count(Feedback.id))
                     .filter(Feedback.deleted_at.is_(None))
                     .filter(~func.lower(Feedback.source).in_(["api", "web"]))
@@ -441,7 +450,7 @@ def get_analytics():
         insurance_tag_mention_total = 0
         tag_rows = (
             _pf(
-                _apply_feedback_filters(
+                _apply_metrics_filters(
                     db.query(
                         Feedback.created_at,
                         Feedback.sentiment_label,
