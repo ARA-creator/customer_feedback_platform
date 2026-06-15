@@ -33,6 +33,8 @@ from ...services.metadata_normalization import normalize_channel_metadata, safe_
 from ...services.notification_maintenance import archive_read_notifications_before_month, current_month_start_utc
 from ...services.inbox_state import (
     apply_inbox_state_patch,
+    apply_inbox_tab_filter,
+    count_inbox_tabs,
     get_inbox_state_for_feedback_ids,
     get_user_inbox_state_maps,
 )
@@ -658,6 +660,7 @@ def feedback_feed():
         customer_tier = request.args.get("customer_tier")
         insurance_tag = request.args.get("insurance_tag")
         insurance_tags_any = request.args.get("insurance_tags_any")
+        inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
         cursor_created_at = _parse_dt(request.args.get("cursor_created_at"))
         cursor_id = request.args.get("cursor_id", type=int)
 
@@ -719,6 +722,10 @@ def feedback_feed():
             if clause is not None:
                 q = q.filter(clause)
         q = _apply_insurance_tag_metadata_filters(q, Feedback.channel_metadata, insurance_tag, insurance_tags_any)
+        inbox_tab_counts = None
+        if user:
+            inbox_tab_counts = count_inbox_tabs(db, int(user.id), q)
+            q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
         if sort == "impact":
             rows = q.limit(min(limit * 4, 400)).all()
@@ -802,7 +809,14 @@ def feedback_feed():
             for item in items:
                 item["inbox_read"] = False
                 item["inbox_pinned"] = False
-        return jsonify({"items": items, "next_cursor": next_cursor, "has_more": has_more})
+        return jsonify(
+            {
+                "items": items,
+                "next_cursor": next_cursor,
+                "has_more": has_more,
+                "inbox_tab_counts": inbox_tab_counts,
+            }
+        )
     except Exception:
         logger.exception("Error fetching unified feedback feed")
         return jsonify({"error": "Failed to fetch feedback feed"}), 500

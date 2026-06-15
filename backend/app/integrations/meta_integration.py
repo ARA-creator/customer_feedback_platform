@@ -61,66 +61,76 @@ def parse_instagram_webhook(payload: Dict) -> Optional[Dict]:
     Returns dict ready to POST to /api/feedback, or None if not a message/comment
     """
     try:
-        entry = payload.get("entry", [{}])[0]
-        messaging = entry.get("messaging", [])
-
-        if not messaging:
-            # might be a comment instead
-            return parse_instagram_comment(payload)
-
-        message_data = messaging[0]
-        message = message_data.get("message", {})
-        message_text = message.get("text", "").strip()
-
-        if not message_text:
-            return None
-
-        sender = message_data.get("sender", {}).get("id", "")
-        recipient = message_data.get("recipient", {}).get("id", "")
-        timestamp = message_data.get("timestamp")
-
-        return {
-            "message": message_text,
-            "source": "instagram",
-            "category": None,
-            "channel_metadata": {
-                "provider": "instagram",
-                "object": payload.get("object"),
-                "entry_id": entry.get("id"),
-                "sender_id": sender,
-                "recipient_id": recipient,
-                "timestamp": timestamp,
-                "message_id": message.get("mid"),
-                "type": "dm",
-                "thread_id": message.get("mid"),
-                "author_handle": None,
-                "campaign": None,
-                "location": None,
-                "language": "en",
-                "customer_tier": None,
-                "engagement": None,
-                "media": [],
-            },
-        }
-
+        for entry in payload.get("entry", []):
+            for message_data in entry.get("messaging") or []:
+                parsed = _parse_instagram_messaging(entry, message_data, payload)
+                if parsed:
+                    return parsed
+            for change in entry.get("changes") or []:
+                parsed = parse_instagram_comment(entry, change, payload)
+                if parsed:
+                    return parsed
+        return None
     except (KeyError, IndexError, TypeError) as e:
         logger.exception(f"Error parsing Instagram webhook: {e}")
         return None
 
 
-def parse_instagram_comment(payload: Dict) -> Optional[Dict]:
+def _parse_instagram_messaging(entry: Dict, message_data: Dict, payload: Dict) -> Optional[Dict]:
+    message = message_data.get("message", {})
+    message_text = (message.get("text") or "").strip()
+    if not message_text:
+        return None
+    if message.get("is_echo"):
+        return None
+
+    sender = message_data.get("sender", {}).get("id", "")
+    recipient = message_data.get("recipient", {}).get("id", "")
+    timestamp = message_data.get("timestamp")
+
+    return {
+        "message": message_text,
+        "source": "instagram",
+        "category": None,
+        "channel_metadata": {
+            "provider": "instagram",
+            "object": payload.get("object"),
+            "entry_id": entry.get("id"),
+            "sender_id": sender,
+            "recipient_id": recipient,
+            "timestamp": timestamp,
+            "message_id": message.get("mid"),
+            "type": "dm",
+            "thread_id": message.get("mid"),
+            "author_handle": None,
+            "campaign": None,
+            "location": None,
+            "language": "en",
+            "customer_tier": None,
+            "engagement": None,
+            "media": [],
+        },
+    }
+
+
+def parse_instagram_comment(entry: Dict, change: Dict, payload: Optional[Dict] = None) -> Optional[Dict]:
     """Parse Instagram comment webhook."""
     try:
-        entry = payload.get("entry", [{}])[0]
-        changes = entry.get("changes", [{}])[0]
-        value = changes.get("value", {})
+        payload = payload or {}
+        value = change.get("value", {}) or {}
+        if change.get("field") not in (None, "comments", "feed"):
+            return None
 
-        comment_text = value.get("text", "").strip()
+        comment_text = (value.get("text") or value.get("message") or "").strip()
         if not comment_text:
             return None
 
-        from_user = value.get("from", {}).get("username", "")
-        media_id = value.get("media", {}).get("id", "")
+        verb = str(value.get("verb") or "add").strip().lower()
+        if verb in ("remove", "delete", "hide"):
+            return None
+
+        from_user = value.get("from", {}).get("username", "") or value.get("from", {}).get("name", "")
+        media_id = value.get("media", {}).get("id", "") if isinstance(value.get("media"), dict) else value.get("media_id", "")
 
         return {
             "message": comment_text,
@@ -130,13 +140,13 @@ def parse_instagram_comment(payload: Dict) -> Optional[Dict]:
                 "provider": "instagram",
                 "object": payload.get("object"),
                 "entry_id": entry.get("id"),
-                "field": changes.get("field"),
+                "field": change.get("field"),
                 "from_username": from_user,
                 "author_handle": from_user,
                 "media_id": media_id,
-                "comment_id": value.get("id"),
+                "comment_id": value.get("id") or value.get("comment_id"),
                 "type": "comment",
-                "thread_id": value.get("id"),
+                "thread_id": value.get("id") or value.get("comment_id"),
                 "campaign": None,
                 "location": None,
                 "language": "en",
@@ -155,69 +165,93 @@ def parse_facebook_webhook(payload: Dict) -> Optional[Dict]:
     """
     Parse Facebook Messenger/Page webhook payload.
 
-    Returns dict ready to POST to /api/feedback, or None if not a message
+    Returns dict ready to POST to /api/feedback, or None if not a message/comment
     """
     try:
-        entry = payload.get("entry", [{}])[0]
-        messaging = entry.get("messaging", [])
-
-        if not messaging:
-            # might be a page post comment
-            return parse_facebook_comment(payload)
-
-        message_data = messaging[0]
-        message = message_data.get("message", {})
-        message_text = message.get("text", "").strip()
-
-        if not message_text:
-            return None
-
-        sender = message_data.get("sender", {}).get("id", "")
-        recipient = message_data.get("recipient", {}).get("id", "")
-        timestamp = message_data.get("timestamp")
-
-        return {
-            "message": message_text,
-            "source": "facebook",
-            "category": None,
-            "channel_metadata": {
-                "provider": "facebook",
-                "object": payload.get("object"),
-                "entry_id": entry.get("id"),
-                "sender_id": sender,
-                "recipient_id": recipient,
-                "timestamp": timestamp,
-                "message_id": message.get("mid"),
-                "type": "messenger",
-                "thread_id": message.get("mid"),
-                "author_handle": None,
-                "campaign": None,
-                "location": None,
-                "language": "en",
-                "customer_tier": None,
-                "engagement": None,
-                "media": [],
-            },
-        }
-
+        for entry in payload.get("entry", []):
+            for message_data in entry.get("messaging") or []:
+                parsed = _parse_facebook_messaging(entry, message_data, payload)
+                if parsed:
+                    return parsed
+            for change in entry.get("changes") or []:
+                parsed = parse_facebook_comment(entry, change, payload)
+                if parsed:
+                    return parsed
+        return None
     except (KeyError, IndexError, TypeError) as e:
         logger.exception(f"Error parsing Facebook webhook: {e}")
         return None
 
 
-def parse_facebook_comment(payload: Dict) -> Optional[Dict]:
+def _parse_facebook_messaging(entry: Dict, message_data: Dict, payload: Dict) -> Optional[Dict]:
+    message = message_data.get("message", {})
+    message_text = (message.get("text") or "").strip()
+    if not message_text:
+        return None
+    if message.get("is_echo"):
+        return None
+
+    sender = message_data.get("sender", {}).get("id", "")
+    recipient = message_data.get("recipient", {}).get("id", "")
+    timestamp = message_data.get("timestamp")
+
+    return {
+        "message": message_text,
+        "source": "facebook",
+        "category": None,
+        "channel_metadata": {
+            "provider": "facebook",
+            "object": payload.get("object"),
+            "entry_id": entry.get("id"),
+            "sender_id": sender,
+            "recipient_id": recipient,
+            "timestamp": timestamp,
+            "message_id": message.get("mid"),
+            "type": "messenger",
+            "thread_id": message.get("mid"),
+            "author_handle": None,
+            "campaign": None,
+            "location": None,
+            "language": "en",
+            "customer_tier": None,
+            "engagement": None,
+            "media": [],
+        },
+    }
+
+
+def parse_facebook_comment(entry: Dict, change: Dict, payload: Optional[Dict] = None) -> Optional[Dict]:
     """Parse Facebook page post comment webhook."""
     try:
-        entry = payload.get("entry", [{}])[0]
-        changes = entry.get("changes", [{}])[0]
-        value = changes.get("value", {})
+        payload = payload or {}
+        field = str(change.get("field") or "").strip().lower()
+        if field not in ("feed", "comments"):
+            return None
 
-        comment_text = value.get("message", "").strip()
+        value = change.get("value", {}) or {}
+        item = str(value.get("item") or "").strip().lower()
+        if item and item not in ("comment", "status", "post"):
+            return None
+
+        verb = str(value.get("verb") or "add").strip().lower()
+        if verb in ("remove", "delete", "hide", "unhide"):
+            return None
+        if verb not in ("add", "edit", "edited"):
+            return None
+
+        comment_text = (value.get("message") or value.get("text") or "").strip()
         if not comment_text:
             return None
 
-        from_user = value.get("from", {}).get("name", "")
-        post_id = value.get("post_id", "")
+        from_data = value.get("from") or {}
+        from_id = str(from_data.get("id") or "").strip()
+        from_user = from_data.get("name") or from_data.get("username") or ""
+        page_id = str(entry.get("id") or "").strip()
+        if page_id and from_id and from_id == page_id:
+            return None
+
+        post_id = value.get("post_id") or value.get("parent_id") or ""
+        comment_id = value.get("comment_id") or value.get("id") or ""
 
         return {
             "message": comment_text,
@@ -227,13 +261,14 @@ def parse_facebook_comment(payload: Dict) -> Optional[Dict]:
                 "provider": "facebook",
                 "object": payload.get("object"),
                 "entry_id": entry.get("id"),
-                "field": changes.get("field"),
+                "field": change.get("field"),
+                "from_id": from_id,
                 "from_name": from_user,
                 "author_handle": from_user,
                 "post_id": post_id,
-                "comment_id": value.get("id"),
+                "comment_id": comment_id,
                 "type": "comment",
-                "thread_id": value.get("id"),
+                "thread_id": comment_id or post_id,
                 "campaign": None,
                 "location": None,
                 "language": "en",

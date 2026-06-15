@@ -1331,6 +1331,16 @@ def facebook_webhook():
     feedback_payload = parse_facebook_webhook(payload)
 
     if not feedback_payload:
+        obj = payload.get("object")
+        entry = (payload.get("entry") or [{}])[0] if payload.get("entry") else {}
+        fields = [c.get("field") for c in (entry.get("changes") or []) if isinstance(c, dict)]
+        if fields or entry.get("messaging"):
+            logger.info(
+                "Facebook webhook ignored object=%s fields=%s messaging=%s",
+                obj,
+                fields,
+                bool(entry.get("messaging")),
+            )
         return jsonify({"status": "ok"}), 200
 
     _ingest_meta_webhook_payload(feedback_payload)

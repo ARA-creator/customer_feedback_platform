@@ -15,6 +15,15 @@ export const deleteReportSchedule = async (id) => {
   return response.data
 }
 
+export const downloadAnalystExportCsv = async (params = {}) => {
+  const response = await api.get('/reports/analyst-export.csv', {
+    params,
+    responseType: 'blob',
+    timeout: 120000,
+  })
+  return response
+}
+
 export const downloadCustomReportCsv = async (params = {}) => {
   const response = await api.get('/reports/custom.csv', {
     params,

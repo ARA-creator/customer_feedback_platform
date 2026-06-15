@@ -1,5 +1,22 @@
 /** Client-side inbox analytics derived from the loaded feed. */
 
+const THEME_DISPLAY_LABELS = {
+  speed_delays: 'Delivery delays',
+}
+
+function formatThemeLabel(key) {
+  const k = String(key || '').trim().toLowerCase()
+  if (THEME_DISPLAY_LABELS[k]) return THEME_DISPLAY_LABELS[k]
+  return k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatHourLabel(hour) {
+  const h = ((Number(hour) % 24) + 24) % 24
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  return `${hour12} ${period}`
+}
+
 function safeTags(item) {
   const raw = item?.insurance_tags || item?.channel_metadata?.insurance_tags
   return Array.isArray(raw) ? raw : []
@@ -86,8 +103,46 @@ export function computeInboxStats(items, { readIds, folder }) {
     highPriorityCount: high,
     negativePct,
     avgResponseLabel: '—',
+    trendingTopicLabel: computeTrendingTopicLabel(inboxItems),
+    avgPeakHoursLabel: computeAvgPeakHourLabel(inboxItems),
     total,
   }
+}
+
+export function computeTrendingTopicLabel(items) {
+  const themes = computeTopThemes(items, 1)
+  if (themes.length === 0) return '—'
+  return themes[0].label
+}
+
+export function computeAvgPeakHourLabel(items) {
+  const arr = Array.isArray(items) ? items : []
+  const counts = new Array(24).fill(0)
+  for (const it of arr) {
+    if (!it?.created_at) continue
+    const h = new Date(it.created_at).getHours()
+    if (Number.isFinite(h) && h >= 0 && h <= 23) counts[h] += 1
+  }
+  const total = counts.reduce((a, b) => a + b, 0)
+  if (total === 0) return '—'
+
+  let sum = 0
+  for (let h = 0; h < 24; h += 1) sum += h * counts[h]
+  const avgHour = Math.round(sum / total)
+
+  let peakHour = 0
+  let peak = 0
+  for (let h = 0; h < 24; h += 1) {
+    if (counts[h] > peak) {
+      peak = counts[h]
+      peakHour = h
+    }
+  }
+
+  if (peakHour === avgHour) return formatHourLabel(avgHour)
+  const lo = Math.min(avgHour, peakHour)
+  const hi = Math.max(avgHour, peakHour)
+  return `${formatHourLabel(lo)}–${formatHourLabel(hi)}`
 }
 
 export function computeTopThemes(items, limit = 5) {
@@ -105,7 +160,7 @@ export function computeTopThemes(items, limit = 5) {
     .slice(0, limit)
     .map(([key, count]) => ({
       key,
-      label: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      label: formatThemeLabel(key),
       count,
       pct: Math.round((count / total) * 100),
     }))

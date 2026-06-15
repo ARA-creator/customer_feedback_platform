@@ -75,7 +75,7 @@ import { useDashboardSse } from '../hooks/useDashboardSse'
 import { useInboxFilteredLists } from '../hooks/useInboxFilteredLists'
 import { filterFeedbackItems } from '../utils/dashboardInboxFilters'
 import { useSourceTabCounts } from '../hooks/useSourceTabCounts'
-import { buildDashboardSummaryCsv, buildInboxFeedbackCsv, downloadTextFile } from '../utils/dashboardExport'
+import { buildInboxFeedbackCsv, downloadTextFile } from '../utils/dashboardExport'
 import { getQuickFilterPatch } from '../utils/dashboardInboxQuickFilters'
 import { buildInboxActiveFilterLabels } from '../utils/dashboardInboxFilterLabels'
 import { SAVED_VIEWS } from '../utils/dashboardSavedViews'
@@ -511,14 +511,18 @@ function Dashboard({
     setAnalyzerOpen(false)
   }
 
+  const exportParams = useMemo(() => {
+    const params = { time_window: overviewTimeFilter }
+    if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
+      params.sentiment = overviewSentimentFilter
+    }
+    return params
+  }, [overviewSentimentFilter, overviewTimeFilter])
+
   const { exportOverviewCsv: handleExportCsv, exportInboxCsv: handleExportCSV } = useDashboardExports({
-    metrics,
-    sentimentData,
-    categoryData,
-    trendData,
+    exportParams,
     recentFeedback,
     priorityQueue,
-    buildDashboardSummaryCsv,
     buildInboxFeedbackCsv,
     downloadTextFile,
     pushToast,

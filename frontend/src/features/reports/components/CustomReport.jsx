@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { FiArrowLeft, FiDownload } from 'react-icons/fi'
-import { downloadCustomReportCsv } from '../services/reports.api'
+import { downloadAnalystExportCsv } from '../services/reports.api'
 
 import { REPORT_FIELD_CLASSES as FIELD_CLASSES } from '../reportFieldClasses'
 
@@ -25,6 +25,7 @@ export default function CustomReport({ onBack, embedded = false }) {
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
       limit,
+      time_window: 'all',
     }),
     [sentiment, category, source, priority, dateFrom, dateTo, limit]
   )
@@ -33,14 +34,14 @@ export default function CustomReport({ onBack, embedded = false }) {
     setDownloading(true)
     setError(null)
     try {
-      const res = await downloadCustomReportCsv(params)
+      const res = await downloadAnalystExportCsv(params)
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const disposition = res.headers?.['content-disposition'] || ''
       const match = /filename="([^"]+)"/.exec(disposition)
       a.href = url
-      a.download = match?.[1] || 'custom_report.csv'
+      a.download = match?.[1] || 'feedback_export.csv'
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -171,7 +172,7 @@ export default function CustomReport({ onBack, embedded = false }) {
         </div>
 
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Note: search text filtering is not available in custom reports because message content is encrypted in the database.
+          Downloads one tidy CSV with one row per feedback and columns for sentiment, priority, theme, assignment, and response times.
         </p>
       </div>
     </div>

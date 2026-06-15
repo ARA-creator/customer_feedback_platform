@@ -1,39 +1,34 @@
 import { useCallback } from 'react'
 
+import { downloadAnalystExportCsv } from '../../reports/services/reports.api'
+import { downloadBlob } from '../utils/dashboardExport'
+
 export function useDashboardExports({
-  metrics,
-  sentimentData,
-  categoryData,
-  trendData,
-  recentFeedback,
-  priorityQueue,
-  buildDashboardSummaryCsv,
+  exportParams,
   buildInboxFeedbackCsv,
   downloadTextFile,
   pushToast,
+  recentFeedback,
+  priorityQueue,
 }) {
-  const exportOverviewCsv = useCallback(() => {
+  const exportOverviewCsv = useCallback(async () => {
     try {
-      const csv = buildDashboardSummaryCsv({ metrics, sentimentData, categoryData, trendData })
-      downloadTextFile({
-        contents: csv,
-        filename: `feedback_dashboard_${new Date().toISOString().slice(0, 10)}.csv`,
-        mime: 'text/csv;charset=utf-8;',
-      })
-      pushToast?.('Export ready', 'Dashboard summary CSV downloaded.', 'success')
+      const res = await downloadAnalystExportCsv(exportParams || {})
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+      const disposition = res.headers?.['content-disposition'] || ''
+      const match = /filename="([^"]+)"/.exec(disposition)
+      const filename = match?.[1] || `feedback_export_${new Date().toISOString().slice(0, 10)}.csv`
+      downloadBlob({ blob, filename })
+      pushToast?.('Export ready', 'Feedback CSV downloaded.', 'success')
     } catch (err) {
       console.error('Failed to export CSV', err)
-      pushToast?.('Export failed', 'Could not build the CSV. Try again.', 'error')
+      pushToast?.(
+        'Export failed',
+        err?.response?.data?.error || 'Could not build the export. Try again.',
+        'error',
+      )
     }
-  }, [
-    buildDashboardSummaryCsv,
-    categoryData,
-    downloadTextFile,
-    metrics,
-    pushToast,
-    sentimentData,
-    trendData,
-  ])
+  }, [exportParams, pushToast])
 
   const exportInboxCsv = useCallback(() => {
     const rows = recentFeedback?.length > 0 ? recentFeedback : priorityQueue

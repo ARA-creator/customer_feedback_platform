@@ -57,10 +57,14 @@ export function buildInboxFeedbackCsv(rows) {
 
 export function downloadTextFile({ contents, filename, mime }) {
   const blob = new Blob([contents], { type: mime || 'text/plain;charset=utf-8;' })
+  downloadBlob({ blob, filename: filename || 'download.txt' })
+}
+
+export function downloadBlob({ blob, filename }) {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.setAttribute('download', filename || 'download.txt')
+  link.setAttribute('download', filename || 'download')
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

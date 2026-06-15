@@ -262,7 +262,8 @@ export default function InboxLite({ onNavigate }) {
     }
   })
   const [folder, setFolder] = useState('inbox') // inbox | archive
-  const [listTab, setListTab] = useState('unread') // all | read | unread
+  const [listTab, setListTab] = useState('all') // all | read | unread
+  const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
   const [activeQuickFilter, setActiveQuickFilter] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -531,6 +532,7 @@ export default function InboxLite({ onNavigate }) {
           sort: isPriority ? 'impact' : 'chronological',
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
+          inbox_tab: listTab === 'read' || listTab === 'unread' ? listTab : undefined,
           ...dateParams,
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
@@ -561,6 +563,13 @@ export default function InboxLite({ onNavigate }) {
         mergeFromFeedItems(newItems)
         feedCursorRef.current = feed?.next_cursor ?? null
         setFeedHasMore(Boolean(feed?.has_more))
+        if (feed?.inbox_tab_counts && typeof feed.inbox_tab_counts === 'object') {
+          setInboxTabCounts({
+            all: Number(feed.inbox_tab_counts.all) || 0,
+            read: Number(feed.inbox_tab_counts.read) || 0,
+            unread: Number(feed.inbox_tab_counts.unread) || 0,
+          })
+        }
         if (!append) {
           setLastLoadedAt(new Date())
         }
@@ -612,6 +621,7 @@ export default function InboxLite({ onNavigate }) {
       peakHour,
       peakRangeDays,
       sortBy,
+      listTab,
       archivedIds,
       mergeFromFeedItems,
     ],
@@ -649,25 +659,20 @@ export default function InboxLite({ onNavigate }) {
 
   const sortedVisibleItems = useMemo(() => {
     let arr = visibleItems
-    if (activeQuickFilter === 'unread' || listTab === 'unread') {
-      arr = arr.filter((it) => {
-        const id = normFeedbackId(it?.id)
-        return id != null && !readIds.has(id)
-      })
-    } else if (listTab === 'read') {
-      arr = arr.filter((it) => {
-        const id = normFeedbackId(it?.id)
-        return id != null && readIds.has(id)
-      })
-    }
     if (activeQuickFilter === 'high_priority') {
       arr = arr.filter(isHighPriority)
     }
     if (activeQuickFilter === 'needs_response') {
       arr = arr.filter(needsResponse)
     }
+    if (activeQuickFilter === 'unread') {
+      arr = arr.filter((it) => {
+        const id = normFeedbackId(it?.id)
+        return id != null && !readIds.has(id)
+      })
+    }
     return sortInboxItems(arr, sortBy, pinnedIds)
-  }, [visibleItems, activeQuickFilter, listTab, readIds, sortBy, pinnedIds])
+  }, [visibleItems, activeQuickFilter, readIds, sortBy, pinnedIds])
 
   const displayedItems = sortedVisibleItems
   const hasMoreToShow = feedHasMore
@@ -678,23 +683,27 @@ export default function InboxLite({ onNavigate }) {
   }, [items, archivedIds])
 
   const totalInboxCount = useMemo(() => {
+    const tabs = inboxTabCounts?.all
+    if (Number.isFinite(tabs) && tabs >= 0) return tabs
     const server = Number(counts?.all)
     if (Number.isFinite(server) && server >= 0) return server
     return inboxCount
-  }, [counts?.all, inboxCount])
+  }, [inboxTabCounts?.all, counts?.all, inboxCount])
 
-  const unreadInboxCount = useMemo(
-    () =>
-      computeStableUnreadCount({
-        total: counts?.all,
-        scopedIds: scopedInboxIds,
-        readIds,
-        loadedItems: inboxItemsForStats,
-      }),
-    [counts?.all, scopedInboxIds, readIds, inboxItemsForStats],
-  )
+  const unreadInboxCount = useMemo(() => {
+    const tabs = inboxTabCounts?.unread
+    if (Number.isFinite(tabs) && tabs >= 0) return tabs
+    return computeStableUnreadCount({
+      total: counts?.all,
+      scopedIds: scopedInboxIds,
+      readIds,
+      loadedItems: inboxItemsForStats,
+    })
+  }, [inboxTabCounts?.unread, counts?.all, scopedInboxIds, readIds, inboxItemsForStats])
 
   const readInboxCount = useMemo(() => {
+    const tabs = inboxTabCounts?.read
+    if (Number.isFinite(tabs) && tabs >= 0) return tabs
     const total = totalInboxCount
     const unread = unreadInboxCount
     if (Number.isFinite(total) && total >= unread) return total - unread
@@ -702,9 +711,9 @@ export default function InboxLite({ onNavigate }) {
       const id = normFeedbackId(it?.id)
       return id != null && readIds.has(id)
     }).length
-  }, [totalInboxCount, unreadInboxCount, inboxItemsForStats, readIds])
+  }, [inboxTabCounts?.read, totalInboxCount, unreadInboxCount, inboxItemsForStats, readIds])
 
-  const unreadTabActive = listTab === 'unread' || activeQuickFilter === 'unread'
+  const unreadTabActive = listTab === 'unread'
   const readTabActive = listTab === 'read'
 
   const loadedUnreadOnPage = useMemo(

@@ -17,12 +17,14 @@ from sqlalchemy import desc, func
 from ...database import SessionLocal
 from ...models import Feedback, ReportSchedule
 from ...security import decrypt_text
+from ...services.analyst_export import build_analyst_export_csv
 from ...services.metadata_normalization import safe_json_loads
 from . import api_bp
 from ._helpers import (
     _audit_log,
     _parse_dt,
     _require_any_permission,
+    _require_user,
     _scope_feedback_query,
     _user_permission_keys,
 )
@@ -255,5 +257,39 @@ def report_custom_csv():
     except PermissionError as e:
         msg = str(e)
         return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    finally:
+        db.close()
+
+
+@api_bp.route("/reports/analyst-export.csv", methods=["GET"])
+def report_analyst_export_csv():
+    """
+    Analyst-friendly export: single tidy CSV with one row per feedback record.
+    """
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+        params = dict(request.args)
+        csv_text, filename = build_analyst_export_csv(db, user, perms, params)
+        _audit_log(
+            db,
+            actor_user_id=session.get("user_id"),
+            action="reports.analyst_export",
+            target_type="report",
+            target_id=None,
+            meta={"filters": params, "filename": filename},
+        )
+        return Response(
+            csv_text,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("Analyst export failed")
+        return jsonify({"error": "Failed to build analyst export"}), 500
     finally:
         db.close()

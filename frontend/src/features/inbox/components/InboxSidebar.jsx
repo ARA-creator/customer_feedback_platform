@@ -2,10 +2,33 @@ import MiniSparkline from '../../dashboard/components/insights/MiniSparkline'
 import { buildDailySparkline } from '../utils/inboxDerivedStats'
 
 const SUMMARY_CARDS = [
-  { key: 'newCount', label: 'New', color: '#10B981', sparkPredicate: null },
-  { key: 'highPriorityCount', label: 'High priority', color: '#EF4444', sparkPredicate: (it) => Number(it?.priority ?? it?.impact_score ?? 0) >= 80 },
-  { key: 'negativePct', label: 'Negative', color: '#EF4444', sparkPredicate: (it) => String(it?.sentiment_label || '').toLowerCase() === 'negative', suffix: '%' },
-  { key: 'avgResponseLabel', label: 'Avg. first response', color: '#3B82F6', sparkPredicate: null, isText: true },
+  {
+    key: 'trendingTopicLabel',
+    label: 'Trending topic',
+    color: '#10B981',
+    sparkPredicate: null,
+    isText: true,
+    useTopThemeSpark: true,
+  },
+  {
+    key: 'highPriorityCount',
+    label: 'High priority',
+    color: '#EF4444',
+    sparkPredicate: (it) => Number(it?.priority ?? it?.impact_score ?? 0) >= 80,
+  },
+  {
+    key: 'avgPeakHoursLabel',
+    label: 'Avg peak hours',
+    color: '#3B82F6',
+    sparkPredicate: null,
+    isText: true,
+  },
+  {
+    key: 'newCount',
+    label: 'New feedback',
+    color: '#10B981',
+    sparkPredicate: null,
+  },
 ]
 
 const QUICK_FILTERS = [
@@ -39,23 +62,30 @@ export default function InboxSidebar({
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Inbox summary</h2>
         <div className="mt-3 grid grid-cols-2 gap-2.5">
           {SUMMARY_CARDS.map((card) => {
+            const topThemeKey = card.useTopThemeSpark ? topThemes[0]?.key : null
+            const themePredicate = topThemeKey
+              ? (it) => {
+                  const raw = it?.insurance_tags || it?.channel_metadata?.insurance_tags
+                  const tags = Array.isArray(raw) ? raw : []
+                  return tags.some((t) => String(t || '').trim().toLowerCase() === topThemeKey)
+                }
+              : undefined
             const spark = buildDailySparkline(items, {
               days: 7,
-              predicate: card.sparkPredicate || undefined,
+              predicate: themePredicate || card.sparkPredicate || undefined,
             })
-            const value = card.isText
-              ? stats?.avgResponseLabel ?? '—'
-              : card.key === 'negativePct'
-                ? `${stats?.negativePct ?? 0}%`
-                : stats?.[card.key] ?? 0
+            const value = card.isText ? stats?.[card.key] ?? '—' : stats?.[card.key] ?? 0
+            const valueClass =
+              card.isText && String(value).length > 14
+                ? 'text-sm font-bold leading-snug text-gray-900 dark:text-gray-100'
+                : 'text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100'
             return (
               <div
                 key={card.key}
                 className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/50"
               >
-                <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                <p className={valueClass}>
                   {value}
-                  {card.suffix && !card.isText ? '' : null}
                 </p>
                 <p className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
                 <div className="mt-2 h-8">

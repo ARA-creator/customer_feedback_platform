@@ -150,3 +150,44 @@ def apply_inbox_state_patch(
         "read_feedback_ids": sorted(read_ids),
         "pinned_feedback_ids": sorted(pinned_ids),
     }
+
+
+def apply_inbox_tab_filter(query, db, user_id: int, inbox_tab: Optional[str]):
+    """Filter feedback query by per-user read state (all | read | unread)."""
+    from sqlalchemy import and_, exists
+
+    from ..models import Feedback, UserFeedbackInboxState
+
+    tab = (inbox_tab or "all").strip().lower()
+    if tab not in ("read", "unread"):
+        return query
+
+    read_exists = exists().where(
+        and_(
+            UserFeedbackInboxState.feedback_id == Feedback.id,
+            UserFeedbackInboxState.user_id == int(user_id),
+            UserFeedbackInboxState.read_at.isnot(None),
+        )
+    )
+    if tab == "read":
+        return query.filter(read_exists)
+    return query.filter(~read_exists)
+
+
+def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
+    """Count all/read/unread for the current scoped feedback query."""
+    from sqlalchemy import and_, exists, func
+
+    from ..models import Feedback, UserFeedbackInboxState
+
+    total = base_query.with_entities(func.count(Feedback.id)).scalar() or 0
+    read_exists = exists().where(
+        and_(
+            UserFeedbackInboxState.feedback_id == Feedback.id,
+            UserFeedbackInboxState.user_id == int(user_id),
+            UserFeedbackInboxState.read_at.isnot(None),
+        )
+    )
+    read_count = base_query.filter(read_exists).with_entities(func.count(Feedback.id)).scalar() or 0
+    unread_count = max(int(total) - int(read_count), 0)
+    return {"all": int(total), "read": int(read_count), "unread": unread_count}
