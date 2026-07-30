@@ -286,35 +286,6 @@ def create_app() -> Flask:
         except Exception:
             logging.getLogger(__name__).exception("Failed to run feedback_reply_drafts table dev migration")
 
-        # Lightweight migration: feedback.replied_at for shared Replied inbox folder.
-        try:
-            with engine.connect() as conn:
-                dialect = engine.dialect.name
-                cols: set[str] = set()
-                if dialect == "sqlite":
-                    info = conn.execute(text("PRAGMA table_info(feedback)")).fetchall()
-                    if info:
-                        cols = {row[1] for row in info}
-                elif dialect in {"postgresql", "postgres"}:
-                    rows = conn.execute(
-                        text(
-                            "SELECT column_name FROM information_schema.columns "
-                            "WHERE table_schema = 'public' AND table_name = 'feedback'"
-                        )
-                    ).fetchall()
-                    cols = {r[0] for r in rows}
-                if cols and "replied_at" not in cols:
-                    dt = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
-                    if dialect in {"postgresql", "postgres"}:
-                        conn.execute(
-                            text(f"ALTER TABLE feedback ADD COLUMN IF NOT EXISTS replied_at {dt}")
-                        )
-                    else:
-                        conn.execute(text(f"ALTER TABLE feedback ADD COLUMN replied_at {dt}"))
-                    conn.commit()
-        except Exception:
-            logging.getLogger(__name__).exception("Failed to run feedback.replied_at migration")
-
     # Make config available in templates
     @app.context_processor
     def inject_config():
@@ -364,10 +335,9 @@ def create_app() -> Flask:
         username = getattr(config, "EMAIL_USERNAME", None)
         password = getattr(config, "EMAIL_PASSWORD", None)
 
-        from .routes.integrations import poll_email_and_ingest, poll_email_sent_and_match_replies  # noqa: WPS433
+        from .routes.integrations import poll_email_and_ingest  # noqa: WPS433
 
         logger = logging.getLogger(__name__)
-        sent_folder = getattr(config, "EMAIL_SENT_FOLDER", None)
 
         def loop() -> None:
             logger.info(
@@ -393,19 +363,6 @@ def create_app() -> Flask:
                         logger.info("Email auto-poller: %s", result)
                 except Exception:
                     logger.exception("Email auto-poller: failed poll cycle")
-                try:
-                    sent_result = poll_email_sent_and_match_replies(
-                        imap_server=server,
-                        imap_port=port,
-                        username=username,
-                        password=password,
-                        hours_back=hours_back,
-                        sent_folder=sent_folder,
-                    )
-                    if sent_result.get("matched", 0) or sent_result.get("emails_found", 0):
-                        logger.info("Email Sent reply matcher: %s", sent_result)
-                except Exception:
-                    logger.exception("Email auto-poller: failed Sent reply match cycle")
                 time.sleep(max(10, interval))
 
         t = threading.Thread(target=loop, name="email-auto-poller", daemon=True)

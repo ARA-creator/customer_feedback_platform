@@ -262,8 +262,7 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
-  const [folder, setFolder] = useState('inbox') // inbox | replied | archive
-  const [folderCounts, setFolderCounts] = useState({ inbox: 0, replied: 0 })
+  const [folder, setFolder] = useState('inbox') // inbox | archive
   const [listTab, setListTab] = useState('all') // all | read | unread
   const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
@@ -535,8 +534,6 @@ export default function InboxLite({ onNavigate }) {
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
           inbox_tab: listTab === 'read' || listTab === 'unread' ? listTab : undefined,
-          // Archive is localStorage; load unreplied+replied so archived items still appear.
-          folder: folder === 'archive' ? 'all' : folder === 'replied' ? 'replied' : 'inbox',
           ...dateParams,
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
@@ -567,12 +564,6 @@ export default function InboxLite({ onNavigate }) {
         mergeFromFeedItems(newItems)
         feedCursorRef.current = feed?.next_cursor ?? null
         setFeedHasMore(Boolean(feed?.has_more))
-        if (feed?.folder_counts && typeof feed.folder_counts === 'object') {
-          setFolderCounts({
-            inbox: Number(feed.folder_counts.inbox) || 0,
-            replied: Number(feed.folder_counts.replied) || 0,
-          })
-        }
         if (feed?.inbox_tab_counts && typeof feed.inbox_tab_counts === 'object') {
           setInboxTabCounts({
             all: Number(feed.inbox_tab_counts.all) || 0,
@@ -632,7 +623,6 @@ export default function InboxLite({ onNavigate }) {
       peakRangeDays,
       sortBy,
       listTab,
-      folder,
       archivedIds,
       mergeFromFeedItems,
     ],
@@ -655,25 +645,18 @@ export default function InboxLite({ onNavigate }) {
     itemsRef.current = items
   }, [items])
 
-  const { visibleItems, archiveCount } = useMemo(() => {
+  const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
     let a = 0
+    let i = 0
     for (const it of arr) {
       if (archivedIds.has(it?.id)) a += 1
+      else i += 1
     }
-    // Local archive count: size of archived set that appears in current load, or full set size.
-    const localArchiveTotal = archivedIds.size
-    let filtered
-    if (folder === 'archive') {
-      filtered = arr.filter((it) => archivedIds.has(it?.id))
-    } else {
-      filtered = arr.filter((it) => !archivedIds.has(it?.id))
-    }
-    return { visibleItems: filtered, archiveCount: localArchiveTotal || a }
+    const showArchive = folder === 'archive'
+    const filtered = arr.filter((it) => (showArchive ? archivedIds.has(it?.id) : !archivedIds.has(it?.id)))
+    return { visibleItems: filtered, inboxCount: i, archiveCount: a }
   }, [items, archivedIds, folder])
-
-  const serverInboxCount = Number(folderCounts?.inbox) || 0
-  const serverRepliedCount = Number(folderCounts?.replied) || 0
 
   const sortedVisibleItems = useMemo(() => {
     let arr = visibleItems
@@ -701,20 +684,12 @@ export default function InboxLite({ onNavigate }) {
   }, [items, archivedIds])
 
   const totalInboxCount = useMemo(() => {
-    if (folder === 'replied') {
-      return serverRepliedCount
-    }
-    if (folder === 'inbox') {
-      const tabs = inboxTabCounts?.all
-      if (Number.isFinite(tabs) && tabs >= 0) return tabs
-      if (serverInboxCount > 0) return serverInboxCount
-    }
     const tabs = inboxTabCounts?.all
     if (Number.isFinite(tabs) && tabs >= 0) return tabs
     const server = Number(counts?.all)
     if (Number.isFinite(server) && server >= 0) return server
-    return serverInboxCount
-  }, [folder, folderCounts, inboxTabCounts?.all, counts?.all, serverInboxCount, serverRepliedCount])
+    return inboxCount
+  }, [inboxTabCounts?.all, counts?.all, inboxCount])
 
   const unreadInboxCount = useMemo(() => {
     const tabs = inboxTabCounts?.unread
@@ -1023,8 +998,7 @@ export default function InboxLite({ onNavigate }) {
         dateRangeOptions={dateRangeOptions}
         folder={folder}
         onFolderChange={setFolder}
-        inboxCount={serverInboxCount}
-        repliedCount={serverRepliedCount}
+        inboxCount={totalInboxCount}
         archiveCount={archiveCount}
         onRefresh={load}
         loading={loading}
@@ -1300,21 +1274,7 @@ export default function InboxLite({ onNavigate }) {
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 ID #{openItem.id}
               </span>
-              {openItem.replied_at ? (
-                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
-                  Replied
-                  {openItem.channel_metadata?.reply_detected_at || openItem.replied_at
-                    ? ` · ${formatRelativeTime(openItem.channel_metadata?.reply_detected_at || openItem.replied_at)}`
-                    : ''}
-                </span>
-              ) : null}
             </div>
-
-            {openItem.replied_at ? (
-              <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
-                An officer reply was detected in the mailbox Sent folder. This item is in the shared Replied folder.
-              </div>
-            ) : null}
 
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                 <div className="flex flex-wrap items-center justify-between gap-2">

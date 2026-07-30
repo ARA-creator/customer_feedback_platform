@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
@@ -18,13 +18,7 @@ from ..integrations.web_monitor import (
     normalize_keywords,
     url_hash as web_url_hash,
 )
-from ..integrations.email_integration import (
-    fetch_emails,
-    fetch_sent_emails,
-    normalize_message_id,
-    normalize_subject,
-    process_email_to_feedback,
-)
+from ..integrations.email_integration import fetch_emails, process_email_to_feedback
 from ..integrations.jotform_integration import parse_jotform_webhook_request
 from ..integrations.meta_integration import (
     meta_event_dedupe_hash,
@@ -52,7 +46,7 @@ from ..models import Feedback, FeedbackPolicyMatch, ExternalIngestedItem
 from ..security import encrypt_text, hash_email
 from ..sentiment_analyzer import analyze_sentiment
 from ..services.policy_detection import build_policy_scan_text, detect_policies
-from ..services.metadata_normalization import normalize_channel_metadata, safe_json_loads
+from ..services.metadata_normalization import normalize_channel_metadata
 from ..services.insurance_tags import categorize_insurance_tags
 
 logger = logging.getLogger(__name__)
@@ -529,186 +523,6 @@ def poll_email_and_ingest(
     }
 
 
-def _feedback_message_ids(meta: dict) -> list[str]:
-    """Collect normalized Message-IDs stored on inbound email feedback."""
-    ids: list[str] = []
-    for key in ("message_id", "thread_id"):
-        n = normalize_message_id(meta.get(key) if isinstance(meta, dict) else None)
-        if n and n not in ids:
-            ids.append(n)
-    return ids
-
-
-def _match_sent_to_feedback(db, sent: dict, *, candidates: list) -> Optional[Feedback]:
-    """
-    Match a Sent message to unreplied email feedback.
-
-    Order: In-Reply-To / References → Message-ID; fallback subject + recipient email hash.
-    """
-    related_ids: list[str] = []
-    for mid in (sent.get("in_reply_to_ids") or []):
-        n = normalize_message_id(mid)
-        if n and n not in related_ids:
-            related_ids.append(n)
-    irt = normalize_message_id(sent.get("in_reply_to"))
-    if irt and irt not in related_ids:
-        related_ids.insert(0, irt)
-    for mid in (sent.get("references") or []):
-        n = normalize_message_id(mid)
-        if n and n not in related_ids:
-            related_ids.append(n)
-
-    if related_ids:
-        related_set = set(related_ids)
-        for fb in candidates:
-            meta = normalize_channel_metadata(getattr(fb, "source", None), fb.channel_metadata) or {}
-            fb_ids = set(_feedback_message_ids(meta))
-            if fb_ids & related_set:
-                return fb
-
-    # Fallback: normalized subject + recipient matches customer email hash
-    sent_subj = normalize_subject(sent.get("subject"))
-    recipients = [e.strip().lower() for e in (sent.get("to_emails") or []) if e]
-    if not recipients and sent.get("recipient_email"):
-        recipients = [str(sent.get("recipient_email")).strip().lower()]
-    if not sent_subj or not recipients:
-        return None
-
-    recipient_hashes = {hash_email(e) for e in recipients if e}
-    recipient_hashes.discard(None)
-    if not recipient_hashes:
-        return None
-
-    for fb in candidates:
-        meta = normalize_channel_metadata(getattr(fb, "source", None), fb.channel_metadata) or {}
-        fb_subj = normalize_subject(meta.get("email_subject") or "")
-        if not fb_subj or fb_subj != sent_subj:
-            continue
-        eh = getattr(fb, "email_hash", None)
-        if eh and eh in recipient_hashes:
-            return fb
-        sender = str(meta.get("sender_email") or "").strip().lower()
-        if sender and hash_email(sender) in recipient_hashes:
-            return fb
-    return None
-
-
-def poll_email_sent_and_match_replies(
-    *,
-    imap_server: str,
-    imap_port: int,
-    username: str,
-    password: str,
-    hours_back: int = 24,
-    sent_folder: Optional[str] = None,
-) -> dict:
-    """
-    Poll IMAP Sent and mark matching email feedback as replied (shared Replied folder).
-
-    Does not create new feedback rows. Dedupes Sent messages via ExternalIngestedItem
-    keys like ``email-sent:{message_id}``.
-    """
-    config = get_config()
-    if sent_folder is None:
-        sent_folder = getattr(config, "EMAIL_SENT_FOLDER", None)
-
-    since_date = datetime.now() - timedelta(hours=hours_back)
-    emails, resolved_folder = fetch_sent_emails(
-        imap_server=imap_server,
-        imap_port=imap_port,
-        username=username,
-        password=password,
-        since_date=since_date,
-        sent_folder=sent_folder,
-    )
-
-    matched = 0
-    skipped_seen = 0
-    skipped_no_match = 0
-    skipped_already = 0
-
-    db = SessionLocal()
-    try:
-        from sqlalchemy import func
-
-        # Unreplied email feedback in the lookback window (plus slack for older threads).
-        lookback = datetime.now(tz=timezone.utc) - timedelta(hours=max(hours_back, 24) * 2)
-        candidates = (
-            db.query(Feedback)
-            .filter(Feedback.deleted_at.is_(None))
-            .filter(Feedback.replied_at.is_(None))
-            .filter(func.lower(Feedback.source).like("%email%"))
-            .filter(Feedback.created_at >= lookback)
-            .order_by(Feedback.created_at.desc())
-            .limit(500)
-            .all()
-        )
-
-        for sent in emails:
-            mid = normalize_message_id(sent.get("message_id"))
-            eid = (sent.get("email_id") or "").strip()
-            if mid:
-                dedupe_key = f"email-sent:{mid}"
-            elif eid:
-                dedupe_key = f"email-sent:imap:{eid}"
-            else:
-                sender = (sent.get("sender_email") or "").strip().lower()
-                subj = (sent.get("subject") or "").strip().lower()
-                dt = (sent.get("date") or "").strip()
-                dedupe_key = f"email-sent:fp:{sender}|{subj}|{dt}"
-
-            h = _sha256_hex(dedupe_key)
-            exists = db.query(ExternalIngestedItem.id).filter(ExternalIngestedItem.url_hash == h).first()
-            if exists:
-                skipped_seen += 1
-                continue
-
-            # Mark seen before matching so we do not reprocess forever on no-match.
-            db.add(ExternalIngestedItem(source="email-sent", url=dedupe_key, url_hash=h))
-            db.commit()
-
-            has_thread_headers = bool(
-                sent.get("in_reply_to") or sent.get("in_reply_to_ids") or sent.get("references")
-            )
-            fb = _match_sent_to_feedback(db, sent, candidates=candidates)
-            if not fb:
-                skipped_no_match += 1
-                continue
-            if getattr(fb, "replied_at", None):
-                skipped_already += 1
-                continue
-
-            now = datetime.now(tz=timezone.utc)
-            fb.replied_at = now
-            meta = safe_json_loads(fb.channel_metadata) if fb.channel_metadata else {}
-            if not isinstance(meta, dict):
-                meta = {}
-            meta["reply_message_id"] = mid
-            meta["reply_detected_at"] = now.isoformat()
-            meta["reply_subject"] = sent.get("subject")
-            meta["reply_match"] = "message_id" if has_thread_headers else "subject_recipient"
-            fb.channel_metadata = json.dumps(meta)
-            db.commit()
-            matched += 1
-            candidates = [c for c in candidates if c.id != fb.id]
-    except Exception:
-        db.rollback()
-        logger.exception("Error matching Sent emails to feedback")
-        raise
-    finally:
-        db.close()
-
-    return {
-        "message": f"Matched {matched} sent replies",
-        "sent_folder": resolved_folder,
-        "emails_found": len(emails),
-        "matched": matched,
-        "skipped_seen": skipped_seen,
-        "skipped_no_match": skipped_no_match,
-        "skipped_already": skipped_already,
-    }
-
-
 def poll_twilio_whatsapp_and_ingest(
     *,
     account_sid: str,
@@ -991,20 +805,6 @@ def email_poll():
             folder=folder,
             hours_back=hours_back,
         )
-        sent_folder = data.get("sent_folder") or getattr(config, "EMAIL_SENT_FOLDER", None)
-        try:
-            sent_result = poll_email_sent_and_match_replies(
-                imap_server=imap_server,
-                imap_port=imap_port,
-                username=username,
-                password=password,
-                hours_back=hours_back,
-                sent_folder=sent_folder,
-            )
-            result["sent_replies"] = sent_result
-        except Exception as sent_err:
-            logger.exception("Sent-folder reply matching failed")
-            result["sent_replies"] = {"error": str(sent_err), "matched": 0}
         return jsonify(result)
 
     except Exception as e:
