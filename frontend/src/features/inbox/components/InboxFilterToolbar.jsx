@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { FiArchive, FiCalendar, FiChevronDown, FiInbox, FiLayers, FiMail, FiRefreshCw, FiSearch } from 'react-icons/fi'
+import { FiArchive, FiCalendar, FiChevronDown, FiInbox, FiLayers, FiRefreshCw, FiSearch } from 'react-icons/fi'
 import { useCloseOnOutsidePointer } from '../../../shared/hooks/useCloseOnOutsidePointer'
 
 const TOOLBAR_CONTROL =
@@ -152,7 +152,6 @@ export default function InboxFilterToolbar({
   folder,
   onFolderChange,
   inboxCount,
-  repliedCount,
   archiveCount,
   onRefresh,
   loading = false,
@@ -222,7 +221,6 @@ export default function InboxFilterToolbar({
           >
             {[
               { key: 'inbox', label: 'Inbox', Icon: FiInbox, count: inboxCount },
-              { key: 'replied', label: 'Replied', Icon: FiMail, count: repliedCount },
               { key: 'archive', label: 'Archive', Icon: FiArchive, count: archiveCount },
             ].map(({ key, label, Icon, count }) => {
               const active = folder === key

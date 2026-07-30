@@ -1,7 +1,19 @@
-import { FiBookmark, FiCheck, FiChevronDown, FiInbox, FiMail } from 'react-icons/fi'
+import { FiBookmark, FiCheck, FiChevronDown, FiInbox, FiMail, FiSend } from 'react-icons/fi'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import InboxFeedbackRow from './InboxFeedbackRow'
 import { normFeedbackId } from '../hooks/useInboxUserState'
+
+function CountBadge({ count, active }) {
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+        active ? 'bg-white/20 text-white' : 'bg-[#009750] text-white'
+      }`}
+    >
+      {Number.isFinite(count) ? count : 0}
+    </span>
+  )
+}
 
 export default function InboxListPanel({
   loading,
@@ -11,6 +23,7 @@ export default function InboxListPanel({
   allCount,
   readCount,
   unreadCount,
+  repliedCount = 0,
   sortBy,
   onSortChange,
   displayedItems,
@@ -43,58 +56,42 @@ export default function InboxListPanel({
 }) {
   const showListControls = !loading && !error && displayedItems.length > 0
 
+  const listTabs = [
+    { key: 'all', label: 'All feedback', Icon: FiInbox, count: allCount },
+    { key: 'read', label: 'Read', Icon: FiCheck, count: readCount },
+    { key: 'unread', label: 'Unread', Icon: FiMail, count: unreadCount },
+    { key: 'replied', label: 'Replied', Icon: FiSend, count: repliedCount },
+  ]
+
   return (
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-800">
-        <div className="flex items-center gap-4" role="tablist" aria-label="Inbox list tabs">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={listTab === 'all'}
-            onClick={() => onListTabChange?.('all')}
-            className={`relative pb-2 text-sm font-semibold transition-colors ${
-              listTab === 'all'
-                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
-                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            All feedback
-            {allCount > 0 ? (
-              <span className="ml-1.5 text-xs font-bold text-gray-400">({allCount})</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={listTab === 'read'}
-            onClick={() => onListTabChange?.('read')}
-            className={`relative pb-2 text-sm font-semibold transition-colors ${
-              listTab === 'read'
-                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
-                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            Read
-            {readCount > 0 ? (
-              <span className="ml-1.5 text-xs font-bold text-gray-400">{readCount}</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={listTab === 'unread'}
-            onClick={() => onListTabChange?.('unread')}
-            className={`relative pb-2 text-sm font-semibold transition-colors ${
-              listTab === 'unread'
-                ? 'text-[#10B981] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:rounded-full after:bg-[#10B981]'
-                : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            Unread
-            {unreadCount > 0 ? (
-              <span className="ml-1.5 text-xs font-bold text-gray-400">{unreadCount}</span>
-            ) : null}
-          </button>
+        <div
+          className="inline-flex max-w-full flex-wrap shrink-0 rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900"
+          role="tablist"
+          aria-label="Inbox list tabs"
+        >
+          {listTabs.map(({ key, label, Icon, count }) => {
+            const active = listTab === key
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onListTabChange?.(key)}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${
+                  active
+                    ? 'bg-[#009750] text-white'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{label}</span>
+                <CountBadge count={count} active={active} />
+              </button>
+            )
+          })}
         </div>
 
         <div className="relative">

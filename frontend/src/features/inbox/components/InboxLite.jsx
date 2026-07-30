@@ -262,8 +262,8 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
-  const [folder, setFolder] = useState('inbox') // inbox | replied | archive
-  const [listTab, setListTab] = useState('all') // all | read | unread
+  const [folder, setFolder] = useState('inbox') // inbox | archive
+  const [listTab, setListTab] = useState('all') // all | read | unread | replied
   const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
   const [activeQuickFilter, setActiveQuickFilter] = useState(null)
@@ -662,11 +662,13 @@ export default function InboxLite({ onNavigate }) {
       const archived = archivedIds.has(it?.id)
       const replied = Boolean(it?.replied_at)
       if (folder === 'archive') return archived
-      if (folder === 'replied') return !archived && replied
+      // Inbox folder + Replied list tab
+      if (listTab === 'replied') return !archived && replied
+      // All / Read / Unread: unreplied inbox items
       return !archived && !replied
     })
     return { visibleItems: filtered, inboxCount: i, repliedCount: r, archiveCount: a }
-  }, [items, archivedIds, folder])
+  }, [items, archivedIds, folder, listTab])
 
   const sortedVisibleItems = useMemo(() => {
     let arr = visibleItems
@@ -726,6 +728,7 @@ export default function InboxLite({ onNavigate }) {
 
   const unreadTabActive = listTab === 'unread'
   const readTabActive = listTab === 'read'
+  const repliedTabActive = listTab === 'replied'
 
   const loadedUnreadOnPage = useMemo(
     () =>
@@ -745,20 +748,26 @@ export default function InboxLite({ onNavigate }) {
     [visibleItems, readIds],
   )
 
-  /** Read/Unread tabs filter client-side; paginate until matching rows appear or feed ends. */
+  /** Read/Unread/Replied tabs filter client-side; paginate until matching rows appear or feed ends. */
   useEffect(() => {
-    if (!unreadTabActive && !readTabActive) return
+    if (!unreadTabActive && !readTabActive && !repliedTabActive) return
     if (loading || loadingMore) return
     if (!feedHasMore) return
-    const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
-    if (loadedOnPage > 0) return
+    if (repliedTabActive) {
+      if (visibleItems.length > 0) return
+    } else {
+      const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
+      if (loadedOnPage > 0) return
+    }
     if (items.length === 0) return
     load({ append: true })
   }, [
     unreadTabActive,
     readTabActive,
+    repliedTabActive,
     loadedUnreadOnPage,
     loadedReadOnPage,
+    visibleItems.length,
     feedHasMore,
     loading,
     loadingMore,
@@ -767,7 +776,7 @@ export default function InboxLite({ onNavigate }) {
   ])
 
   const prefetchingList =
-    (unreadTabActive || readTabActive) &&
+    (unreadTabActive || readTabActive || repliedTabActive) &&
     !loading &&
     displayedItems.length === 0 &&
     items.length > 0 &&
@@ -1007,9 +1016,11 @@ export default function InboxLite({ onNavigate }) {
         onDateRangeChange={setDateRange}
         dateRangeOptions={dateRangeOptions}
         folder={folder}
-        onFolderChange={setFolder}
+        onFolderChange={(next) => {
+          setFolder(next)
+          if (next === 'archive' && listTab === 'replied') setListTab('all')
+        }}
         inboxCount={Math.max(inboxCount, totalInboxCount - repliedCount)}
-        repliedCount={repliedCount}
         archiveCount={archiveCount}
         onRefresh={load}
         loading={loading}
@@ -1110,10 +1121,14 @@ export default function InboxLite({ onNavigate }) {
             loading={loading}
             error={error}
             listTab={listTab}
-            onListTabChange={setListTab}
+            onListTabChange={(tab) => {
+              setListTab(tab)
+              if (tab === 'replied' && folder === 'archive') setFolder('inbox')
+            }}
             allCount={totalInboxCount}
             readCount={readInboxCount}
             unreadCount={unreadInboxCount}
+            repliedCount={repliedCount}
             prefetchingList={prefetchingList}
             sortBy={sortBy}
             onSortChange={setSortBy}
