@@ -32,6 +32,7 @@ export default function InboxListPanel({
   onToggleSelected,
   onTogglePinned,
   onArchiveToggle,
+  onToggleReplied,
   formatRelativeTime,
   SourceIcon,
   hasMoreToShow,
@@ -215,6 +216,7 @@ export default function InboxListPanel({
                   onToggleSelect={() => onToggleSelected?.(it.id)}
                   onTogglePinned={() => onTogglePinned?.(it.id)}
                   onArchiveToggle={() => onArchiveToggle?.(it.id)}
+                  onToggleReplied={() => onToggleReplied?.(it.id)}
                   formatRelativeTime={formatRelativeTime}
                   SourceIcon={SourceIcon}
                 />

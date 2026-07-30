@@ -113,6 +113,8 @@ class BaseConfig:
     EMAIL_POLL_INTERVAL_SECONDS = int(os.getenv("EMAIL_POLL_INTERVAL_SECONDS", "60"))
     EMAIL_POLL_HOURS_BACK = int(os.getenv("EMAIL_POLL_HOURS_BACK", "24"))
     EMAIL_POLL_FOLDER = os.getenv("EMAIL_POLL_FOLDER", "INBOX")
+    # Optional IMAP Sent folder name (e.g. "[Gmail]/Sent Mail"). Auto-detected when empty.
+    EMAIL_SENT_FOLDER = (os.getenv("EMAIL_SENT_FOLDER") or "").strip() or None
 
     # Vercel Cron: when set, GET /integrations/email/poll requires Authorization: Bearer <CRON_SECRET>.
     # Vercel injects this header automatically for scheduled jobs when CRON_SECRET is set in the project.

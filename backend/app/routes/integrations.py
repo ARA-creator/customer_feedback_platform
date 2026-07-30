@@ -18,7 +18,11 @@ from ..integrations.web_monitor import (
     normalize_keywords,
     url_hash as web_url_hash,
 )
-from ..integrations.email_integration import fetch_emails, process_email_to_feedback
+from ..integrations.email_integration import (
+    fetch_emails,
+    fetch_sent_emails,
+    process_email_to_feedback,
+)
 from ..integrations.jotform_integration import parse_jotform_webhook_request
 from ..integrations.meta_integration import (
     meta_event_dedupe_hash,
@@ -456,70 +460,111 @@ def poll_email_and_ingest(
     """
     Poll an IMAP inbox and ingest messages as feedback records.
 
+    Also scans the Sent folder for officer replies (In-Reply-To matching inbound
+    Message-IDs) and marks those feedback rows with replied_at.
+
     Returns a summary dict similar to the /integrations/email/poll response.
     """
+    ingest_enabled = True
     db = SessionLocal()
     try:
         from ..services.channel_ingest import is_channel_ingest_enabled
 
-        if not is_channel_ingest_enabled(db, "email"):
-            return {
-                "message": "Email ingest is disabled",
-                "emails_found": 0,
-                "processed": 0,
-                "skipped": True,
-                "ingest_enabled": False,
-            }
+        ingest_enabled = bool(is_channel_ingest_enabled(db, "email"))
     finally:
         db.close()
 
     since_date = datetime.now() - timedelta(hours=hours_back)
-    emails = fetch_emails(imap_server, imap_port, username, password, folder, since_date)
+    emails: list = []
     processed_count = 0
+    replied_marked = 0
 
-    def _email_dedupe_key(email_data: dict) -> str:
-        # Prefer RFC822 Message-ID (stable across fetches).
-        mid = (email_data.get("message_id") or "").strip()
-        if mid:
-            return f"message-id:{mid}"
-        # Fallback to IMAP server id (may change across servers, but better than nothing).
-        eid = (email_data.get("email_id") or "").strip()
-        if eid:
-            return f"imap-id:{eid}"
-        # Last-resort: content-ish fingerprint.
-        sender = (email_data.get("sender_email") or "").strip().lower()
-        subj = (email_data.get("subject") or "").strip().lower()
-        dt = (email_data.get("date") or "").strip()
-        return f"fp:{sender}|{subj}|{dt}"
+    if ingest_enabled:
+        emails = fetch_emails(imap_server, imap_port, username, password, folder, since_date)
 
-    db = SessionLocal()
-    try:
-        for email_data in emails:
-            key = _email_dedupe_key(email_data)
-            h = _sha256_hex(key)
-            exists = db.query(ExternalIngestedItem.id).filter(ExternalIngestedItem.url_hash == h).first()
-            if exists:
-                continue
+        def _email_dedupe_key(email_data: dict) -> str:
+            # Prefer RFC822 Message-ID (stable across fetches).
+            mid = (email_data.get("message_id") or "").strip()
+            if mid:
+                return f"message-id:{mid}"
+            # Fallback to IMAP server id (may change across servers, but better than nothing).
+            eid = (email_data.get("email_id") or "").strip()
+            if eid:
+                return f"imap-id:{eid}"
+            # Last-resort: content-ish fingerprint.
+            sender = (email_data.get("sender_email") or "").strip().lower()
+            subj = (email_data.get("subject") or "").strip().lower()
+            dt = (email_data.get("date") or "").strip()
+            return f"fp:{sender}|{subj}|{dt}"
 
-            # Mark seen before ingest to avoid duplicates on retries.
-            db.add(ExternalIngestedItem(source="email", url=key, url_hash=h))
-            db.commit()
+        db = SessionLocal()
+        try:
+            for email_data in emails:
+                key = _email_dedupe_key(email_data)
+                h = _sha256_hex(key)
+                exists = db.query(ExternalIngestedItem.id).filter(ExternalIngestedItem.url_hash == h).first()
+                if exists:
+                    continue
 
-            feedback_payload = process_email_to_feedback(email_data)
-            result = _submit_to_feedback_api(feedback_payload)
-            if result:
-                processed_count += 1
-            else:
-                # Allow retry next poll if save failed.
-                db.query(ExternalIngestedItem).filter(ExternalIngestedItem.url_hash == h).delete()
+                # Mark seen before ingest to avoid duplicates on retries.
+                db.add(ExternalIngestedItem(source="email", url=key, url_hash=h))
                 db.commit()
-    finally:
-        db.close()
+
+                feedback_payload = process_email_to_feedback(email_data)
+                result = _submit_to_feedback_api(feedback_payload)
+                if result:
+                    processed_count += 1
+                else:
+                    # Allow retry next poll if save failed.
+                    db.query(ExternalIngestedItem).filter(ExternalIngestedItem.url_hash == h).delete()
+                    db.commit()
+        finally:
+            db.close()
+
+    # Detect officer replies in the mailbox Sent folder (In-Reply-To → original Message-ID).
+    try:
+        from ..services.email_reply_detection import apply_sent_emails_to_feedback
+
+        cfg = get_config()
+        sent_folder = getattr(cfg, "EMAIL_SENT_FOLDER", None)
+        sent_emails, resolved_sent = fetch_sent_emails(
+            imap_server=imap_server,
+            imap_port=imap_port,
+            username=username,
+            password=password,
+            since_date=since_date,
+            sent_folder=sent_folder,
+        )
+        db = SessionLocal()
+        try:
+            replied_marked = apply_sent_emails_to_feedback(db, sent_emails)
+        finally:
+            db.close()
+        if resolved_sent and replied_marked:
+            logger.info(
+                "Email reply detection: folder=%s sent=%s marked_replied=%s",
+                resolved_sent,
+                len(sent_emails),
+                replied_marked,
+            )
+    except Exception:
+        logger.exception("Email reply detection from Sent folder failed")
+
+    if not ingest_enabled:
+        return {
+            "message": "Email ingest is disabled",
+            "emails_found": 0,
+            "processed": 0,
+            "skipped": True,
+            "ingest_enabled": False,
+            "replied_marked": replied_marked,
+        }
 
     return {
         "message": f"Processed {processed_count} emails",
         "emails_found": len(emails),
         "processed": processed_count,
+        "replied_marked": replied_marked,
     }
 
 

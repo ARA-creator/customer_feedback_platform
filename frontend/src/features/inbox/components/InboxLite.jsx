@@ -3,7 +3,7 @@ import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefresh
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe, FiLayers } from 'react-icons/fi'
 import JotformIcon from '../../../shared/components/icons/JotformIcon'
-import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackOpenReaders, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
+import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackOpenReaders, getFeedbackPolicyMatches, getSourceCounts, markFeedbackReplied } from '../services/inbox.api'
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
@@ -262,7 +262,7 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
-  const [folder, setFolder] = useState('inbox') // inbox | archive
+  const [folder, setFolder] = useState('inbox') // inbox | replied | archive
   const [listTab, setListTab] = useState('all') // all | read | unread
   const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
@@ -645,17 +645,27 @@ export default function InboxLite({ onNavigate }) {
     itemsRef.current = items
   }, [items])
 
-  const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
+  const { visibleItems, inboxCount, repliedCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
     let a = 0
     let i = 0
+    let r = 0
     for (const it of arr) {
-      if (archivedIds.has(it?.id)) a += 1
+      if (archivedIds.has(it?.id)) {
+        a += 1
+        continue
+      }
+      if (it?.replied_at) r += 1
       else i += 1
     }
-    const showArchive = folder === 'archive'
-    const filtered = arr.filter((it) => (showArchive ? archivedIds.has(it?.id) : !archivedIds.has(it?.id)))
-    return { visibleItems: filtered, inboxCount: i, archiveCount: a }
+    const filtered = arr.filter((it) => {
+      const archived = archivedIds.has(it?.id)
+      const replied = Boolean(it?.replied_at)
+      if (folder === 'archive') return archived
+      if (folder === 'replied') return !archived && replied
+      return !archived && !replied
+    })
+    return { visibleItems: filtered, inboxCount: i, repliedCount: r, archiveCount: a }
   }, [items, archivedIds, folder])
 
   const sortedVisibleItems = useMemo(() => {
@@ -680,7 +690,7 @@ export default function InboxLite({ onNavigate }) {
 
   const inboxItemsForStats = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
-    return arr.filter((it) => !archivedIds.has(it?.id))
+    return arr.filter((it) => !archivedIds.has(it?.id) && !it?.replied_at)
   }, [items, archivedIds])
 
   const totalInboxCount = useMemo(() => {
@@ -998,7 +1008,8 @@ export default function InboxLite({ onNavigate }) {
         dateRangeOptions={dateRangeOptions}
         folder={folder}
         onFolderChange={setFolder}
-        inboxCount={totalInboxCount}
+        inboxCount={inboxCount}
+        repliedCount={repliedCount}
         archiveCount={archiveCount}
         onRefresh={load}
         loading={loading}
@@ -1131,6 +1142,21 @@ export default function InboxLite({ onNavigate }) {
                 else next.add(id)
                 return next
               })
+            }}
+            onToggleReplied={async (id) => {
+              const item = (itemsRef.current || []).find((it) => it?.id === id)
+              const nextReplied = !item?.replied_at
+              try {
+                const data = await markFeedbackReplied(id, { replied: nextReplied })
+                const repliedAt = nextReplied ? data?.replied_at || new Date().toISOString() : null
+                setItems((prev) =>
+                  (Array.isArray(prev) ? prev : []).map((it) =>
+                    it?.id === id ? { ...it, replied_at: repliedAt } : it,
+                  ),
+                )
+              } catch (err) {
+                console.error('Failed to mark replied', err)
+              }
             }}
             formatRelativeTime={formatRelativeTime}
             SourceIcon={SourceIcon}

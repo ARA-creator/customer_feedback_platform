@@ -28,6 +28,12 @@ export const getFeedbackOpenReaders = async (feedbackId) => {
   return response.data
 }
 
+/** Mark feedback as replied (moves to Replied tab). Pass replied: false to undo. */
+export const markFeedbackReplied = async (feedbackId, { replied = true } = {}) => {
+  const response = await api.post(`/feedback/${feedbackId}/mark-replied`, { replied })
+  return response.data
+}
+
 export const patchInboxState = async (payload = {}) => {
   const response = await api.patch('/feedback/inbox-state', payload)
   return response.data

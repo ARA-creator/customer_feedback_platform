@@ -383,7 +383,13 @@ def feedback_reply_send(draft_id: int):
             return jsonify({"error": "Rejected drafts cannot be sent"}), 400
 
         draft.send_status = "queued_internal"
+        draft.sent_at = datetime.now(tz=timezone.utc)
         draft.updated_at = datetime.now(tz=timezone.utc)
+        fb = db.query(Feedback).filter(Feedback.id == int(draft.feedback_id)).first()
+        if fb and fb.replied_at is None:
+            from ...services.email_reply_detection import mark_feedback_replied
+
+            mark_feedback_replied(db, fb, source="in_app_reply", reply_meta={"draft_id": draft.id})
         db.commit()
         return jsonify({"ok": True, "draft": _serialize_draft(db, draft)})
     except PermissionError as e:

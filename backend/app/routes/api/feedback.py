@@ -59,6 +59,7 @@ from ._helpers import (
     _normalize_source_group,
     _normalize_metadata,
     _parse_dt,
+    _require_any_permission,
     _scope_feedback_query,
     _serialize_feedback,
     _safe_json_dumps,
@@ -906,6 +907,58 @@ def feedback_item_opens(feedback_id: int):
     except Exception:
         logger.exception("Error loading feedback open readers")
         return jsonify({"error": "Failed to load readers"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/feedback/<int:feedback_id>/mark-replied", methods=["POST"])
+def feedback_mark_replied(feedback_id: int):
+    """
+    Mark feedback as replied (moves it to the Replied inbox tab).
+
+    Used when an officer replies outside the platform (e.g. in Gmail) and
+    automatic Sent-folder detection has not run yet, or for non-email channels.
+    JSON body optional: { "replied": true|false } — false clears replied_at.
+    """
+    db = SessionLocal()
+    try:
+        _require_any_permission(db, ["feedback.reply", "feedback.approve", "feedback.view_all"])
+        fb = (
+            db.query(Feedback)
+            .filter(Feedback.id == int(feedback_id), Feedback.deleted_at.is_(None))
+            .first()
+        )
+        if not fb:
+            return jsonify({"error": "Feedback not found"}), 404
+        data = request.get_json(silent=True) or {}
+        replied = data.get("replied", True)
+        if replied is False or str(replied).strip().lower() in {"0", "false", "no"}:
+            fb.replied_at = None
+            meta = safe_json_loads(fb.channel_metadata) or {}
+            if isinstance(meta, dict) and "officer_reply" in meta:
+                meta.pop("officer_reply", None)
+                fb.channel_metadata = json.dumps(meta)
+            db.commit()
+            return jsonify({"ok": True, "replied_at": None})
+
+        from ...services.email_reply_detection import mark_feedback_replied
+
+        changed = mark_feedback_replied(db, fb, source="manual")
+        if changed:
+            db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "replied_at": fb.replied_at.isoformat() if fb.replied_at else None,
+                "newly_marked": changed,
+            }
+        )
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("Error marking feedback replied")
+        return jsonify({"error": "Failed to mark replied"}), 500
     finally:
         db.close()
 

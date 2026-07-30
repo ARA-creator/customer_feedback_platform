@@ -1,4 +1,4 @@
-import { FiArchive, FiBookmark } from 'react-icons/fi'
+import { FiArchive, FiBookmark, FiMail } from 'react-icons/fi'
 import {
   getSentimentIcon,
   sentimentAvatarRingClass,
@@ -40,6 +40,7 @@ export default function InboxFeedbackRow({
   onToggleSelect,
   onTogglePinned,
   onArchiveToggle,
+  onToggleReplied,
   formatRelativeTime,
   SourceIcon,
 }) {
@@ -151,6 +152,22 @@ export default function InboxFeedbackRow({
               aria-label={isPinned ? 'Unpin feedback' : 'Pin feedback'}
             >
               <FiBookmark className="h-3.5 w-3.5" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleReplied?.()
+              }}
+              className={`inline-flex h-[22px] w-[22px] items-center justify-center rounded-full border transition-colors ${
+                item?.replied_at
+                  ? 'border-sky-200/80 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
+                  : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+              }`}
+              title={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
+              aria-label={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
+            >
+              <FiMail className="h-3.5 w-3.5" aria-hidden />
             </button>
             <button
               type="button"

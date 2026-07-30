@@ -43,6 +43,7 @@ export function isHighPriority(item) {
 }
 
 export function needsResponse(item) {
+  if (item?.replied_at) return false
   const s = String(item?.sentiment_label || '').toLowerCase()
   return s === 'negative' || isHighPriority(item)
 }

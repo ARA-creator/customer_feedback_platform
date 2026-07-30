@@ -238,6 +238,9 @@ class Feedback(Base):
     # Mark records as logically deleted without hard-deleting from the DB.
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
+    # When an officer replied (in-app or detected via mailbox Sent / In-Reply-To).
+    replied_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
     def soft_delete(self) -> None:
         """Mark the feedback as deleted without removing the row."""
         self.deleted_at = datetime.now(tz=timezone.utc)

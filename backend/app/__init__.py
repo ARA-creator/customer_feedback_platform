@@ -286,6 +286,35 @@ def create_app() -> Flask:
         except Exception:
             logging.getLogger(__name__).exception("Failed to run feedback_reply_drafts table dev migration")
 
+        # Lightweight migration: feedback.replied_at for Replied inbox tab.
+        try:
+            with engine.connect() as conn:
+                dialect = engine.dialect.name
+                cols: set[str] = set()
+                if dialect == "sqlite":
+                    info = conn.execute(text("PRAGMA table_info(feedback)")).fetchall()
+                    if info:
+                        cols = {row[1] for row in info}
+                elif dialect in {"postgresql", "postgres"}:
+                    rows = conn.execute(
+                        text(
+                            "SELECT column_name FROM information_schema.columns "
+                            "WHERE table_schema = 'public' AND table_name = 'feedback'"
+                        )
+                    ).fetchall()
+                    cols = {r[0] for r in rows}
+                if cols and "replied_at" not in cols:
+                    dt = "DATETIME" if dialect == "sqlite" else "TIMESTAMP WITH TIME ZONE"
+                    if dialect in {"postgresql", "postgres"}:
+                        conn.execute(
+                            text(f"ALTER TABLE feedback ADD COLUMN IF NOT EXISTS replied_at {dt}")
+                        )
+                    else:
+                        conn.execute(text(f"ALTER TABLE feedback ADD COLUMN replied_at {dt}"))
+                    conn.commit()
+        except Exception:
+            logging.getLogger(__name__).exception("Failed to run feedback.replied_at migration")
+
     # Make config available in templates
     @app.context_processor
     def inject_config():
