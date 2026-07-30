@@ -15,19 +15,25 @@ export const deleteReportSchedule = async (id) => {
   return response.data
 }
 
-export const downloadAnalystExportCsv = async (params = {}) => {
-  const response = await api.get('/reports/analyst-export.csv', {
-    params,
+/** @param {'csv'|'xlsx'|'pdf'} format */
+export const downloadAnalystExport = async (params = {}, format = 'csv') => {
+  const fmt = String(format || 'csv').toLowerCase()
+  const response = await api.get('/reports/analyst-export', {
+    params: { ...params, format: fmt },
     responseType: 'blob',
-    timeout: 120000,
+    timeout: 180000,
   })
   return response
 }
+
+/** @deprecated prefer downloadAnalystExport(params, 'csv') */
+export const downloadAnalystExportCsv = async (params = {}) => downloadAnalystExport(params, 'csv')
 
 export const downloadCustomReportCsv = async (params = {}) => {
   const response = await api.get('/reports/custom.csv', {
     params,
     responseType: 'blob',
+    timeout: 180000,
   })
   return response
 }

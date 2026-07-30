@@ -1,8 +1,35 @@
 import { useMemo, useState } from 'react'
 import { FiArrowLeft, FiDownload } from 'react-icons/fi'
-import { downloadAnalystExportCsv } from '../services/reports.api'
+import { downloadAnalystExport } from '../services/reports.api'
 
 import { REPORT_FIELD_CLASSES as FIELD_CLASSES } from '../reportFieldClasses'
+
+const FORMAT_META = {
+  csv: { mime: 'text/csv;charset=utf-8;', fallback: 'feedback_export.csv', label: 'CSV' },
+  xlsx: {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    fallback: 'feedback_export.xlsx',
+    label: 'Excel',
+  },
+  pdf: { mime: 'application/pdf', fallback: 'feedback_export.pdf', label: 'PDF' },
+}
+
+async function blobErrorMessage(err) {
+  const data = err?.response?.data
+  if (!data) return err?.message || 'Failed to download report'
+  if (typeof data === 'string') return data
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      const parsed = JSON.parse(text)
+      if (parsed?.error) return parsed.error
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof data?.error === 'string') return data.error
+  return err?.message || 'Failed to download report'
+}
 
 export default function CustomReport({ onBack, embedded = false }) {
   const [sentiment, setSentiment] = useState('all')
@@ -13,7 +40,7 @@ export default function CustomReport({ onBack, embedded = false }) {
   const [dateTo, setDateTo] = useState('')
   const [limit, setLimit] = useState(2000)
 
-  const [downloading, setDownloading] = useState(false)
+  const [downloading, setDownloading] = useState(null)
   const [error, setError] = useState(null)
 
   const params = useMemo(
@@ -30,28 +57,32 @@ export default function CustomReport({ onBack, embedded = false }) {
     [sentiment, category, source, priority, dateFrom, dateTo, limit]
   )
 
-  const download = async () => {
-    setDownloading(true)
+  const download = async (format) => {
+    const fmt = String(format || 'csv').toLowerCase()
+    const meta = FORMAT_META[fmt] || FORMAT_META.csv
+    setDownloading(fmt)
     setError(null)
     try {
-      const res = await downloadAnalystExportCsv(params)
-      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+      const res = await downloadAnalystExport(params, fmt)
+      const blob = new Blob([res.data], { type: meta.mime })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       const disposition = res.headers?.['content-disposition'] || ''
       const match = /filename="([^"]+)"/.exec(disposition)
       a.href = url
-      a.download = match?.[1] || 'feedback_export.csv'
+      a.download = match?.[1] || meta.fallback
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to download report')
+      setError(await blobErrorMessage(e))
     } finally {
-      setDownloading(false)
+      setDownloading(null)
     }
   }
+
+  const busy = Boolean(downloading)
 
   return (
     <div className={embedded ? 'space-y-6' : 'p-6 space-y-6'}>
@@ -160,22 +191,25 @@ export default function CustomReport({ onBack, embedded = false }) {
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={download}
-            disabled={downloading}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#009750] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
-          >
-            <FiDownload className="h-4 w-4" />
-            {downloading ? 'Preparing…' : 'Download CSV'}
-          </button>
+          {(['csv', 'xlsx', 'pdf']).map((fmt) => (
+            <button
+              key={fmt}
+              type="button"
+              onClick={() => download(fmt)}
+              disabled={busy}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-[#009750] px-4 py-2 text-sm font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
+            >
+              <FiDownload className="h-4 w-4" />
+              {downloading === fmt ? 'Preparing…' : `Download ${FORMAT_META[fmt].label}`}
+            </button>
+          ))}
         </div>
 
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Downloads one tidy CSV with one row per feedback and columns for sentiment, priority, theme, assignment, and response times.
+          Downloads one tidy file with one row per feedback (CSV, Excel, or PDF), including sentiment,
+          priority, theme, assignment, and response times. Email HTML is converted to plain text.
         </p>
       </div>
     </div>
   )
 }
-

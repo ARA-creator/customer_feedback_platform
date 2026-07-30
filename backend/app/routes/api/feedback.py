@@ -35,6 +35,8 @@ from ...services.inbox_state import (
     apply_inbox_state_patch,
     apply_inbox_tab_filter,
     count_inbox_tabs,
+    get_feedback_open_readers,
+    get_inbox_open_activity,
     get_inbox_state_for_feedback_ids,
     get_user_inbox_state_maps,
 )
@@ -125,6 +127,7 @@ def _serialize_feedback_safe(feedback: Feedback) -> dict:
         "consent_text": feedback.consent_text,
         "channel_metadata": feedback.channel_metadata,
         "insurance_tags": insurance_tags,
+        "replied_at": feedback.replied_at.isoformat() if getattr(feedback, "replied_at", None) else None,
         "is_soft_deleted": feedback.deleted_at is not None,
     }
 
@@ -253,6 +256,7 @@ def feedback_source_counts():
     customer_tier = request.args.get("customer_tier")
     insurance_tag = request.args.get("insurance_tag")
     insurance_tags_any = request.args.get("insurance_tags_any")
+    folder = (request.args.get("folder") or "inbox").strip().lower()
 
     db = SessionLocal()
     try:
@@ -314,6 +318,10 @@ def feedback_source_counts():
             if clause is not None:
                 q = q.filter(clause)
         q = _apply_insurance_tag_metadata_filters(q, Feedback.channel_metadata, insurance_tag, insurance_tags_any)
+        if folder == "replied":
+            q = q.filter(Feedback.replied_at.isnot(None))
+        elif folder in ("inbox", "", "default"):
+            q = q.filter(Feedback.replied_at.is_(None))
 
         rows = q.group_by(Feedback.source).all()
 
@@ -661,6 +669,7 @@ def feedback_feed():
         insurance_tag = request.args.get("insurance_tag")
         insurance_tags_any = request.args.get("insurance_tags_any")
         inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
+        folder = (request.args.get("folder") or "inbox").strip().lower()
         cursor_created_at = _parse_dt(request.args.get("cursor_created_at"))
         cursor_id = request.args.get("cursor_id", type=int)
 
@@ -722,6 +731,20 @@ def feedback_feed():
             if clause is not None:
                 q = q.filter(clause)
         q = _apply_insurance_tag_metadata_filters(q, Feedback.channel_metadata, insurance_tag, insurance_tags_any)
+
+        # Shared Replied folder: server-side replied_at (email Sent matching).
+        # folder=all skips this filter (used by local Archive view).
+        # Counts are computed from the filtered base (before inbox read/unread tab).
+        folder_counts = {
+            "inbox": q.filter(Feedback.replied_at.is_(None)).count(),
+            "replied": q.filter(Feedback.replied_at.isnot(None)).count(),
+        }
+        if folder == "replied":
+            q = q.filter(Feedback.replied_at.isnot(None))
+        elif folder in ("inbox", "", "default"):
+            q = q.filter(Feedback.replied_at.is_(None))
+        # folder=all → no replied_at filter
+
         inbox_tab_counts = None
         if user:
             inbox_tab_counts = count_inbox_tabs(db, int(user.id), q)
@@ -815,6 +838,8 @@ def feedback_feed():
                 "next_cursor": next_cursor,
                 "has_more": has_more,
                 "inbox_tab_counts": inbox_tab_counts,
+                "folder_counts": folder_counts,
+                "folder": folder if folder in ("inbox", "replied", "all") else "inbox",
             }
         )
     except Exception:
@@ -854,6 +879,56 @@ def feedback_inbox_state_get():
     except Exception:
         logger.exception("Error loading inbox state")
         return jsonify({"error": "Failed to load inbox state"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/feedback/inbox-opens", methods=["GET"])
+def feedback_inbox_opens():
+    """
+    Who has opened inbox feedback and how many items each person opened.
+
+    Requires feedback.view_all (managers / leads).
+    """
+    db = SessionLocal()
+    try:
+        user = _require_authenticated_user(db)
+        perms = _user_permission_keys(db, getattr(user, "id", None))
+        if "feedback.view_all" not in perms and "admin.manage_users" not in perms:
+            return jsonify({"error": "Missing permission: feedback.view_all"}), 403
+        limit = request.args.get("limit", type=int) or 50
+        return jsonify(get_inbox_open_activity(db, limit=limit))
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Error loading inbox open activity")
+        return jsonify({"error": "Failed to load inbox open activity"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/feedback/<int:feedback_id>/opens", methods=["GET"])
+def feedback_item_opens(feedback_id: int):
+    """Who has opened a specific feedback item."""
+    db = SessionLocal()
+    try:
+        user = _require_authenticated_user(db)
+        perms = _user_permission_keys(db, getattr(user, "id", None))
+        if "feedback.view_all" not in perms and "admin.manage_users" not in perms:
+            return jsonify({"error": "Missing permission: feedback.view_all"}), 403
+        fb = (
+            db.query(Feedback.id)
+            .filter(Feedback.id == int(feedback_id), Feedback.deleted_at.is_(None))
+            .first()
+        )
+        if not fb:
+            return jsonify({"error": "Feedback not found"}), 404
+        return jsonify(get_feedback_open_readers(db, int(feedback_id)))
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Error loading feedback open readers")
+        return jsonify({"error": "Failed to load readers"}), 500
     finally:
         db.close()
 

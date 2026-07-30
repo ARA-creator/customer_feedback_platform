@@ -39,6 +39,10 @@ engine = create_engine(
     future=True,
     pool_pre_ping=True,
     pool_recycle=max(60, _pool_recycle),
+    # Neon: keep a few warm connections; allow burst for feed + background pollers.
+    pool_size=int(os.getenv("SQLALCHEMY_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "10")),
+    pool_timeout=int(os.getenv("SQLALCHEMY_POOL_TIMEOUT", "30")),
     connect_args=_connect_args,
 )
 

@@ -128,6 +128,14 @@ export default function InboxFeedbackRow({
             >
               {priority.label}
             </span>
+            {item?.replied_at ? (
+              <span
+                className="rounded-full border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
+                title="Officer reply detected"
+              >
+                Replied
+              </span>
+            ) : null}
             <button
               type="button"
               onClick={(e) => {

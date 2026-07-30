@@ -1,7 +1,47 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
+
+# Strongly negative compound scores at or below this get High priority (100).
+HIGH_PRIORITY_SENTIMENT_SCORE = -0.7
+
+
+def priority_from_sentiment(
+    *,
+    sentiment_label: Optional[str],
+    sentiment_score: Optional[Union[float, int]] = None,
+    rating: Optional[int] = None,
+) -> int:
+    """
+    Map sentiment to a stored priority integer used by Inbox badges.
+
+    - score <= -0.7 → 100 (High)
+    - other negative → 50 (Medium)
+    - neutral → 50 (Medium)
+    - positive / unknown → 10 (New)
+
+    Optional star ``rating`` (1–5) can raise priority further (lower stars → higher boost).
+    """
+    label = (sentiment_label or "").strip().lower()
+    try:
+        score = float(sentiment_score) if sentiment_score is not None else None
+    except (TypeError, ValueError):
+        score = None
+
+    if score is not None and score <= HIGH_PRIORITY_SENTIMENT_SCORE:
+        base_priority = 100
+    elif label == "negative":
+        base_priority = 50
+    elif label == "neutral":
+        base_priority = 50
+    else:
+        base_priority = 10
+
+    if isinstance(rating, int):
+        base_priority += max(0, 6 - rating) * 10
+
+    return int(base_priority)
 
 
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:

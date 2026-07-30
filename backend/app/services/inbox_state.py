@@ -191,3 +191,99 @@ def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
     read_count = base_query.filter(read_exists).with_entities(func.count(Feedback.id)).scalar() or 0
     unread_count = max(int(total) - int(read_count), 0)
     return {"all": int(total), "read": int(read_count), "unread": unread_count}
+
+
+def get_inbox_open_activity(db, *, limit: int = 50) -> Dict[str, object]:
+    """
+    Org-wide summary of who has opened (read) inbox feedback and how many.
+
+    Opening a feedback detail marks it read for that user; those rows power this report.
+    """
+    from sqlalchemy import desc, func
+
+    from ..models import User, UserFeedbackInboxState
+
+    lim = max(1, min(int(limit or 50), 200))
+    total_opens = int(
+        db.query(func.count(UserFeedbackInboxState.id))
+        .filter(UserFeedbackInboxState.read_at.isnot(None))
+        .scalar()
+        or 0
+    )
+    users_opened_count = int(
+        db.query(func.count(func.distinct(UserFeedbackInboxState.user_id)))
+        .filter(UserFeedbackInboxState.read_at.isnot(None))
+        .scalar()
+        or 0
+    )
+    rows = (
+        db.query(
+            UserFeedbackInboxState.user_id,
+            func.count(UserFeedbackInboxState.feedback_id).label("opened_count"),
+            func.max(UserFeedbackInboxState.read_at).label("last_opened_at"),
+        )
+        .filter(UserFeedbackInboxState.read_at.isnot(None))
+        .group_by(UserFeedbackInboxState.user_id)
+        .order_by(desc("opened_count"), desc("last_opened_at"))
+        .limit(lim)
+        .all()
+    )
+    user_ids = [int(r.user_id) for r in rows if r.user_id is not None]
+    users_by_id = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_(user_ids)).all():
+            users_by_id[int(u.id)] = u
+
+    users_out = []
+    for r in rows:
+        uid = int(r.user_id)
+        u = users_by_id.get(uid)
+        users_out.append(
+            {
+                "user_id": uid,
+                "email": getattr(u, "email", None) if u else None,
+                "full_name": getattr(u, "full_name", None) if u else None,
+                "opened_count": int(r.opened_count or 0),
+                "last_opened_at": r.last_opened_at.isoformat() if r.last_opened_at else None,
+            }
+        )
+
+    return {
+        "users_opened_count": users_opened_count,
+        "total_opens": total_opens,
+        "users": users_out,
+    }
+
+
+def get_feedback_open_readers(db, feedback_id: int) -> Dict[str, object]:
+    """Who has opened (read) a specific feedback item."""
+    from ..models import User, UserFeedbackInboxState
+
+    fid = int(feedback_id)
+    rows = (
+        db.query(UserFeedbackInboxState)
+        .filter(
+            UserFeedbackInboxState.feedback_id == fid,
+            UserFeedbackInboxState.read_at.isnot(None),
+        )
+        .order_by(UserFeedbackInboxState.read_at.desc())
+        .all()
+    )
+    user_ids = [int(r.user_id) for r in rows]
+    users_by_id = {}
+    if user_ids:
+        for u in db.query(User).filter(User.id.in_(user_ids)).all():
+            users_by_id[int(u.id)] = u
+
+    readers = []
+    for r in rows:
+        u = users_by_id.get(int(r.user_id))
+        readers.append(
+            {
+                "user_id": int(r.user_id),
+                "email": getattr(u, "email", None) if u else None,
+                "full_name": getattr(u, "full_name", None) if u else None,
+                "opened_at": r.read_at.isoformat() if r.read_at else None,
+            }
+        )
+    return {"feedback_id": fid, "opened_count": len(readers), "readers": readers}

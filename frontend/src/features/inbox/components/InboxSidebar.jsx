@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import MiniSparkline from '../../dashboard/components/insights/MiniSparkline'
 import { buildDailySparkline } from '../utils/inboxDerivedStats'
+import { getInboxOpenActivity } from '../services/inbox.api'
 
 const SUMMARY_CARDS = [
   {
@@ -38,6 +40,14 @@ const QUICK_FILTERS = [
   { id: 'negative_7d', label: 'Negative (7d)' },
 ]
 
+function displayUserName(u) {
+  const name = String(u?.full_name || '').trim()
+  if (name) return name
+  const email = String(u?.email || '').trim()
+  if (email) return email
+  return u?.user_id ? `User #${u.user_id}` : 'Unknown'
+}
+
 export default function InboxSidebar({
   items,
   stats,
@@ -55,6 +65,35 @@ export default function InboxSidebar({
     high_priority: highPriorityCount,
     negative_7d: negative7dCount,
   }
+
+  const [openActivity, setOpenActivity] = useState(null)
+  const [openActivityError, setOpenActivityError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const data = await getInboxOpenActivity({ limit: 8 })
+        if (!cancelled) {
+          setOpenActivity(data)
+          setOpenActivityError(null)
+        }
+      } catch (e) {
+        if (!cancelled) {
+          const status = e?.response?.status
+          if (status === 403 || status === 401) {
+            setOpenActivity(null)
+            setOpenActivityError(null)
+          } else {
+            setOpenActivityError('Could not load open activity')
+          }
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <aside className="hidden w-[280px] shrink-0 space-y-4 lg:block">
@@ -84,9 +123,7 @@ export default function InboxSidebar({
                 key={card.key}
                 className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/50"
               >
-                <p className={valueClass}>
-                  {value}
-                </p>
+                <p className={valueClass}>{value}</p>
                 <p className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
                 <div className="mt-2 h-8">
                   <MiniSparkline data={spark} color={card.color} height={32} />
@@ -96,6 +133,53 @@ export default function InboxSidebar({
           })}
         </div>
       </section>
+
+      {(openActivity || openActivityError) && (
+        <section className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Who opened feedback</h2>
+          {openActivityError ? (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{openActivityError}</p>
+          ) : (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 dark:border-gray-800 dark:bg-gray-900/50">
+                  <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {openActivity?.users_opened_count ?? 0}
+                  </p>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">People who opened</p>
+                </div>
+                <div className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2 dark:border-gray-800 dark:bg-gray-900/50">
+                  <p className="text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100">
+                    {openActivity?.total_opens ?? 0}
+                  </p>
+                  <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Items opened</p>
+                </div>
+              </div>
+              {(openActivity?.users || []).length === 0 ? (
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  No opens recorded yet. Opens are counted when someone views a message.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {(openActivity.users || []).map((u) => (
+                    <li key={u.user_id} className="flex items-center justify-between gap-2 text-xs">
+                      <span
+                        className="min-w-0 truncate font-medium text-gray-800 dark:text-gray-200"
+                        title={u.email || ''}
+                      >
+                        {displayUserName(u)}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
+                        {u.opened_count} opened
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       <section className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Top themes</h2>

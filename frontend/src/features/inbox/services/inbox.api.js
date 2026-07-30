@@ -16,6 +16,18 @@ export const getInboxState = async ({ feedbackIds } = {}) => {
   return response.data
 }
 
+/** Who opened inbox items and how many each person opened (managers). */
+export const getInboxOpenActivity = async ({ limit = 50 } = {}) => {
+  const response = await api.get('/feedback/inbox-opens', withInboxTimeout({ params: { limit } }))
+  return response.data
+}
+
+/** Who opened a specific feedback item. */
+export const getFeedbackOpenReaders = async (feedbackId) => {
+  const response = await api.get(`/feedback/${feedbackId}/opens`, withInboxTimeout())
+  return response.data
+}
+
 export const patchInboxState = async (payload = {}) => {
   const response = await api.patch('/feedback/inbox-state', payload)
   return response.data

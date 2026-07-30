@@ -27,7 +27,7 @@ export function useOverviewRecentFeedback({
 
     ;(async () => {
       try {
-        const data = await getRecentFeedback(100, params)
+        const data = await getRecentFeedback(25, params)
         if (cancelled) return
         setRecentFeedback(Array.isArray(data?.feedback) ? data.feedback : [])
       } catch (err) {

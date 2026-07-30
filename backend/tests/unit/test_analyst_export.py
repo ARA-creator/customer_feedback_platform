@@ -89,3 +89,24 @@ def test_analyst_export_csv_is_single_tidy_file(app):
         "resolution_time_hours",
         "escalation_flag",
     }
+
+
+def test_analyst_export_strips_html_from_feedback_text(app):
+    html = (
+        "<html><body><p>Claim delayed again</p>"
+        "<table><tr><td>Get it on Google Play</td></tr></table>"
+        "<!-- end footer --></body></html>"
+    )
+    fb = _insert_feedback(message=html)
+    db = SessionLocal()
+    try:
+        user = _ensure_test_user()
+        csv_text, _filename = build_analyst_export_csv(db, user, {"feedback.view_all"}, {"time_window": "all"})
+    finally:
+        db.close()
+
+    row = next(r for r in csv.DictReader(io.StringIO(csv_text)) if r["feedback_id"] == str(fb.id))
+    assert "<html>" not in row["feedback_text"]
+    assert "<table>" not in row["feedback_text"]
+    assert "Claim delayed again" in row["feedback_text"]
+    assert "Get it on Google Play" in row["feedback_text"]

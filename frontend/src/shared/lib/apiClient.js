@@ -66,7 +66,8 @@ export function getIntegrationsWebhookBase() {
 }
 
 /** Use on Neon-backed routes that decrypt many rows (inbox feed, Customer 360, analytics). */
-export const SLOW_API_TIMEOUT_MS = 60000
+/** Inbox/feed and similar Neon-backed reads; WSL→Neon often needs >60s under load. */
+export const SLOW_API_TIMEOUT_MS = 90000
 
 const api = axios.create({
   baseURL: apiBaseURL,

@@ -481,7 +481,7 @@ function Dashboard({
       const data = await getFeedbackAnalyzer(analyzerParams)
       setAnalyzerResult(data)
       setAnalyzerError(null)
-      } catch (err) {
+    } catch (err) {
       const msg =
         err?.response?.data?.error || err?.message || 'Could not analyze feedback for this period.'
       setAnalyzerError(msg)
@@ -767,7 +767,7 @@ function Dashboard({
           visibleRecentFeedback={visibleRecentFeedback}
         />
       )}
-      </div>
+                </div>
     </DashboardProvider>
   )
 }

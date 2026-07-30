@@ -17,7 +17,11 @@ from sqlalchemy import desc, func
 from ...database import SessionLocal
 from ...models import Feedback, ReportSchedule
 from ...security import decrypt_text
-from ...services.analyst_export import build_analyst_export_csv
+from ...services.analyst_export import (
+    _plain_text_for_export,
+    build_analyst_export,
+    build_analyst_export_csv,
+)
 from ...services.metadata_normalization import safe_json_loads
 from . import api_bp
 from ._helpers import (
@@ -221,7 +225,7 @@ def report_custom_csv():
         )
         for fb in rows:
             try:
-                message = decrypt_text(fb.message_encrypted) or ""
+                message = _plain_text_for_export(decrypt_text(fb.message_encrypted) or "")
             except Exception:
                 message = ""
             writer.writerow(
@@ -261,28 +265,44 @@ def report_custom_csv():
         db.close()
 
 
+@api_bp.route("/reports/analyst-export", methods=["GET"])
 @api_bp.route("/reports/analyst-export.csv", methods=["GET"])
-def report_analyst_export_csv():
+@api_bp.route("/reports/analyst-export.xlsx", methods=["GET"])
+@api_bp.route("/reports/analyst-export.pdf", methods=["GET"])
+def report_analyst_export():
     """
-    Analyst-friendly export: single tidy CSV with one row per feedback record.
+    Analyst-friendly export: one row per feedback.
+
+    Formats: csv (default), xlsx, pdf — via ?format= or URL extension.
     """
     db = SessionLocal()
     try:
         user = _require_user(db)
         perms = _user_permission_keys(db, user.id)
         params = dict(request.args)
-        csv_text, filename = build_analyst_export_csv(db, user, perms, params)
+
+        path = (request.path or "").lower()
+        fmt = str(params.pop("format", None) or params.pop("fmt", None) or "").strip().lower()
+        if not fmt:
+            if path.endswith(".xlsx"):
+                fmt = "xlsx"
+            elif path.endswith(".pdf"):
+                fmt = "pdf"
+            else:
+                fmt = "csv"
+
+        payload, filename, mimetype = build_analyst_export(db, user, perms, params, fmt=fmt)
         _audit_log(
             db,
             actor_user_id=session.get("user_id"),
             action="reports.analyst_export",
             target_type="report",
             target_id=None,
-            meta={"filters": params, "filename": filename},
+            meta={"filters": params, "filename": filename, "format": fmt},
         )
         return Response(
-            csv_text,
-            mimetype="text/csv; charset=utf-8",
+            payload,
+            mimetype=mimetype,
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except PermissionError as e:

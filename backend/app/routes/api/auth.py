@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from email_validator import EmailNotValidError, validate_email
 from flask import current_app, jsonify, redirect, request, session
 from passlib.hash import argon2
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import load_only
 
@@ -38,6 +39,11 @@ from ...services.api_sessions import create_api_session, csrf_for_api_session, r
 from ._helpers import _current_user, _get_bearer_token, _require_user, _user_permission_keys
 
 logger = logging.getLogger(__name__)
+
+
+def _email_eq(email: str):
+    """Match stored emails without regard to case; addresses may be saved with capitals."""
+    return func.lower(User.email) == (email or "").strip().lower()
 
 
 def _frontend_landing_path(db, user: User) -> str:
@@ -343,7 +349,7 @@ def auth_signup():
 
     db = SessionLocal()
     try:
-        exists = db.query(User.id).filter(User.email == email).first()
+        exists = db.query(User.id).filter(_email_eq(email)).first()
         if exists:
             return jsonify({"error": "Account already exists"}), 409
 
@@ -433,7 +439,7 @@ def auth_login():
                         User.approved_at,
                     )
                 )
-                .filter(User.email == email)
+                .filter(_email_eq(email))
                 .first()
             )
         except SQLAlchemyError:
@@ -559,7 +565,7 @@ def auth_verify_email():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(_email_eq(email)).first()
         if not user:
             return jsonify({"error": "Invalid verification code"}), 400
         if getattr(user, "email_verified_at", None):
@@ -600,7 +606,7 @@ def auth_resend_verification():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(_email_eq(email)).first()
         if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
             return jsonify({"ok": True}), 200
         if getattr(user, "email_verified_at", None):
@@ -631,7 +637,7 @@ def auth_forgot_password():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(_email_eq(email)).first()
         if not user or getattr(user, "deleted_at", None) or getattr(user, "is_active", True) is False:
             return jsonify({"ok": True}), 200
         nonce = getattr(user, "password_reset_nonce", None) or secrets.token_hex(16)
@@ -665,7 +671,7 @@ def auth_verify_reset_code():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(_email_eq(email)).first()
         code_err = _check_password_reset_code(user, code)
         if code_err:
             return jsonify({"error": code_err}), 400
@@ -695,7 +701,7 @@ def auth_reset_password():
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.email == email).first()
+        user = db.query(User).filter(_email_eq(email)).first()
         code_err = _check_password_reset_code(user, code)
         if code_err:
             return jsonify({"error": code_err}), 400

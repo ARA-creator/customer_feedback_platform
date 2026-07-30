@@ -37,6 +37,16 @@ FEEDBACK_RECORD_COLUMNS = [
 _CLOSED_STATUSES = {"closed", "resolved"}
 
 
+def _plain_text_for_export(text: str, *, max_len: int = 8000) -> str:
+    """Turn HTML email bodies into readable plain text for CSV cells."""
+    from ..services.policy_detection import _strip_html_for_policy_scan
+
+    plain = _strip_html_for_policy_scan(text or "")
+    if max_len and len(plain) > max_len:
+        return plain[:max_len].rstrip() + "…"
+    return plain
+
+
 def _csv_cell(value: Any) -> str:
     if value is None:
         return ""
@@ -213,6 +223,259 @@ def build_analyst_export_csv(db: Session, user, perms: set[str], params: Dict[st
     return csv_text, f"feedback_export_{stamp}.csv"
 
 
+def build_analyst_export(
+    db: Session, user, perms: set[str], params: Dict[str, Any], *, fmt: str = "csv"
+) -> Tuple[bytes, str, str]:
+    """
+    Build an analyst export in csv, xlsx, or pdf.
+
+    Returns (payload_bytes, filename, mimetype).
+    """
+    fmt_norm = str(fmt or "csv").strip().lower()
+    if fmt_norm in ("excel", "xls", "xlsx"):
+        fmt_norm = "xlsx"
+    elif fmt_norm not in ("csv", "pdf"):
+        fmt_norm = "csv"
+
+    rows, _summaries = _collect_feedback_export_rows(db, user, perms, params)
+    stamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    if fmt_norm == "csv":
+        text = _write_csv(FEEDBACK_RECORD_COLUMNS, rows)
+        return text.encode("utf-8"), f"feedback_export_{stamp}.csv", "text/csv; charset=utf-8"
+
+    if fmt_norm == "xlsx":
+        payload = _rows_to_xlsx_bytes(FEEDBACK_RECORD_COLUMNS, rows)
+        return (
+            payload,
+            f"feedback_export_{stamp}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    payload = _rows_to_pdf_bytes(
+        title="Customer Pulse — Feedback Export",
+        headers=FEEDBACK_RECORD_COLUMNS,
+        rows=rows,
+    )
+    return payload, f"feedback_export_{stamp}.pdf", "application/pdf"
+
+
+def _xml_escape(value: Any) -> str:
+    s = "" if value is None else str(value)
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def _rows_to_xlsx_bytes(headers: List[str], rows: Iterable[List[Any]]) -> bytes:
+    """Build a minimal XLSX workbook with the stdlib (no openpyxl)."""
+    import zipfile
+
+    def col_name(idx: int) -> str:
+        # 1-based Excel column letters
+        n = idx
+        out = ""
+        while n:
+            n, rem = divmod(n - 1, 26)
+            out = chr(65 + rem) + out
+        return out
+
+    sheet_rows = []
+    all_rows = [list(headers)] + [list(r) for r in rows]
+    for r_i, row in enumerate(all_rows, start=1):
+        cells = []
+        for c_i, val in enumerate(row, start=1):
+            text = _xml_escape(_csv_cell(val))
+            ref = f"{col_name(c_i)}{r_i}"
+            cells.append(
+                f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
+            )
+        sheet_rows.append(f'<row r="{r_i}">{"".join(cells)}</row>')
+
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(sheet_rows)}</sheetData></worksheet>'
+    )
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        '<sheets><sheet name="Feedback" sheetId="1" r:id="rId1"/></sheets></workbook>'
+    )
+    rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        'Target="xl/workbook.xml"/></Relationships>'
+    )
+    wb_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" '
+        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+        'Target="worksheets/sheet1.xml"/></Relationships>'
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", rels_xml)
+        zf.writestr("xl/workbook.xml", workbook_xml)
+        zf.writestr("xl/_rels/workbook.xml.rels", wb_rels_xml)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    return buf.getvalue()
+
+
+def _pdf_escape(text: str) -> str:
+    return (
+        str(text or "")
+        .replace("\\", "\\\\")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
+
+
+def _rows_to_pdf_bytes(*, title: str, headers: List[str], rows: List[List[Any]]) -> bytes:
+    """
+    Minimal multi-page PDF (Helvetica). Long cells are truncated so the file stays usable.
+    """
+    page_w, page_h = 842, 595  # landscape A4 points
+    margin = 36
+    line_h = 12
+    font_size = 8
+    max_rows_per_page = int((page_h - margin * 2 - 40) / line_h)
+
+    # Column widths proportional to header length, capped for landscape.
+    usable = page_w - margin * 2
+    weights = [max(4, len(h)) for h in headers]
+    weight_sum = sum(weights) or 1
+    col_widths = [max(28, int(usable * (w / weight_sum))) for w in weights]
+    # Normalize if overflow
+    total_w = sum(col_widths)
+    if total_w > usable:
+        scale = usable / total_w
+        col_widths = [max(24, int(w * scale)) for w in col_widths]
+
+    def fit(text: Any, width_pt: int) -> str:
+        s = _csv_cell(text).replace("\n", " ").strip()
+        max_chars = max(4, int(width_pt / 4.2))
+        if len(s) <= max_chars:
+            return s
+        return s[: max_chars - 1] + "…"
+
+    pages: List[List[List[str]]] = []
+    header_line = [fit(h, col_widths[i]) for i, h in enumerate(headers)]
+    current: List[List[str]] = [header_line]
+    for row in rows:
+        line = [fit(row[i] if i < len(row) else "", col_widths[i]) for i in range(len(headers))]
+        if len(current) >= max_rows_per_page:
+            pages.append(current)
+            current = [header_line, line]
+        else:
+            current.append(line)
+    if current:
+        pages.append(current)
+
+    out = io.BytesIO()
+    objects: List[bytes] = []
+
+    def add_obj(data: bytes) -> int:
+        objects.append(data)
+        return len(objects)
+
+    # Font object
+    font_id = add_obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    page_ids: List[int] = []
+    content_ids: List[int] = []
+    for page_idx, page_rows in enumerate(pages):
+        y = page_h - margin - 18
+        parts = [
+            "BT",
+            f"/F1 {font_size + 2} Tf",
+            f"1 0 0 1 {margin} {y} Tm",
+            f"({_pdf_escape(title)} — page {page_idx + 1}/{len(pages)}) Tj",
+            "ET",
+        ]
+        y -= 22
+        for r_i, row in enumerate(page_rows):
+            x = margin
+            parts.append("BT")
+            parts.append(f"/F1 {font_size} Tf")
+            for c_i, cell in enumerate(row):
+                parts.append(f"1 0 0 1 {x} {y} Tm")
+                # Bold-ish header by drawing twice slightly offset
+                if r_i == 0:
+                    parts.append(f"({_pdf_escape(cell)}) Tj")
+                else:
+                    parts.append(f"({_pdf_escape(cell)}) Tj")
+                x += col_widths[c_i]
+            parts.append("ET")
+            y -= line_h
+
+        stream = "\n".join(parts).encode("latin-1", errors="replace")
+        content_id = add_obj(
+            b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream"
+        )
+        content_ids.append(content_id)
+        page_id = add_obj(
+            (
+                f"<< /Type /Page /Parent 0 0 R /MediaBox [0 0 {page_w} {page_h}] "
+                f"/Resources << /Font << /F1 {font_id} 0 R >> >> "
+                f"/Contents {content_id} 0 R >>"
+            ).encode("ascii")
+        )
+        page_ids.append(page_id)
+
+    kids = " ".join(f"{pid} 0 R" for pid in page_ids)
+    pages_id = add_obj(f"<< /Type /Pages /Kids [{kids}] /Count {len(page_ids)} >>".encode("ascii"))
+    # Patch parent refs in page objects
+    for i, pid in enumerate(page_ids):
+        objects[pid - 1] = (
+            f"<< /Type /Page /Parent {pages_id} 0 R /MediaBox [0 0 {page_w} {page_h}] "
+            f"/Resources << /Font << /F1 {font_id} 0 R >> >> "
+            f"/Contents {content_ids[i]} 0 R >>"
+        ).encode("ascii")
+
+    catalog_id = add_obj(f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode("ascii"))
+
+    out.write(b"%PDF-1.4\n")
+    offsets = [0]
+    for i, obj in enumerate(objects, start=1):
+        offsets.append(out.tell())
+        out.write(f"{i} 0 obj\n".encode("ascii"))
+        out.write(obj)
+        out.write(b"\nendobj\n")
+    xref_pos = out.tell()
+    out.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    out.write(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        out.write(f"{off:010d} 00000 n \n".encode("ascii"))
+    out.write(
+        f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
+        f"startxref\n{xref_pos}\n%%EOF\n".encode("ascii")
+    )
+    return out.getvalue()
+
+
 def build_analyst_export_bundle(db: Session, user, perms: set[str], params: Dict[str, Any]) -> Dict[str, str]:
     """Backward-compatible helper used in tests; returns only the primary CSV."""
     rows, summaries = _collect_feedback_export_rows(db, user, perms, params)
@@ -248,7 +511,7 @@ def _collect_feedback_export_rows(
         if not isinstance(meta, dict):
             meta = {}
         try:
-            message = decrypt_text(fb.message_encrypted) or ""
+            message = _plain_text_for_export(decrypt_text(fb.message_encrypted) or "")
         except Exception:
             message = ""
 

@@ -42,10 +42,23 @@ function SentimentLegendRow() {
   )
 }
 
-function lastPointDot(color, lastIndex) {
+function lastPointDot(color, lastIndex, seriesId) {
+  // Recharts maps one element per point. Always return a keyed node (r=0 when hidden)
+  // so React does not warn about missing keys in the Line dots list.
   return function TrendEndDot({ cx, cy, index }) {
-    if (index !== lastIndex || cx == null || cy == null) return null
-    return <circle cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />
+    if (cx == null || cy == null) return null
+    const isEnd = index === lastIndex
+    return (
+      <circle
+        key={`${seriesId}-dot-${index}`}
+        cx={cx}
+        cy={cy}
+        r={isEnd ? 5 : 0}
+        fill={color}
+        stroke={isEnd ? '#fff' : 'none'}
+        strokeWidth={isEnd ? 2 : 0}
+      />
+    )
   }
 }
 
@@ -145,7 +158,7 @@ export default function SentimentTrendCard({
                   name="Positive"
                   stroke={SENTIMENT_COLORS.Positive}
                   strokeWidth={2.5}
-                  dot={lastPointDot(SENTIMENT_COLORS.Positive, lastIndex)}
+                  dot={lastPointDot(SENTIMENT_COLORS.Positive, lastIndex, 'positive')}
                   activeDot={{ r: 4, fill: SENTIMENT_COLORS.Positive, strokeWidth: 0 }}
                 />
                 <Line
@@ -154,7 +167,7 @@ export default function SentimentTrendCard({
                   name="Negative"
                   stroke={SENTIMENT_COLORS.Negative}
                   strokeWidth={2.5}
-                  dot={lastPointDot(SENTIMENT_COLORS.Negative, lastIndex)}
+                  dot={lastPointDot(SENTIMENT_COLORS.Negative, lastIndex, 'negative')}
                   activeDot={{ r: 4, fill: SENTIMENT_COLORS.Negative, strokeWidth: 0 }}
                 />
                 <Line
@@ -163,7 +176,7 @@ export default function SentimentTrendCard({
                   name="Neutral"
                   stroke={SENTIMENT_COLORS.Neutral}
                   strokeWidth={2.5}
-                  dot={lastPointDot(SENTIMENT_COLORS.Neutral, lastIndex)}
+                  dot={lastPointDot(SENTIMENT_COLORS.Neutral, lastIndex, 'neutral')}
                   activeDot={{ r: 4, fill: SENTIMENT_COLORS.Neutral, strokeWidth: 0 }}
                 />
               </LineChart>

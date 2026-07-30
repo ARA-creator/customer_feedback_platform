@@ -235,6 +235,9 @@ class Feedback(Base):
     # Channel-specific metadata encoded as JSON (e.g., masked phone, campaign).
     channel_metadata = Column(Text, nullable=True)
 
+    # When an officer reply was detected (e.g. via IMAP Sent matching for email).
+    replied_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
     # Mark records as logically deleted without hard-deleting from the DB.
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 

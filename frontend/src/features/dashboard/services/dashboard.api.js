@@ -25,7 +25,11 @@ export const getAnalytics = async (params = undefined) => {
 
 export const getRecentFeedback = async (limit = 50, params = {}) => {
   const query = { limit, ...params }
-  const response = await api.get('/feedback/recent', withParamsConfig(query))
+  // Neon + decrypt can exceed the default 10s api client timeout (same as analytics).
+  const response = await api.get(
+    '/feedback/recent',
+    withAnalyticsTimeout(withParamsConfig(query) || {}),
+  )
   return response.data
 }
 

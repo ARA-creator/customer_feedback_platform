@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 
 import requests
 from flask import session
+from sqlalchemy import func
 
 from ..database import SessionLocal
 from ..models import Role, User, UserRole
@@ -153,7 +154,7 @@ def upsert_enterprise_user(profile: dict[str, Any]) -> User:
         if oid:
             user = db.query(User).filter(User.provider_subject == oid).first()
         if not user:
-            user = db.query(User).filter(User.email == email).first()
+            user = db.query(User).filter(func.lower(User.email) == email.lower()).first()
 
         if user:
             user.email = email

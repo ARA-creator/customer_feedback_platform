@@ -802,6 +802,7 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         "policy_holder_status": policy_summary.get("policy_holder_status"),
         "has_policy_number": policy_summary.get("has_policy_number"),
         "customer_profile_id": getattr(profile, "id", None),
+        "replied_at": feedback.replied_at.isoformat() if getattr(feedback, "replied_at", None) else None,
     }
 
 

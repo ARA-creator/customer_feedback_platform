@@ -3,7 +3,7 @@ import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefresh
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe, FiLayers } from 'react-icons/fi'
 import JotformIcon from '../../../shared/components/icons/JotformIcon'
-import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
+import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackOpenReaders, getFeedbackPolicyMatches, getSourceCounts } from '../services/inbox.api'
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
@@ -247,6 +247,7 @@ export default function InboxLite({ onNavigate }) {
 
   const [openFeedbackId, setOpenFeedbackId] = useState(null)
   const [openItem, setOpenItem] = useState(null)
+  const [openReaders, setOpenReaders] = useState(null)
   const [policyBusy, setPolicyBusy] = useState(false)
   const [policyError, setPolicyError] = useState('')
   const [addPolicyDraft, setAddPolicyDraft] = useState('')
@@ -261,7 +262,8 @@ export default function InboxLite({ onNavigate }) {
       return new Set()
     }
   })
-  const [folder, setFolder] = useState('inbox') // inbox | archive
+  const [folder, setFolder] = useState('inbox') // inbox | replied | archive
+  const [folderCounts, setFolderCounts] = useState({ inbox: 0, replied: 0 })
   const [listTab, setListTab] = useState('all') // all | read | unread
   const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
@@ -533,6 +535,8 @@ export default function InboxLite({ onNavigate }) {
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
           inbox_tab: listTab === 'read' || listTab === 'unread' ? listTab : undefined,
+          // Archive is localStorage; load unreplied+replied so archived items still appear.
+          folder: folder === 'archive' ? 'all' : folder === 'replied' ? 'replied' : 'inbox',
           ...dateParams,
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
@@ -563,6 +567,12 @@ export default function InboxLite({ onNavigate }) {
         mergeFromFeedItems(newItems)
         feedCursorRef.current = feed?.next_cursor ?? null
         setFeedHasMore(Boolean(feed?.has_more))
+        if (feed?.folder_counts && typeof feed.folder_counts === 'object') {
+          setFolderCounts({
+            inbox: Number(feed.folder_counts.inbox) || 0,
+            replied: Number(feed.folder_counts.replied) || 0,
+          })
+        }
         if (feed?.inbox_tab_counts && typeof feed.inbox_tab_counts === 'object') {
           setInboxTabCounts({
             all: Number(feed.inbox_tab_counts.all) || 0,
@@ -622,6 +632,7 @@ export default function InboxLite({ onNavigate }) {
       peakRangeDays,
       sortBy,
       listTab,
+      folder,
       archivedIds,
       mergeFromFeedItems,
     ],
@@ -644,18 +655,25 @@ export default function InboxLite({ onNavigate }) {
     itemsRef.current = items
   }, [items])
 
-  const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
+  const { visibleItems, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
     let a = 0
-    let i = 0
     for (const it of arr) {
       if (archivedIds.has(it?.id)) a += 1
-      else i += 1
     }
-    const showArchive = folder === 'archive'
-    const filtered = arr.filter((it) => (showArchive ? archivedIds.has(it?.id) : !archivedIds.has(it?.id)))
-    return { visibleItems: filtered, inboxCount: i, archiveCount: a }
+    // Local archive count: size of archived set that appears in current load, or full set size.
+    const localArchiveTotal = archivedIds.size
+    let filtered
+    if (folder === 'archive') {
+      filtered = arr.filter((it) => archivedIds.has(it?.id))
+    } else {
+      filtered = arr.filter((it) => !archivedIds.has(it?.id))
+    }
+    return { visibleItems: filtered, archiveCount: localArchiveTotal || a }
   }, [items, archivedIds, folder])
+
+  const serverInboxCount = Number(folderCounts?.inbox) || 0
+  const serverRepliedCount = Number(folderCounts?.replied) || 0
 
   const sortedVisibleItems = useMemo(() => {
     let arr = visibleItems
@@ -683,12 +701,20 @@ export default function InboxLite({ onNavigate }) {
   }, [items, archivedIds])
 
   const totalInboxCount = useMemo(() => {
+    if (folder === 'replied') {
+      return serverRepliedCount
+    }
+    if (folder === 'inbox') {
+      const tabs = inboxTabCounts?.all
+      if (Number.isFinite(tabs) && tabs >= 0) return tabs
+      if (serverInboxCount > 0) return serverInboxCount
+    }
     const tabs = inboxTabCounts?.all
     if (Number.isFinite(tabs) && tabs >= 0) return tabs
     const server = Number(counts?.all)
     if (Number.isFinite(server) && server >= 0) return server
-    return inboxCount
-  }, [inboxTabCounts?.all, counts?.all, inboxCount])
+    return serverInboxCount
+  }, [folder, folderCounts, inboxTabCounts?.all, counts?.all, serverInboxCount, serverRepliedCount])
 
   const unreadInboxCount = useMemo(() => {
     const tabs = inboxTabCounts?.unread
@@ -876,6 +902,26 @@ export default function InboxLite({ onNavigate }) {
     [markIdsRead],
   )
 
+  useEffect(() => {
+    if (!openItem?.id) {
+      setOpenReaders(null)
+      return undefined
+    }
+    let cancelled = false
+    setOpenReaders(null)
+    ;(async () => {
+      try {
+        const data = await getFeedbackOpenReaders(openItem.id)
+        if (!cancelled) setOpenReaders(data)
+      } catch {
+        if (!cancelled) setOpenReaders(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openItem?.id])
+
   visibleItemsRef.current = sortedVisibleItems
 
   useEffect(() => {
@@ -977,7 +1023,8 @@ export default function InboxLite({ onNavigate }) {
         dateRangeOptions={dateRangeOptions}
         folder={folder}
         onFolderChange={setFolder}
-        inboxCount={totalInboxCount}
+        inboxCount={serverInboxCount}
+        repliedCount={serverRepliedCount}
         archiveCount={archiveCount}
         onRefresh={load}
         loading={loading}
@@ -1253,7 +1300,21 @@ export default function InboxLite({ onNavigate }) {
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 ID #{openItem.id}
               </span>
+              {openItem.replied_at ? (
+                <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200">
+                  Replied
+                  {openItem.channel_metadata?.reply_detected_at || openItem.replied_at
+                    ? ` · ${formatRelativeTime(openItem.channel_metadata?.reply_detected_at || openItem.replied_at)}`
+                    : ''}
+                </span>
+              ) : null}
             </div>
+
+            {openItem.replied_at ? (
+              <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50/50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/20 dark:text-sky-100">
+                An officer reply was detected in the mailbox Sent folder. This item is in the shared Replied folder.
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/20">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1535,6 +1596,30 @@ export default function InboxLite({ onNavigate }) {
             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               {openItem.customer_label || openItem.customer_id || 'Unknown customer'}
             </p>
+
+            {openReaders && (
+              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-3 dark:border-gray-800 dark:bg-gray-900/40">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Opened by ({openReaders.opened_count || 0})
+                </h3>
+                {(openReaders.readers || []).length === 0 ? (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">No one else has opened this yet.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1.5">
+                    {(openReaders.readers || []).map((r) => (
+                      <li key={r.user_id} className="flex items-center justify-between gap-2 text-xs text-gray-700 dark:text-gray-200">
+                        <span className="min-w-0 truncate font-medium" title={r.email || ''}>
+                          {String(r.full_name || '').trim() || r.email || `User #${r.user_id}`}
+                        </span>
+                        <span className="shrink-0 text-gray-500 dark:text-gray-400">
+                          {r.opened_at ? formatRelativeTime(r.opened_at) : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             </div>
           </div>
         </div>
