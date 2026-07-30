@@ -1008,7 +1008,7 @@ export default function InboxLite({ onNavigate }) {
         dateRangeOptions={dateRangeOptions}
         folder={folder}
         onFolderChange={setFolder}
-        inboxCount={inboxCount}
+        inboxCount={Math.max(inboxCount, totalInboxCount - repliedCount)}
         repliedCount={repliedCount}
         archiveCount={archiveCount}
         onRefresh={load}

@@ -547,6 +547,14 @@ def poll_email_and_ingest(
                 len(sent_emails),
                 replied_marked,
             )
+        elif resolved_sent:
+            logger.info(
+                "Email reply detection: folder=%s sent=%s marked_replied=0",
+                resolved_sent,
+                len(sent_emails),
+            )
+        else:
+            logger.warning("Email reply detection: no Sent folder resolved")
     except Exception:
         logger.exception("Email reply detection from Sent folder failed")
 

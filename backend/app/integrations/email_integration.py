@@ -169,6 +169,24 @@ def _list_mailbox_names(mail: imaplib.IMAP4) -> List[str]:
     return names
 
 
+def quote_imap_mailbox(folder: str) -> str:
+    """
+    Quote an IMAP mailbox name when required.
+
+    Gmail folders like ``[Gmail]/Sent Mail`` must be sent as
+    ``"[Gmail]/Sent Mail"`` or SELECT fails with BAD Could not parse command.
+    """
+    name = str(folder or "").strip()
+    if not name:
+        return '""'
+    if name.startswith('"') and name.endswith('"'):
+        return name
+    if re.search(r'[\s\[\]{}()"]', name):
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return name
+
+
 def resolve_sent_folder(
     mail: imaplib.IMAP4,
     configured: Optional[str] = None,
@@ -228,9 +246,10 @@ def fetch_emails(
     try:
         mail = imaplib.IMAP4_SSL(imap_server, imap_port)
         mail.login(username, password)
-        status, _ = mail.select(folder)
+        mailbox = quote_imap_mailbox(folder)
+        status, _ = mail.select(mailbox)
         if status != "OK":
-            logger.warning("IMAP select failed for folder %r", folder)
+            logger.warning("IMAP select failed for folder %r (quoted=%r)", folder, mailbox)
             return emails
 
         search_criteria = "ALL"
