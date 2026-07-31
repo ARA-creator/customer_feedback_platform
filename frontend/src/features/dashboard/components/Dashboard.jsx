@@ -668,6 +668,7 @@ function Dashboard({
               analyzerError={analyzerError}
               analyzerResult={analyzerResult}
               overviewTimeFilterLabel={overviewTimeFilterLabel}
+              overviewTimeFilter={overviewTimeFilter}
               onAnalyzerRefresh={() => loadAnalyzerInsight({ openModal: false })}
               onAnalyzerDetails={handleOpenAnalyzer}
               analyzerRefreshDisabled={loading || !analyticsDelayPassed}

@@ -119,11 +119,12 @@ def _insurance_tags(meta: Dict[str, Any], tags_raw: Optional[str]) -> List[str]:
     return []
 
 
-def build_feedback_export_query(db: Session, user, perms: set[str], params: Dict[str, Any]):
-    from ..routes.api._helpers import _scope_feedback_query
+def apply_feedback_report_filters(q, params: Dict[str, Any]):
+    """Apply shared report/export filters (no ordering/limit)."""
+    from sqlalchemy import and_, exists, or_
 
-    q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
-    q = _scope_feedback_query(db, q, user=user, perms=perms)
+    from ..models import FeedbackPolicyMatch
+    from ..routes.api._helpers import _parse_dt
 
     sentiment = str(params.get("sentiment") or "all").strip().lower()
     if sentiment and sentiment != "all":
@@ -154,21 +155,49 @@ def build_feedback_export_query(db: Session, user, perms: set[str], params: Dict
     date_from = params.get("date_from")
     date_to = params.get("date_to")
     if date_from:
-        from ..routes.api._helpers import _parse_dt
-
         parsed_from = _parse_dt(str(date_from))
         if parsed_from:
             q = q.filter(Feedback.created_at >= parsed_from)
     if date_to:
-        from ..routes.api._helpers import _parse_dt
-
         parsed_to = _parse_dt(str(date_to))
         if parsed_to:
             end = parsed_to.replace(hour=23, minute=59, second=59, microsecond=999999)
             q = q.filter(Feedback.created_at <= end)
 
+    # Product filter via primary policy match (same semantics as /analytics).
+    pf_prefix = str(params.get("product_prefix") or "").strip()
+    if pf_prefix:
+        conds = [
+            FeedbackPolicyMatch.feedback_id == Feedback.id,
+            FeedbackPolicyMatch.is_primary.is_(True),
+            FeedbackPolicyMatch.product_prefix == pf_prefix,
+        ]
+        if "product_group" in params:
+            pgs = str(params.get("product_group") or "").strip()
+            if pgs:
+                conds.append(FeedbackPolicyMatch.product_group == pgs)
+            else:
+                conds.append(
+                    or_(FeedbackPolicyMatch.product_group.is_(None), FeedbackPolicyMatch.product_group == "")
+                )
+        q = q.filter(exists().where(and_(*conds)))
+
+    return q
+
+
+def build_feedback_export_query(
+    db: Session, user, perms: set[str], params: Dict[str, Any], *, apply_limit: bool = True
+):
+    from ..routes.api._helpers import _scope_feedback_query
+
+    q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+    q = _scope_feedback_query(db, q, user=user, perms=perms)
+    q = apply_feedback_report_filters(q, params)
+    q = q.order_by(desc(Feedback.created_at), desc(Feedback.id))
+    if not apply_limit:
+        return q
     limit = min(max(int(params.get("limit") or 5000), 1), 10000)
-    return q.order_by(desc(Feedback.created_at), desc(Feedback.id)).limit(limit)
+    return q.limit(limit)
 
 
 def _load_workflows(db: Session, feedback_ids: List[int]) -> Dict[int, FeedbackWorkflow]:

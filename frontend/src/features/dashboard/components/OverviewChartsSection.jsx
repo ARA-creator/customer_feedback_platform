@@ -40,6 +40,7 @@ export default function OverviewChartsSection({
   analyzerError,
   analyzerResult,
   overviewTimeFilterLabel,
+  overviewTimeFilter = 'all',
   onAnalyzerRefresh,
   onAnalyzerDetails,
   analyzerRefreshDisabled,
@@ -48,6 +49,7 @@ export default function OverviewChartsSection({
   const allChannelRows = buildChannelDonutData(sourcePerformance)
   const [channelFilter, setChannelFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
+  const [showAllProducts, setShowAllProducts] = useState(false)
 
   useEffect(() => {
     if (channelFilter === 'all') return
@@ -72,8 +74,17 @@ export default function OverviewChartsSection({
   const channelTotal = channelRows.reduce((s, r) => s + r.value, 0)
   const productFilterOptions = useMemo(() => buildProductFilterOptions(productPulse), [productPulse])
   const productRows = useMemo(
-    () => buildProductBreakdownRows(productPulse, { limit: 5, filterKey: productFilter }),
-    [productPulse, productFilter],
+    () =>
+      buildProductBreakdownRows(productPulse, {
+        limit: showAllProducts ? 1000 : 5,
+        filterKey: productFilter,
+      }),
+    [productPulse, productFilter, showAllProducts],
+  )
+
+  const productPulseCount = useMemo(
+    () => (Array.isArray(productPulse) ? productPulse.filter((r) => (Number(r?.total) || 0) > 0).length : 0),
+    [productPulse],
   )
 
   useEffect(() => {
@@ -123,7 +134,14 @@ export default function OverviewChartsSection({
           productFilter={productFilter}
           onProductFilterChange={setProductFilter}
           productFilterOptions={productFilterOptions}
-          onViewAllProducts={onNavigateToInsights ? () => onNavigateToInsights() : undefined}
+          showAllProducts={showAllProducts}
+          timeWindow={overviewTimeFilter}
+          timeFilterLabel={overviewTimeFilterLabel}
+          onViewAllProducts={
+            productPulseCount > 5
+              ? () => setShowAllProducts((v) => !v)
+              : undefined
+          }
         />
       </div>
 

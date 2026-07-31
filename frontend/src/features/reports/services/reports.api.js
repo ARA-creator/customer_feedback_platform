@@ -10,8 +10,21 @@ export const createReportSchedule = async (payload) => {
   return response.data
 }
 
+export const updateReportSchedule = async (id, payload) => {
+  const response = await api.patch(`/reports/schedules/${id}`, payload)
+  return response.data
+}
+
 export const deleteReportSchedule = async (id) => {
   const response = await api.delete(`/reports/schedules/${id}`)
+  return response.data
+}
+
+export const getReportPreview = async (params = {}) => {
+  const response = await api.get('/reports/preview', {
+    params,
+    timeout: 90000,
+  })
   return response.data
 }
 

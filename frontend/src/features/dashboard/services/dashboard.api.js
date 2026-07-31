@@ -56,6 +56,15 @@ export const getProductPulse = async (params = undefined) => {
   return response.data
 }
 
+/** Per-product policy insight (sentiment + first/last seen). */
+export const getProductDetail = async (params = undefined) => {
+  const response = await api.get(
+    '/analytics/product-detail',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
+  return response.data
+}
+
 /** Daily counts per product (primary match) for Insights trend chart */
 export const getProductPulseTrend = async (params = undefined) => {
   const response = await api.get(

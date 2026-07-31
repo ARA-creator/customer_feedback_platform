@@ -154,10 +154,21 @@ export function buildProductBreakdownRows(productPulse, { limit = 5, filterKey =
 
   return sorted.map((r) => {
     const total = Number(r.total) || 0
+    const positive = Number(r.positive) || 0
+    const neutral = Number(r.neutral) || 0
+    const negative = Number(r.negative) || 0
     return {
       key: r.key,
       name: r.name,
+      product_prefix: r.product_prefix,
+      product_group: r.product_group,
       total,
+      positive,
+      neutral,
+      negative,
+      positivePct: total > 0 ? Math.round((positive / total) * 100) : 0,
+      neutralPct: total > 0 ? Math.round((neutral / total) * 100) : 0,
+      negativePct: total > 0 ? Math.round((negative / total) * 100) : 0,
       sharePct: allTotal > 0 ? Math.round((total / allTotal) * 100) : 0,
       barPct: max > 0 ? Math.round((total / max) * 100) : 0,
     }

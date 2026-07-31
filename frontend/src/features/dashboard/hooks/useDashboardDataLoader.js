@@ -192,7 +192,7 @@ export function useDashboardDataLoader({
           if (!cancelled) {
             const items = Array.isArray(pulse?.items) ? pulse.items : []
             setProductPulse(
-              items.slice(0, 12).map((r) => {
+              items.map((r) => {
                 const prefix = String(r.product_prefix || '').trim()
                 const rawG = r.product_group
                 const group = rawG == null ? '' : String(rawG)
@@ -202,7 +202,12 @@ export function useDashboardDataLoader({
                 return {
                   key: `${prefix}|${group}`,
                   name,
+                  product_prefix: prefix,
+                  product_group: group,
                   total: Number(r.total || 0),
+                  positive: Number(r.positive || 0),
+                  neutral: Number(r.neutral || 0),
+                  negative: Number(r.negative || 0),
                 }
               }),
             )

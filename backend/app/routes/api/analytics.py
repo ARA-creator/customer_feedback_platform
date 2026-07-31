@@ -847,3 +847,178 @@ def product_pulse():
     finally:
         db.close()
 
+
+@api_bp.route("/analytics/product-detail", methods=["GET"])
+def product_detail():
+    """
+    Product insight for overview Product Breakdown:
+    sentiment mix + per-policy breakdown (sentiment, first/last seen on platform).
+    """
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+
+        product_prefix = (request.args.get("product_prefix") or "").strip()
+        if not product_prefix:
+            return jsonify({"error": "product_prefix is required"}), 400
+
+        # Distinguish "omit group" vs "empty group only" the same way as product pulse.
+        product_group_raw = request.args.get("product_group")
+        product_group = product_group_raw if product_group_raw is not None else None
+
+        now = datetime.now(tz=timezone.utc)
+        time_window = (request.args.get("time_window") or "all").strip().lower()
+        if time_window in ("all", "today", "week", "last_week", "month"):
+            tw, filter_from, filter_to, _label, range_days = parse_overview_time_window(time_window, now=now)
+            time_window = tw
+        else:
+            range_days = _safe_int(request.args.get("range_days"), 30)
+            if range_days <= 0 or range_days > 365:
+                range_days = 30
+            filter_from = now - timedelta(days=range_days)
+            filter_to = None
+            time_window = None
+
+        sentiment_key = func.lower(func.coalesce(Feedback.sentiment_label, "neutral"))
+
+        q = (
+            db.query(
+                FeedbackPolicyMatch.policy_hash.label("policy_hash"),
+                FeedbackPolicyMatch.policy_masked.label("policy_masked"),
+                FeedbackPolicyMatch.product_prefix.label("product_prefix"),
+                FeedbackPolicyMatch.product_group.label("product_group"),
+                FeedbackPolicyMatch.product_description.label("product_description"),
+                func.count(Feedback.id).label("total"),
+                func.sum(case((sentiment_key == "positive", 1), else_=0)).label("positive"),
+                func.sum(case((sentiment_key == "neutral", 1), else_=0)).label("neutral"),
+                func.sum(case((sentiment_key == "negative", 1), else_=0)).label("negative"),
+                func.min(Feedback.created_at).label("first_seen_at"),
+                func.max(Feedback.created_at).label("last_seen_at"),
+                func.min(FeedbackPolicyMatch.created_at).label("first_matched_at"),
+            )
+            .join(Feedback, Feedback.id == FeedbackPolicyMatch.feedback_id)
+            .filter(Feedback.deleted_at.is_(None))
+            .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+            .filter(FeedbackPolicyMatch.is_primary.is_(True))
+            .filter(FeedbackPolicyMatch.product_prefix == product_prefix)
+        )
+
+        if product_group is not None:
+            pgs = (product_group or "").strip()
+            if pgs:
+                q = q.filter(FeedbackPolicyMatch.product_group == pgs)
+            else:
+                q = q.filter(
+                    or_(FeedbackPolicyMatch.product_group.is_(None), FeedbackPolicyMatch.product_group == "")
+                )
+
+        if filter_from is not None:
+            q = q.filter(Feedback.created_at >= filter_from)
+        if filter_to is not None:
+            q = q.filter(Feedback.created_at < filter_to)
+        else:
+            q = q.filter(Feedback.created_at <= now)
+
+        q = _scope_feedback_query(db, q, user=user, perms=perms)
+        q = q.group_by(
+            FeedbackPolicyMatch.policy_hash,
+            FeedbackPolicyMatch.policy_masked,
+            FeedbackPolicyMatch.product_prefix,
+            FeedbackPolicyMatch.product_group,
+            FeedbackPolicyMatch.product_description,
+        ).order_by(desc(func.count(Feedback.id)), desc(func.max(Feedback.created_at)))
+
+        rows = q.all()
+        policies = []
+        totals = {"total": 0, "positive": 0, "neutral": 0, "negative": 0}
+        product_name = None
+        product_description = None
+        first_seen_overall = None
+        last_seen_overall = None
+
+        for r in rows or []:
+            total = int(getattr(r, "total", 0) or 0)
+            pos = int(getattr(r, "positive", 0) or 0)
+            neu = int(getattr(r, "neutral", 0) or 0)
+            neg = int(getattr(r, "negative", 0) or 0)
+            first_seen = getattr(r, "first_seen_at", None)
+            last_seen = getattr(r, "last_seen_at", None)
+            group = getattr(r, "product_group", None)
+            desc_text = getattr(r, "product_description", None)
+            if not product_name:
+                product_name = (group or product_prefix or "Product").strip() or product_prefix
+            if not product_description and desc_text:
+                product_description = desc_text
+
+            totals["total"] += total
+            totals["positive"] += pos
+            totals["neutral"] += neu
+            totals["negative"] += neg
+
+            if first_seen and (first_seen_overall is None or first_seen < first_seen_overall):
+                first_seen_overall = first_seen
+            if last_seen and (last_seen_overall is None or last_seen > last_seen_overall):
+                last_seen_overall = last_seen
+
+            def _pct(n: int) -> int:
+                return int(round((n / total) * 100)) if total > 0 else 0
+
+            policies.append(
+                {
+                    "policy_hash": r.policy_hash,
+                    "policy_masked": r.policy_masked,
+                    "product_prefix": r.product_prefix,
+                    "product_group": group,
+                    "total": total,
+                    "positive": pos,
+                    "neutral": neu,
+                    "negative": neg,
+                    "positive_pct": _pct(pos),
+                    "neutral_pct": _pct(neu),
+                    "negative_pct": _pct(neg),
+                    "first_seen_at": first_seen.isoformat() if first_seen else None,
+                    "last_seen_at": last_seen.isoformat() if last_seen else None,
+                    "first_matched_at": (
+                        r.first_matched_at.isoformat() if getattr(r, "first_matched_at", None) else None
+                    ),
+                }
+            )
+
+        t = totals["total"] or 0
+
+        def _tpct(n: int) -> int:
+            return int(round((n / t) * 100)) if t > 0 else 0
+
+        payload: Dict[str, Any] = {
+            "product": {
+                "product_prefix": product_prefix,
+                "product_group": (product_group if product_group is not None else None),
+                "name": product_name or product_prefix,
+                "description": product_description,
+                "total": totals["total"],
+                "positive": totals["positive"],
+                "neutral": totals["neutral"],
+                "negative": totals["negative"],
+                "positive_pct": _tpct(totals["positive"]),
+                "neutral_pct": _tpct(totals["neutral"]),
+                "negative_pct": _tpct(totals["negative"]),
+                "first_seen_at": first_seen_overall.isoformat() if first_seen_overall else None,
+                "last_seen_at": last_seen_overall.isoformat() if last_seen_overall else None,
+                "policy_count": len(policies),
+            },
+            "policies": policies,
+            "range_days": range_days,
+        }
+        if time_window:
+            payload["time_window"] = time_window
+        return jsonify(payload), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to compute product detail")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        db.close()
+
