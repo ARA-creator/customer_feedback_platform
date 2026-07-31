@@ -409,6 +409,9 @@ export default function InboxLite({ onNavigate }) {
       if (dr === '7d' || dr === '14d' || dr === '30d' || dr === 'yesterday' || dr === 'all' || dr === 'custom') {
         setDateRange(dr)
       }
+      if (preset.list_tab === 'read' || preset.list_tab === 'unread' || preset.list_tab === 'replied') {
+        setListTab(preset.list_tab)
+      }
     } catch {
       // ignore
     }

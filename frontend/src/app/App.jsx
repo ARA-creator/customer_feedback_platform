@@ -22,7 +22,6 @@ import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui/LoadingSkeleton'
 import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
-import DashboardInsightsPage from '../pages/dashboard/Insights'
 import InboxPage from '../pages/inbox/Inbox'
 import SettingsLayout from '../pages/settings/SettingsLayout'
 import SettingsAccountPage from '../pages/settings/SettingsAccountPage'
@@ -77,7 +76,6 @@ function playNotificationBeep() {
 const HEADER_TITLES = {
   overview: 'Feedback Dashboard',
   inbox: 'Feedback Inbox',
-  insights: 'Insights',
   notifications: 'Notifications',
   settings: 'Settings',
   customer: 'Customer 360',
@@ -174,7 +172,7 @@ function AuthenticatedApp({ auth, setAuth }) {
   const canViewReports = useMemo(() => userCanViewReports(auth), [auth])
   const currentView = viewFromPathname(location.pathname)
   const showDashboardRefresh =
-    !isAdminUI && (currentView === 'overview' || currentView === 'insights')
+    !isAdminUI && (currentView === 'overview' || currentView === 'reports')
 
   const registerDashboardRefresh = useCallback((fn) => {
     dashboardRefreshRef.current = typeof fn === 'function' ? fn : null
@@ -284,23 +282,13 @@ function AuthenticatedApp({ auth, setAuth }) {
             element={
               <DashboardOverviewPage
                 userRole={auth?.role}
-                onNavigateToInsights={() => navigateToView('insights')}
+                onNavigateToInsights={() => navigate('/reports?tab=insights')}
                 onNavigateToInbox={navigateToInboxWithPreset}
                 registerRefresh={registerDashboardRefresh}
               />
             }
           />
-          <Route
-            path="/insights"
-            element={
-              <DashboardInsightsPage
-                userRole={auth?.role}
-                onNavigateBack={() => navigateToView(isAdminUI ? 'admin_overview' : 'overview')}
-                onNavigateToInbox={navigateToInboxWithPreset}
-                registerRefresh={registerDashboardRefresh}
-              />
-            }
-          />
+          <Route path="/insights" element={<Navigate to="/reports?tab=insights" replace />} />
           <Route path="/inbox" element={<InboxPage onNavigate={navigateToView} />} />
           <Route path="/customer" element={<Customer360 onNavigate={navigateToView} />} />
           <Route
@@ -318,7 +306,17 @@ function AuthenticatedApp({ auth, setAuth }) {
           </Route>
           <Route
             path="/reports"
-            element={canViewReports ? <ReportsPage /> : <Navigate to={isAdminUI ? '/admin' : '/'} replace />}
+            element={
+              canViewReports ? (
+                <ReportsPage
+                  userRole={auth?.role}
+                  onNavigateToInbox={navigateToInboxWithPreset}
+                  registerRefresh={registerDashboardRefresh}
+                />
+              ) : (
+                <Navigate to={isAdminUI ? '/admin' : '/'} replace />
+              )
+            }
           />
 
           <Route

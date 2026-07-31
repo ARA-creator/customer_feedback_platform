@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiArrowLeft } from 'react-icons/fi'
+import { FiAlertTriangle, FiBarChart2, FiThumbsDown, FiThumbsUp } from 'react-icons/fi'
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,20 +44,41 @@ function fmtDayLabel(iso) {
   return s
 }
 
-function StatCard({ label, value, sub, accent = 'emerald' }) {
-  const accentMap = {
-    emerald: 'border-emerald-200/60 bg-emerald-50/60 text-emerald-950 dark:border-emerald-400/15 dark:bg-emerald-400/10 dark:text-emerald-100',
-    teal: 'border-teal-200/60 bg-teal-50/60 text-teal-950 dark:border-teal-400/15 dark:bg-teal-400/10 dark:text-teal-100',
-    amber: 'border-amber-200/60 bg-amber-50/60 text-amber-950 dark:border-amber-400/15 dark:bg-amber-400/10 dark:text-amber-100',
-    rose: 'border-rose-200/60 bg-rose-50/60 text-rose-950 dark:border-rose-400/15 dark:bg-rose-400/10 dark:text-rose-100',
-    slate: 'border-gray-200/70 bg-white/60 text-gray-900 dark:border-white/10 dark:bg-gray-950/25 dark:text-gray-100',
+function StatCard({ label, value, sub, accent = 'slate', trackPct = 100 }) {
+  const tintMap = {
+    slate: 'metric-card--tint-total',
+    teal: 'metric-card--tint-positive',
+    rose: 'metric-card--tint-negative',
+    amber: 'metric-card--tint-priority',
+    emerald: 'metric-card--tint-positive',
   }
-  const shell = accentMap[accent] || accentMap.slate
+  const iconMap = {
+    slate: FiBarChart2,
+    teal: FiThumbsUp,
+    rose: FiThumbsDown,
+    amber: FiAlertTriangle,
+    emerald: FiThumbsUp,
+  }
+  const tintClass = tintMap[accent] || tintMap.slate
+  const Icon = iconMap[accent] || FiBarChart2
+  const pct = Math.max(0, Math.min(100, Number(trackPct) || 0))
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm transition-transform duration-200 hover:-translate-y-[1px] ${shell}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider opacity-80">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
-      {sub ? <p className="mt-1 text-xs opacity-80">{sub}</p> : null}
+    <div className={`metric-card metric-card--kpi ${tintClass}`} style={{ '--kpi-pct': `${pct}%` }}>
+      <div className="metric-card__body">
+        <div className="metric-card__icon" aria-hidden>
+          <Icon className="h-5 w-5" strokeWidth={2.2} />
+        </div>
+        <div className="metric-card__text">
+          <p className="metric-card__value">{value}</p>
+          <p className="metric-card__label">{label}</p>
+        </div>
+      </div>
+      <div className="metric-card__footer">
+        <div className="metric-card__track" aria-hidden>
+          <div className="metric-card__track-fill" />
+        </div>
+        {sub ? <p className="mt-1.5 text-center text-[11px] text-gray-500 dark:text-gray-400">{sub}</p> : null}
+      </div>
     </div>
   )
 }
@@ -68,8 +89,10 @@ export default function DashboardInsightsSection({
   insightsProductKey,
   setInsightsProductKey,
   insightsProductOptions,
-  insightsRange,
-  setInsightsRange,
+  timeWindow = 'all',
+  timeWindowLabel = 'All time',
+  sentimentFilter = 'all',
+  statusFilter = 'all',
   analyticsLoading,
   analyticsDelayPassed,
   isDarkMode,
@@ -92,9 +115,8 @@ export default function DashboardInsightsSection({
 }) {
   const [selectedThemeKey, setSelectedThemeKey] = useState('')
   const [selectedSourceKey, setSelectedSourceKey] = useState('')
-  const [investigateNegativeOnly, setInvestigateNegativeOnly] = useState(false)
 
-  const rangeLabel = `Last ${insightsRange} days`
+  const rangeLabel = timeWindowLabel
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const safeTrends = Array.isArray(trendData) ? trendData : []
 
@@ -144,7 +166,6 @@ export default function DashboardInsightsSection({
   const clearSelection = () => {
     setSelectedThemeKey('')
     setSelectedSourceKey('')
-    setInvestigateNegativeOnly(false)
   }
 
   const peakHeatmapSubtitle =
@@ -198,10 +219,12 @@ export default function DashboardInsightsSection({
         topThemes,
         sourcePerformance,
         metrics,
-        rangeDays: insightsRange,
+        rangeLabel,
       })
       const payload = {
-        range_days: insightsRange,
+        time_window: timeWindow,
+        time_window_label: rangeLabel,
+        sentiment: sentimentFilter || 'all',
         product_scope: insightsProductKey || 'all',
         generated_at: new Date().toISOString(),
         metrics,
@@ -218,7 +241,7 @@ export default function DashboardInsightsSection({
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `customer-pulse-insights-${insightsRange}d.json`
+      a.download = `customer-pulse-insights-${timeWindow || 'all'}.json`
       a.click()
       URL.revokeObjectURL(url)
     } catch {
@@ -235,115 +258,75 @@ export default function DashboardInsightsSection({
   const sourcePillTotal = sourcePillKeys.reduce((sum, k) => sum + (Number(sourceTotals.totals?.[k]) || 0), 0)
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      {/* Header */}
-      <div className="rounded-3xl border border-emerald-100/70 bg-white/90 shadow-sm dark:border-white/10 dark:bg-gray-950/75 px-4 sm:px-6 py-4 sm:py-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              onClick={() => onNavigateBack?.()}
-              className="inline-flex items-center justify-center h-11 w-11 rounded-2xl border border-gray-200 bg-white/90 text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
-              aria-label="Back to overview"
-            >
-              <FiArrowLeft className="w-5 h-5" aria-hidden />
-            </button>
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-                Insights
-              </h1>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                Strategic analytics for leaders and analysts. <span className="font-semibold">{rangeLabel}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
-            <select
-              id="insights-product-filter"
-              value={insightsProductKey}
-              onChange={(e) => setInsightsProductKey(e.target.value)}
-              className="min-h-[44px] max-w-[min(100vw-2rem,22rem)] rounded-2xl border border-gray-200 bg-white/90 px-3.5 py-2 text-xs font-semibold text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#009750]/25 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100"
-              aria-label="Filter insights by product name"
-            >
-              <option value="">All products</option>
-              {insightsProductOptions.map((o) => (
-                <option key={o.key} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-
-            <div
-              className="inline-flex rounded-2xl border border-gray-200 bg-white/90 p-1 shadow-sm dark:border-white/10 dark:bg-gray-950/70"
-              role="group"
-              aria-label="Insights range"
-            >
-              {[7, 30, 90].map((d) => {
-                const active = insightsRange === d
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setInsightsRange(d)}
-                    className={`px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/25 ${
-                      active
-                        ? 'bg-[#009750] text-white shadow-[0_10px_26px_rgba(16,185,129,0.18)]'
-                        : 'text-gray-800 hover:bg-white dark:text-gray-200 dark:hover:bg-gray-950/55'
-                    }`}
-                    aria-pressed={active}
-                  >
-                    Last {d}d
-                  </button>
-                )
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={exportInsights}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-2xl bg-[#009750] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#007a42] focus:outline-none focus:ring-2 focus:ring-[#009750]/25"
-              title="Export insights (JSON)"
-            >
-              Export
-            </button>
-          </div>
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
+            Period · {rangeLabel}
+          </p>
         </div>
-
-        {/* KPI strip */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard
-            label="Total feedback"
-            value={Number(metrics?.totalFeedback ?? 0) || 0}
-            sub={insightsProductKey ? 'Filtered by product' : 'All products'}
-            accent="slate"
-          />
-          <StatCard
-            label="Positive share"
-            value={fmtPct((Number(metrics?.positive ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
-            sub={`${Number(metrics?.positive ?? 0) || 0} positive`}
-            accent="teal"
-          />
-          <StatCard
-            label="Negative share"
-            value={fmtPct((Number(metrics?.negative ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
-            sub={`${Number(metrics?.negative ?? 0) || 0} negative`}
-            accent="rose"
-          />
-          <StatCard
-            label="High priority"
-            value={Number(metrics?.highPriority ?? 0) || 0}
-            sub="Requires fast triage"
-            accent="amber"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            id="insights-product-filter"
+            value={insightsProductKey}
+            onChange={(e) => setInsightsProductKey(e.target.value)}
+            className="min-h-[40px] max-w-[min(100vw-2rem,18rem)] rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#009750]/25 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            aria-label="Filter insights by product name"
+          >
+            <option value="">All products</option>
+            {insightsProductOptions.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={exportInsights}
+            className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#007a42] focus:outline-none focus:ring-2 focus:ring-[#009750]/25"
+            title="Export insights (JSON)"
+          >
+            Export
+          </button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard
+          label="Total feedback"
+          value={Number(metrics?.totalFeedback ?? 0) || 0}
+          sub={insightsProductKey ? 'Filtered by product' : 'All products'}
+          accent="slate"
+          trackPct={100}
+        />
+        <StatCard
+          label="Positive share"
+          value={fmtPct((Number(metrics?.positive ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
+          sub={`${Number(metrics?.positive ?? 0) || 0} positive`}
+          accent="teal"
+          trackPct={((Number(metrics?.positive ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
+        />
+        <StatCard
+          label="Negative share"
+          value={fmtPct((Number(metrics?.negative ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
+          sub={`${Number(metrics?.negative ?? 0) || 0} negative`}
+          accent="rose"
+          trackPct={((Number(metrics?.negative ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
+        />
+        <StatCard
+          label="High priority"
+          value={Number(metrics?.highPriority ?? 0) || 0}
+          sub="Requires fast triage"
+          accent="amber"
+          trackPct={((Number(metrics?.highPriority ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
+        />
       </div>
 
       <InsightBriefBanner
         topThemes={topThemes}
         sourcePerformance={sourcePerformance}
         metrics={metrics}
-        insightsRange={insightsRange}
+        timeWindowLabel={rangeLabel}
         selectedThemeKey={selectedThemeKey}
         selectedSourceKey={selectedSourceKey}
         onSelectTheme={toggleTheme}
@@ -353,29 +336,44 @@ export default function DashboardInsightsSection({
       <InsightsInvestigateBar
         selectedThemeKey={selectedThemeKey}
         selectedSourceKey={selectedSourceKey}
-        insightsRange={insightsRange}
-        negativeOnly={investigateNegativeOnly}
-        onToggleNegativeOnly={() => setInvestigateNegativeOnly((v) => !v)}
+        timeWindow={timeWindow}
+        timeWindowLabel={rangeLabel}
+        sentimentFilter={sentimentFilter}
+        statusFilter={statusFilter}
         onClear={clearSelection}
         onNavigateToInbox={onNavigateToInbox}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <ThemeLandscapeCard
-          insuranceTagsBreakdown={insuranceTagsBreakdown}
-          insuranceTagsTrends={insuranceTagsTrends}
-          metrics={metrics}
-          insightsRange={insightsRange}
-          selectedThemeKey={selectedThemeKey}
-          onSelectTheme={toggleTheme}
-          onNavigateToInbox={onNavigateToInbox}
-          loading={loadingState}
-        />
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <ThemeLandscapeCard
+            insuranceTagsBreakdown={insuranceTagsBreakdown}
+            insuranceTagsTrends={insuranceTagsTrends}
+            metrics={metrics}
+            timeWindow={timeWindow}
+            sentimentFilter={sentimentFilter}
+            statusFilter={statusFilter}
+            selectedThemeKey={selectedThemeKey}
+            onSelectTheme={toggleTheme}
+            onNavigateToInbox={onNavigateToInbox}
+            loading={loadingState}
+          />
+          <SourceThemeMatrixCard
+            sourceThemeMatrix={sourceThemeMatrix}
+            selectedThemeKey={selectedThemeKey}
+            selectedSourceKey={selectedSourceKey}
+            onSelectCell={selectCell}
+            isDarkMode={isDarkMode}
+            loading={loadingState}
+          />
+        </div>
         <ChannelMonitorsCard
           sourcePerformance={sourcePerformance}
           sourceTrends={sourceTrends}
           metrics={metrics}
-          insightsRange={insightsRange}
+          timeWindow={timeWindow}
+          sentimentFilter={sentimentFilter}
+          statusFilter={statusFilter}
           selectedSourceKey={selectedSourceKey}
           onSelectSource={toggleSource}
           onNavigateToInbox={onNavigateToInbox}
@@ -383,17 +381,8 @@ export default function DashboardInsightsSection({
         />
       </div>
 
-      <SourceThemeMatrixCard
-        sourceThemeMatrix={sourceThemeMatrix}
-        selectedThemeKey={selectedThemeKey}
-        selectedSourceKey={selectedSourceKey}
-        onSelectCell={selectCell}
-        isDarkMode={isDarkMode}
-        loading={loadingState}
-      />
-
       {/* Charts grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <InsightsSectionCard
           title="Source trend"
           subtitle="Daily volume by top channels (others grouped)."
@@ -615,7 +604,7 @@ export default function DashboardInsightsSection({
                               onMouseLeave={() => setHeatmapHover(null)}
                               onClick={() => {
                                 if (!canClick) return
-                                onNavigateToInbox?.(buildPeakPreset({ dow, hour, rangeDays: insightsRange }))
+                                onNavigateToInbox?.(buildPeakPreset({ dow, hour, timeWindow }))
                               }}
                               role={canClick ? 'button' : undefined}
                               tabIndex={canClick ? 0 : undefined}
@@ -623,7 +612,7 @@ export default function DashboardInsightsSection({
                                 if (!canClick) return
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault()
-                                  onNavigateToInbox?.(buildPeakPreset({ dow, hour, rangeDays: insightsRange }))
+                                  onNavigateToInbox?.(buildPeakPreset({ dow, hour, timeWindow }))
                                 }
                               }}
                             >

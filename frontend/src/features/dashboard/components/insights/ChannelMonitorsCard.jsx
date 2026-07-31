@@ -47,11 +47,13 @@ export default function ChannelMonitorsCard({
   sourcePerformance,
   sourceTrends,
   metrics,
-  insightsRange,
+  timeWindow = 'all',
   selectedSourceKey,
   onSelectSource,
   onNavigateToInbox,
   loading,
+  sentimentFilter = 'all',
+  statusFilter = 'all',
 }) {
   const totalFeedback = Number(metrics?.totalFeedback ?? 0) || 0
   const allNegative = Number(metrics?.negative ?? 0) || 0
@@ -68,7 +70,6 @@ export default function ChannelMonitorsCard({
     <InsightsSectionCard
       title="Channel monitors"
       subtitle="Voice = volume share · Pain = share of all negative feedback"
-      className="lg:col-span-1"
     >
       {loading ? (
         <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
@@ -89,7 +90,7 @@ export default function ChannelMonitorsCard({
                 type="button"
                 onClick={() => onSelectSource?.(s.source)}
                 onDoubleClick={() => {
-                  const preset = buildSourcePreset(s.source, insightsRange)
+                  const preset = buildSourcePreset(s.source, timeWindow, sentimentFilter, statusFilter)
                   if (preset) onNavigateToInbox?.(preset)
                 }}
                 className={`w-full rounded-2xl border px-3 py-3 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#009750]/40 ${

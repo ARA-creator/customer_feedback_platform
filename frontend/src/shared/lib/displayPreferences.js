@@ -16,7 +16,6 @@ export const OVERVIEW_PERIOD_OPTIONS = [
   { id: 'all', label: 'All time' },
   { id: 'today', label: 'Today' },
   { id: 'week', label: 'This week' },
-  { id: 'last_week', label: 'Last week' },
   { id: 'month', label: 'This month' },
 ]
 
@@ -80,8 +79,9 @@ export function loadDisplayPreferences() {
     ? stored.themeMode
     : legacyTheme || DEFAULTS.themeMode
 
-  const defaultOverviewPeriod = OVERVIEW_PERIOD_OPTIONS.some((o) => o.id === stored?.defaultOverviewPeriod)
-    ? stored.defaultOverviewPeriod
+  const storedPeriod = stored?.defaultOverviewPeriod === 'last_week' ? 'week' : stored?.defaultOverviewPeriod
+  const defaultOverviewPeriod = OVERVIEW_PERIOD_OPTIONS.some((o) => o.id === storedPeriod)
+    ? storedPeriod
     : DEFAULTS.defaultOverviewPeriod
 
   const rawRange = Number(stored?.defaultInsightsRange)

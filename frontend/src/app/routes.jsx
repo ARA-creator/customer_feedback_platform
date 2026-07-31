@@ -3,7 +3,6 @@
 export const VIEW_PATHS = {
   overview: '/',
   inbox: '/inbox',
-  insights: '/insights',
   notifications: '/notifications',
   settings: '/settings',
   settings_security: '/settings/security',
@@ -41,6 +40,8 @@ export function pathForView(view) {
   const key = String(view).trim()
   if (key === 'admin_integrations') return VIEW_PATHS.channels
   if (key === 'admin_reply_approvals') return VIEW_PATHS.admin_overview
+  // Insights now lives under Reports.
+  if (key === 'insights') return '/reports?tab=insights'
   if (VIEW_PATHS[key]) return VIEW_PATHS[key]
   if (key.startsWith('/')) return key
   return '/'
@@ -65,7 +66,7 @@ export function isAdminPath(pathname) {
 
 export function isDashboardAgentPath(pathname) {
   const view = viewFromPathname(pathname)
-  return view === 'overview' || view === 'insights' || view === 'inbox'
+  return view === 'overview' || view === 'reports' || view === 'inbox'
 }
 
 /** CX/agent portal routes admins should not use (sidebar hidden + redirect to /admin). */
@@ -75,7 +76,6 @@ export function isAgentPortalPath(pathname) {
   if (path.startsWith('/settings')) return true
   const agentViews = new Set([
     'overview',
-    'insights',
     'inbox',
     'notifications',
     'settings',

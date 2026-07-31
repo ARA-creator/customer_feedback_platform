@@ -34,12 +34,14 @@ export const getRecentFeedback = async (limit = 50, params = {}) => {
 }
 
 /** Query params for overview Recent Feedback (matches analytics filters). */
-export function buildOverviewRecentFeedbackParams({ sentiment, timeWindow } = {}) {
+export function buildOverviewRecentFeedbackParams({ sentiment, timeWindow, status } = {}) {
   const params = {}
   const s = String(sentiment || 'all').toLowerCase()
   if (s && s !== 'all') params.sentiment = s
   const tw = String(timeWindow || 'all').toLowerCase()
   if (tw && tw !== 'all') params.time_window = tw
+  const st = String(status || 'all').toLowerCase()
+  if (st === 'read' || st === 'replied') params.inbox_tab = st
   return params
 }
 
@@ -74,7 +76,7 @@ export const getProductPulseTrend = async (params = undefined) => {
   return response.data
 }
 
-/** AI analysis for overview dashboard time window (all | today | week | last_week | month). */
+/** AI analysis for overview dashboard time window (all | today | week | month). */
 export const getFeedbackAnalyzer = async (params = undefined) => {
   const response = await api.get('/analytics/analyzer', {
     ...withParamsConfig(params),

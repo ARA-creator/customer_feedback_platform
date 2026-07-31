@@ -29,10 +29,10 @@ export function buildHelpGuide(auth) {
         'Dashboard home: KPI cards (total, negative, positive, neutral), sentiment and trend charts, and source breakdown. Use the time filter (Today, week, month, All time) to change what you see. Click a KPI card to open the inbox with that filter.',
     },
     {
-      to: '/insights',
+      to: '/reports?tab=insights',
       title: 'Insights',
       description:
-        'Deeper analysis: theme landscape, channel monitors, source × theme matrix, top issues (negative volume), and peak feedback times. Open from Overview via the charts area, or go here directly. Use Investigate to jump into the inbox with filters applied.',
+        'Deeper analysis under Reports: theme landscape, channel monitors, source × theme matrix, top issues, and peak feedback times. Use Investigate to jump into the inbox with filters applied.',
     },
     {
       to: '/inbox',
@@ -124,11 +124,11 @@ export function buildHelpGuide(auth) {
     },
     {
       title: 'Header controls',
-      body: 'Use the moon icon for quick light/dark mode. On Overview and Insights, refresh reloads data; admins can enable auto-refresh in Display settings.',
+      body: 'Use the moon icon for quick light/dark mode. On Overview and Reports → Insights, refresh reloads data; admins can enable auto-refresh in Display settings.',
     },
     {
       title: 'From Insights to Inbox',
-      body: 'Select a theme or channel, then use Investigate or Open inbox to continue with those filters applied.',
+      body: 'Select a theme or channel on Reports → Insights, then use Investigate or Open inbox to continue with those filters applied.',
     },
     {
       title: 'Sidebar',
@@ -171,7 +171,7 @@ export function buildHelpGuide(auth) {
       : [
           'Start on Overview for sentiment and volume at a glance.',
           'Switch the time filter to match the period you care about.',
-          'Open Insights for themes, channels, and peak times.',
+          'Open Reports → Insights for themes, channels, and peak times.',
           'Use Inbox to read messages, archive, and follow up.',
           'Adjust Settings → Notifications and Display to suit your workflow.',
         ],

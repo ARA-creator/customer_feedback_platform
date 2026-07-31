@@ -31,6 +31,7 @@ export default function OverviewChartsSection({
   productPulse = [],
   recentFeedback = [],
   overviewSentimentFilter = 'all',
+  overviewStatusFilter = 'all',
   recentFeedbackLoading = false,
   navigateToInboxPreset,
   onNavigateToInsights,
@@ -50,6 +51,7 @@ export default function OverviewChartsSection({
   const [channelFilter, setChannelFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
   const [showAllProducts, setShowAllProducts] = useState(false)
+  const [showAllTopics, setShowAllTopics] = useState(false)
 
   useEffect(() => {
     if (channelFilter === 'all') return
@@ -86,6 +88,7 @@ export default function OverviewChartsSection({
     () => (Array.isArray(productPulse) ? productPulse.filter((r) => (Number(r?.total) || 0) > 0).length : 0),
     [productPulse],
   )
+  const hasMoreProducts = productFilter === 'all' && productPulseCount > 5
 
   useEffect(() => {
     if (productFilter === 'all') return
@@ -94,12 +97,26 @@ export default function OverviewChartsSection({
     }
   }, [productPulse, productFilter])
 
-  const topics = buildTopicsTableRows(insuranceTagsBreakdown, { limit: 5 })
+  const topics = useMemo(
+    () => buildTopicsTableRows(insuranceTagsBreakdown, { limit: showAllTopics ? 1000 : 5 }),
+    [insuranceTagsBreakdown, showAllTopics],
+  )
+  const topicCount = useMemo(() => {
+    const b = insuranceTagsBreakdown && typeof insuranceTagsBreakdown === 'object' ? insuranceTagsBreakdown : {}
+    return Object.values(b).filter((stats) => (Number(stats?.total) || 0) > 0).length
+  }, [insuranceTagsBreakdown])
+  const hasMoreTopics = topicCount > 5
   const ready = !analyticsLoading && analyticsDelayPassed
 
   const openInboxWithOverviewSentiment = () => {
     if (navigateToInboxPreset) {
-      navigateToInboxPreset({ sentiment: overviewSentimentFilter || 'all', priority: 'all' })
+      navigateToInboxPreset({
+        sentiment: overviewSentimentFilter || 'all',
+        priority: 'all',
+        ...(overviewStatusFilter === 'read' || overviewStatusFilter === 'replied'
+          ? { list_tab: overviewStatusFilter }
+          : {}),
+      })
       return
     }
     onNavigateToInbox?.()
@@ -114,7 +131,6 @@ export default function OverviewChartsSection({
         trendData={trendData}
         trendAllZero={trendAllZero}
         overviewTrendLabels={overviewTrendLabels}
-        onNavigateToInsights={onNavigateToInsights}
       />
 
       {/* Row 2: Volume by channel + Product breakdown */}
@@ -135,12 +151,11 @@ export default function OverviewChartsSection({
           onProductFilterChange={setProductFilter}
           productFilterOptions={productFilterOptions}
           showAllProducts={showAllProducts}
+          totalProductCount={productPulseCount}
           timeWindow={overviewTimeFilter}
           timeFilterLabel={overviewTimeFilterLabel}
           onViewAllProducts={
-            productPulseCount > 5
-              ? () => setShowAllProducts((v) => !v)
-              : undefined
+            hasMoreProducts ? () => setShowAllProducts((v) => !v) : undefined
           }
         />
       </div>
@@ -151,7 +166,9 @@ export default function OverviewChartsSection({
           <TopFeedbackTopicsCard
             ready={ready}
             topics={topics}
-            onViewAllTopics={onNavigateToInsights ? () => onNavigateToInsights() : undefined}
+            showAllTopics={showAllTopics}
+            totalTopicCount={topicCount}
+            onViewAllTopics={hasMoreTopics ? () => setShowAllTopics((v) => !v) : undefined}
           />
         )}
 

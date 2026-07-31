@@ -70,8 +70,9 @@ _PRODUCT_ROWS: List[_ProductRow] = [
     _ProductRow("GH4V", "FIPP", "FIPP"),
     _ProductRow("GH4V", "FIPP", "FIPP-ENHANCED (FISP)"),
     _ProductRow("GH5V", "EDUCARE", "EDUCATION ENDOWMENT"),
+    # GH6V rebranded: Ladycare → Bloom (keep Ladycare aliases for historical text).
+    _ProductRow("GH6V", "BLOOM", "BLOOM"),
     _ProductRow("GH6V", "LADYCARE", "LADYCARE PLAN"),
-    _ProductRow("GH6V", "LADYCARE", "BLOOM"),
     _ProductRow("GH7V", "EXECUTIVE-PLUS", "EXECUTIVE PLUS PLAN"),
     _ProductRow("GH8V", "LIVING-PLUS", "LIVING PLUS PLAN"),
     _ProductRow("GH9V", "TRANSITION", "TRANSITION"),

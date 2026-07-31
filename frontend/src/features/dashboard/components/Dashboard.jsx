@@ -88,9 +88,7 @@ import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
 import { useFeedbackDetailModal } from '../hooks/useFeedbackDetailModal'
 import {
   DISPLAY_PREFS_CHANGED,
-  getDefaultInsightsRange,
   getDefaultOverviewPeriod,
-  INSIGHTS_RANGE_OPTIONS,
   OVERVIEW_PERIOD_OPTIONS,
 } from '../../../shared/lib/displayPreferences'
 
@@ -175,31 +173,31 @@ function Dashboard({
   })
   const analyticsDataRef = useRef(null)
   const [serverSourceCounts, setServerSourceCounts] = useState(null)
-  const [insightsRange, setInsightsRange] = useState(() => getDefaultInsightsRange())
   /** `prefix|group` from product pulse (empty = all products) */
   const [insightsProductKey, setInsightsProductKey] = useState('')
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
-  /** Overview dashboard time scope: matches GET /api/analytics?time_window= */
-  const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => getDefaultOverviewPeriod())
+  /** Shared Overview + Insights time scope: matches GET /api/analytics?time_window= */
+  const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => {
+    const p = getDefaultOverviewPeriod()
+    return p === 'last_week' ? 'week' : p
+  })
   const [overviewSentimentFilter, setOverviewSentimentFilter] = useState('all')
+  const [overviewStatusFilter, setOverviewStatusFilter] = useState('all')
   const overviewRecentFeedbackParamsRef = useRef({})
 
   useEffect(() => {
     overviewRecentFeedbackParamsRef.current = buildOverviewRecentFeedbackParams({
       sentiment: overviewSentimentFilter,
       timeWindow: overviewTimeFilter,
+      status: overviewStatusFilter,
     })
-  }, [overviewSentimentFilter, overviewTimeFilter])
+  }, [overviewSentimentFilter, overviewTimeFilter, overviewStatusFilter])
 
   useEffect(() => {
     const onPrefsChanged = (e) => {
       const period = e?.detail?.defaultOverviewPeriod
       if (OVERVIEW_PERIOD_OPTIONS.some((o) => o.id === period)) {
         setOverviewTimeFilter(period)
-      }
-      const range = Number(e?.detail?.defaultInsightsRange)
-      if (INSIGHTS_RANGE_OPTIONS.some((o) => o.id === range)) {
-        setInsightsRange(range)
       }
     }
     window.addEventListener(DISPLAY_PREFS_CHANGED, onPrefsChanged)
@@ -268,7 +266,7 @@ function Dashboard({
   useInsightsProductOptions({
     enabled: mode === 'insights',
     getProductPulse,
-    insightsRange,
+    timeWindow: overviewTimeFilter,
     insightsProductKey,
     setInsightsProductKey,
     setInsightsProductOptions,
@@ -340,6 +338,7 @@ function Dashboard({
     enabled: mode === 'overview',
     sentiment: overviewSentimentFilter,
     timeWindow: overviewTimeFilter,
+    status: overviewStatusFilter,
     getRecentFeedback,
     setRecentFeedback,
     paramsRef: overviewRecentFeedbackParamsRef,
@@ -347,10 +346,10 @@ function Dashboard({
 
   useDashboardDataLoader({
       mode,
-    insightsRange,
     insightsProductParams,
       overviewTimeFilter,
     overviewSentimentFilter,
+    overviewStatusFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,
@@ -478,6 +477,9 @@ function Dashboard({
       if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
         analyzerParams.sentiment = overviewSentimentFilter
       }
+      if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
+        analyzerParams.inbox_tab = overviewStatusFilter
+      }
       const data = await getFeedbackAnalyzer(analyzerParams)
       setAnalyzerResult(data)
       setAnalyzerError(null)
@@ -505,7 +507,7 @@ function Dashboard({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, overviewTimeFilter, overviewSentimentFilter, analyticsDelayPassed, loading])
+  }, [mode, overviewTimeFilter, overviewSentimentFilter, overviewStatusFilter, analyticsDelayPassed, loading])
 
   const handleCloseAnalyzer = () => {
     setAnalyzerOpen(false)
@@ -516,8 +518,11 @@ function Dashboard({
     if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
       params.sentiment = overviewSentimentFilter
     }
+    if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
+      params.inbox_tab = overviewStatusFilter
+    }
     return params
-  }, [overviewSentimentFilter, overviewTimeFilter])
+  }, [overviewSentimentFilter, overviewStatusFilter, overviewTimeFilter])
 
   const { exportOverviewCsv: handleExportCsv, exportInboxCsv: handleExportCSV } = useDashboardExports({
     exportParams,
@@ -563,7 +568,13 @@ function Dashboard({
 
   return (
     <DashboardProvider data={controller.data} actions={controller.actions}>
-      <div className="relative p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 mx-auto max-w-7xl">
+      <div
+        className={
+          mode === 'insights'
+            ? 'relative mx-auto max-w-7xl space-y-5'
+            : 'relative mx-auto max-w-7xl space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8'
+        }
+      >
       <FeedbackDetailModal
         open={isDetailOpen && !!selectedFeedback}
         feedback={selectedFeedback}
@@ -610,19 +621,22 @@ function Dashboard({
 
       {(mode === 'overview' || mode === 'insights') && (
         <>
-      {mode === 'overview' && (
-        <>
-              <OverviewTimeFilterRow
-                value={overviewTimeFilter}
-                onChange={setOverviewTimeFilter}
-                sentimentValue={overviewSentimentFilter}
-                onSentimentChange={setOverviewSentimentFilter}
-                onExportCsv={handleExportCsv}
-                exportDisabled={loading || !analyticsDelayPassed}
-                isAdminUser={isAdminUser}
-                dashboardAutoRefresh={dashboardAutoRefresh}
-                onToggleAutoRefresh={setDashboardAutoRefresh}
-              />
+          <OverviewTimeFilterRow
+            value={overviewTimeFilter}
+            onChange={setOverviewTimeFilter}
+            sentimentValue={overviewSentimentFilter}
+            onSentimentChange={setOverviewSentimentFilter}
+            statusValue={overviewStatusFilter}
+            onStatusChange={setOverviewStatusFilter}
+            onExportCsv={handleExportCsv}
+            exportDisabled={loading || !analyticsDelayPassed}
+            isAdminUser={isAdminUser}
+            dashboardAutoRefresh={dashboardAutoRefresh}
+            onToggleAutoRefresh={setDashboardAutoRefresh}
+            showActions={mode === 'overview'}
+          />
+          {mode === 'overview' && (
+            <>
               <FeedbackAnalyzerModal
                 open={analyzerOpen}
                 onClose={handleCloseAnalyzer}
@@ -632,16 +646,16 @@ function Dashboard({
                 timeFilterLabel={overviewTimeFilterLabel}
               />
 
-          <OverviewMetricCards
-            metrics={metrics}
-            kpiTrackPercent={kpiTrackPercent}
-            analyticsLoading={analyticsLoading}
-            analyticsDelayPassed={analyticsDelayPassed}
-            navigateToInboxPreset={navigateToInboxPreset}
-            sentimentFilter={overviewSentimentFilter}
-          />
-        </>
-      )}
+              <OverviewMetricCards
+                metrics={metrics}
+                kpiTrackPercent={kpiTrackPercent}
+                analyticsLoading={analyticsLoading}
+                analyticsDelayPassed={analyticsDelayPassed}
+                navigateToInboxPreset={navigateToInboxPreset}
+                sentimentFilter={overviewSentimentFilter}
+              />
+            </>
+          )}
 
           {mode === 'overview' && (
             <OverviewChartsSection
@@ -659,6 +673,7 @@ function Dashboard({
               productPulse={productPulse}
               recentFeedback={recentFeedback}
               overviewSentimentFilter={overviewSentimentFilter}
+              overviewStatusFilter={overviewStatusFilter}
               recentFeedbackLoading={recentFeedbackLoading}
               navigateToInboxPreset={navigateToInboxPreset}
               onNavigateToInsights={onNavigateToInsights}
@@ -682,8 +697,10 @@ function Dashboard({
               insightsProductKey={insightsProductKey}
               setInsightsProductKey={setInsightsProductKey}
               insightsProductOptions={insightsProductOptions}
-              insightsRange={insightsRange}
-              setInsightsRange={setInsightsRange}
+              timeWindow={overviewTimeFilter}
+              timeWindowLabel={overviewTimeFilterLabel}
+              sentimentFilter={overviewSentimentFilter}
+              statusFilter={overviewStatusFilter}
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
               isDarkMode={isDarkMode}

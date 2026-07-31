@@ -357,24 +357,30 @@ def report_preview():
             )
 
         # Quick pack counts (independent of current builder filters except scope).
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = now - timedelta(days=now.weekday())  # Monday
         week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        today_iso = today_start.date().isoformat()
         week_params = {
             "date_from": week_start.date().isoformat(),
             "date_to": now.date().isoformat(),
         }
-        negative_params = {
-            "sentiment": "negative",
-            "date_from": week_params["date_from"],
-            "date_to": week_params["date_to"],
+        today_params = {
+            "date_from": today_iso,
+            "date_to": today_iso,
         }
-        all_params = dict(week_params)
+        month_params = {
+            "date_from": month_start.date().isoformat(),
+            "date_to": now.date().isoformat(),
+        }
+        all_params: Dict[str, Any] = {}
 
         quick = {
+            "today": {"total": _count_with_params(db, user, perms, today_params)},
             "week": {"total": _count_with_params(db, user, perms, week_params)},
-            "negative": {"total": _count_with_params(db, user, perms, negative_params)},
-            "by_channel": {"total": _count_with_params(db, user, perms, all_params)},
-            "by_product": {"total": _count_with_params(db, user, perms, all_params)},
+            "month": {"total": _count_with_params(db, user, perms, month_params)},
+            "all": {"total": _count_with_params(db, user, perms, all_params)},
         }
 
         return jsonify(

@@ -14,7 +14,7 @@ export default function SettingsTipsPanel({ auth }) {
           <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
             {isAdmin
               ? 'Confirm channels are ingesting under Admin → Channels. Set quiet hours under Notifications.'
-              : 'Use the same time filter on Overview for all charts. Open Insights from Overview for deeper themes.'}
+              : 'Use the same time filter on Overview for all charts. Open Reports → Insights for deeper themes.'}
           </p>
         </div>
       </div>

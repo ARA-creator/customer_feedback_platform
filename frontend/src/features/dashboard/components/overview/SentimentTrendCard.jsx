@@ -68,7 +68,6 @@ export default function SentimentTrendCard({
   trendData = [],
   trendAllZero,
   overviewTrendLabels,
-  onNavigateToInsights,
 }) {
   const [granularity, setGranularity] = useState('daily')
 
@@ -113,19 +112,7 @@ export default function SentimentTrendCard({
               {overviewTrendLabels?.empty || 'No feedback in this period.'}
             </p>
           )}
-          <div
-            className={`h-64 sm:h-72 ${onNavigateToInsights ? 'cursor-pointer' : ''}`}
-            role={onNavigateToInsights ? 'button' : undefined}
-            tabIndex={onNavigateToInsights ? 0 : undefined}
-            onClick={() => onNavigateToInsights?.()}
-            onKeyDown={(e) => {
-              if (!onNavigateToInsights) return
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onNavigateToInsights()
-              }
-            }}
-          >
+          <div className="h-64 sm:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
                 <CartesianGrid {...CHART_GRID} vertical={false} />

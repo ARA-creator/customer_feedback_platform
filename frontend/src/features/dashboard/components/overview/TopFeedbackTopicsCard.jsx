@@ -46,9 +46,16 @@ function TopicRow({ row }) {
   )
 }
 
-export default function TopFeedbackTopicsCard({ ready, topics = [], onViewAllTopics }) {
-  const rows = (Array.isArray(topics) ? topics : []).slice(0, 5)
+export default function TopFeedbackTopicsCard({
+  ready,
+  topics = [],
+  onViewAllTopics,
+  showAllTopics = false,
+  totalTopicCount = 0,
+}) {
+  const rows = Array.isArray(topics) ? topics : []
   const showFooter = Boolean(onViewAllTopics && rows.length > 0)
+  const visibleCount = rows.length
 
   return (
     <DashboardChartCard title="Top Feedback Topics">
@@ -58,7 +65,7 @@ export default function TopFeedbackTopicsCard({ ready, topics = [], onViewAllTop
         <p className="text-sm text-gray-600 dark:text-gray-400">No tagged themes in this period.</p>
       ) : (
         <>
-          <div className="overflow-x-auto">
+          <div className={`overflow-x-auto ${showAllTopics ? 'max-h-80 overflow-y-auto' : ''}`}>
             <table className="w-full table-fixed text-left">
               <colgroup>
                 <col className="w-[38%]" />
@@ -85,8 +92,13 @@ export default function TopFeedbackTopicsCard({ ready, topics = [], onViewAllTop
               onClick={onViewAllTopics}
               className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
             >
-              View all topics
-              <FiArrowRight className="h-4 w-4" aria-hidden />
+              {showAllTopics
+                ? 'Show fewer topics'
+                : `View all topics${totalTopicCount > visibleCount ? ` (${totalTopicCount})` : ''}`}
+              <FiArrowRight
+                className={`h-4 w-4 ${showAllTopics ? 'rotate-90' : ''}`}
+                aria-hidden
+              />
             </button>
           )}
         </>

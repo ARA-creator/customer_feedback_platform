@@ -10,8 +10,6 @@ export function getOverviewTimeFilterLabel(overviewTimeFilter) {
       return 'Today'
     case 'week':
       return 'This week'
-    case 'last_week':
-      return 'Last week'
     case 'month':
       return 'This month'
     case 'all':
@@ -33,12 +31,6 @@ export function getOverviewTrendLabels(overviewTimeFilter) {
         title: 'Sentiment Trend (This week)',
         empty:
           'No feedback for this week. The chart shows daily counts at zero for this period.',
-      }
-    case 'last_week':
-      return {
-        title: 'Sentiment Trend (Last week)',
-        empty:
-          'No feedback for last week. The chart shows daily counts at zero for this period.',
       }
     case 'month':
       return {
@@ -76,11 +68,6 @@ export function getOverviewThemesCaption(overviewTimeFilter) {
     case 'week':
       return {
         subtitle: 'Counts from the last 7 days',
-        empty: 'No themes for the selected period.',
-      }
-    case 'last_week':
-      return {
-        subtitle: 'Counts from the previous calendar week',
         empty: 'No themes for the selected period.',
       }
     case 'month':

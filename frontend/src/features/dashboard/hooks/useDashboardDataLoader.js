@@ -6,10 +6,10 @@ import { formatDashboardLoadError } from '../utils/dashboardLoadError'
 export function useDashboardDataLoader({
   // identity / flags
   mode,
-  insightsRange,
   insightsProductParams,
   overviewTimeFilter,
   overviewSentimentFilter = 'all',
+  overviewStatusFilter = 'all',
   isAdminUser,
   dashboardAutoRefresh,
 
@@ -66,10 +66,13 @@ export function useDashboardDataLoader({
         if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
           overviewAnalyticsParams.sentiment = overviewSentimentFilter
         }
+        if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
+          overviewAnalyticsParams.inbox_tab = overviewStatusFilter
+        }
 
         const analyticsData =
           mode === 'insights'
-            ? await getAnalytics({ range_days: insightsRange, ...insightsProductParams })
+            ? await getAnalytics({ ...overviewAnalyticsParams, ...insightsProductParams })
             : mode === 'overview'
               ? await getAnalytics(overviewAnalyticsParams)
               : await getAnalytics()
@@ -172,21 +175,9 @@ export function useDashboardDataLoader({
         )
 
         if (mode === 'overview' || mode === 'insights') {
-          const rangeDays =
-            mode === 'insights'
-              ? insightsRange
-              : overviewTimeFilter === 'today'
-                ? 1
-                : overviewTimeFilter === 'week'
-                  ? 7
-                  : overviewTimeFilter === 'last_week'
-                    ? 7
-                    : overviewTimeFilter === 'month'
-                      ? 30
-                      : 30
           const pulseParams =
             mode === 'insights'
-              ? { range_days: rangeDays, ...insightsProductParams }
+              ? { ...overviewAnalyticsParams, ...insightsProductParams }
               : { ...overviewAnalyticsParams }
           const pulse = await getProductPulse(pulseParams).catch(() => ({ items: [] }))
           if (!cancelled) {
@@ -217,8 +208,16 @@ export function useDashboardDataLoader({
         }
 
         if (mode === 'insights') {
+          const rangeDays =
+            overviewTimeFilter === 'today'
+              ? 1
+              : overviewTimeFilter === 'week'
+                ? 7
+                : overviewTimeFilter === 'month'
+                  ? 30
+                  : 90
           const pt = await getProductPulseTrend({
-            range_days: insightsRange,
+            range_days: rangeDays,
             top_n: 6,
             ...insightsProductParams,
           }).catch(() => ({ trends: [] }))
@@ -279,10 +278,10 @@ export function useDashboardDataLoader({
     }
   }, [
     mode,
-    insightsRange,
     insightsProductParams,
     overviewTimeFilter,
     overviewSentimentFilter,
+    overviewStatusFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,

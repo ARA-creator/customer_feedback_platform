@@ -74,7 +74,7 @@ export function buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeM
   return { rows, source: 'themes' }
 }
 
-export function buildInsightBrief({ topThemes, sourcePerformance, metrics, rangeDays }) {
+export function buildInsightBrief({ topThemes, sourcePerformance, metrics, rangeLabel = 'selected period' }) {
   const totalFeedback = Number(metrics?.totalFeedback ?? 0) || 0
   const themes = Array.isArray(topThemes) ? topThemes : []
   const sources = Array.isArray(sourcePerformance) ? sourcePerformance : []
@@ -103,14 +103,14 @@ export function buildInsightBrief({ topThemes, sourcePerformance, metrics, range
     const avg = Number(lowestSource.avg_score)
     const avgLabel = Number.isFinite(avg) ? avg.toFixed(2) : '—'
     parts.push(
-      `${humanizeSource(lowestSource.source)} has the lowest average sentiment (${avgLabel}) in the last ${rangeDays} days.`,
+      `${humanizeSource(lowestSource.source)} has the lowest average sentiment (${avgLabel}) for ${rangeLabel}.`,
     )
   }
 
   const headline =
     parts.length > 0
       ? parts.join(' ')
-      : `No themed feedback in the last ${rangeDays} days. Adjust the product filter or date range.`
+      : `No themed feedback for ${rangeLabel}. Adjust the product filter or date range.`
 
   return {
     headline,

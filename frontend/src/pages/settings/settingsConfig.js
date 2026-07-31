@@ -27,7 +27,7 @@ export const HOW_IT_WORKS_CARDS = [
   },
   {
     title: 'Analyze & prioritize',
-    description: 'Use Insights for themes, channels, and peak times to see what matters most.',
+    description: 'Use Reports → Insights for themes, channels, and peak times.',
   },
   {
     title: 'Collaborate & act',
@@ -98,7 +98,7 @@ export function buildQuickActions(auth) {
 export const HELP_RESOURCES = [
   {
     title: 'Navigate the platform',
-    description: 'Overview, Inbox, Insights, and admin areas with direct links.',
+    description: 'Overview, Inbox, Reports (including Insights), and admin areas with direct links.',
     to: '/settings/help',
     external: false,
   },

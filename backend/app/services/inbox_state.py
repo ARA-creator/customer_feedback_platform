@@ -180,20 +180,11 @@ def apply_inbox_tab_filter(query, db, user_id: int, inbox_tab: Optional[str]):
 
 
 def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
-    """Count all/read/unread/replied for the current scoped feedback query."""
-    from sqlalchemy import and_, exists, func
+    """Count all/read/unread/replied for the current scoped feedback query (one scan)."""
+    from sqlalchemy import and_, case, exists, func
 
     from ..models import Feedback, UserFeedbackInboxState
 
-    total = base_query.with_entities(func.count(Feedback.id)).scalar() or 0
-    replied_count = (
-        base_query.filter(Feedback.replied_at.isnot(None))
-        .with_entities(func.count(Feedback.id))
-        .scalar()
-        or 0
-    )
-    unreplied = base_query.filter(Feedback.replied_at.is_(None))
-    unreplied_total = unreplied.with_entities(func.count(Feedback.id)).scalar() or 0
     read_exists = exists().where(
         and_(
             UserFeedbackInboxState.feedback_id == Feedback.id,
@@ -201,14 +192,41 @@ def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
             UserFeedbackInboxState.read_at.isnot(None),
         )
     )
-    read_count = unreplied.filter(read_exists).with_entities(func.count(Feedback.id)).scalar() or 0
-    unread_count = max(int(unreplied_total) - int(read_count), 0)
+    row = (
+        base_query.with_entities(
+            func.count(Feedback.id).label("total"),
+            func.sum(case((Feedback.replied_at.isnot(None), 1), else_=0)).label("replied"),
+            func.sum(
+                case(
+                    (
+                        and_(Feedback.replied_at.is_(None), read_exists),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("read"),
+            func.sum(
+                case(
+                    (
+                        and_(Feedback.replied_at.is_(None), ~read_exists),
+                        1,
+                    ),
+                    else_=0,
+                )
+            ).label("unread"),
+        ).one()
+    )
+    total = int(getattr(row, "total", 0) or 0)
+    replied_count = int(getattr(row, "replied", 0) or 0)
+    read_count = int(getattr(row, "read", 0) or 0)
+    unread_count = int(getattr(row, "unread", 0) or 0)
+    unreplied_total = read_count + unread_count
     return {
-        "all": int(unreplied_total),
-        "read": int(read_count),
-        "unread": int(unread_count),
-        "replied": int(replied_count),
-        "total": int(total),
+        "all": unreplied_total,
+        "read": read_count,
+        "unread": unread_count,
+        "replied": replied_count,
+        "total": total,
     }
 
 

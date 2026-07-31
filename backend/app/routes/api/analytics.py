@@ -14,9 +14,12 @@ from flask import jsonify, request
 from sqlalchemy import Float, and_, cast, case, desc, exists, func, or_
 
 from ...database import SessionLocal
-from ...models import Feedback, FeedbackPolicyMatch
+from ...models import Feedback, FeedbackPolicyMatch, FeedbackSearchDocument
+from ...security import decrypt_text
 from ...services.analytics_time_window import parse_overview_time_window
-from ...services.metadata_normalization import normalize_channel_metadata
+from ...services.inbox_state import apply_inbox_tab_filter
+from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
+from ...services.policy_detection import is_policy_number_match, is_product_name_match
 from . import api_bp
 from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
 
@@ -101,17 +104,34 @@ def get_analytics():
             return q
 
         sentiment_arg = (request.args.get("sentiment") or "").strip().lower()
+        inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
+        if inbox_tab not in ("all", "read", "unread", "replied"):
+            inbox_tab = "all"
+
+        status_user_id = None
+        if inbox_tab in ("read", "unread", "replied"):
+            status_user = _require_user(db)
+            status_user_id = int(status_user.id)
 
         def _apply_sentiment_filter(q):
             if sentiment_arg in ("positive", "negative", "neutral"):
                 return q.filter(func.lower(Feedback.sentiment_label) == sentiment_arg)
             return q
 
+        def _apply_status_filter(q):
+            if status_user_id is None or inbox_tab == "all":
+                return q
+            return apply_inbox_tab_filter(q, db, status_user_id, inbox_tab)
+
         def _apply_metrics_filters(q):
-            return _apply_sentiment_filter(_apply_created_filter(q, start=metrics_from, end=metrics_to))
+            return _apply_status_filter(
+                _apply_sentiment_filter(_apply_created_filter(q, start=metrics_from, end=metrics_to))
+            )
 
         def _apply_trend_filters(q):
-            return _apply_sentiment_filter(_apply_created_filter(q, start=trend_from, end=trend_to))
+            return _apply_status_filter(
+                _apply_sentiment_filter(_apply_created_filter(q, start=trend_from, end=trend_to))
+            )
 
         sentiment_counts = (
             _pf(
@@ -721,6 +741,7 @@ def feedback_analyzer():
         perms = _user_permission_keys(db, user.id)
         time_window = (request.args.get("time_window") or "all").strip().lower()
         sentiment = (request.args.get("sentiment") or "").strip().lower()
+        inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
         # Lazy import: google-genai is heavy; keep it off the app cold-start path.
         from ...services.feedback_analyzer import run_feedback_analyzer
 
@@ -730,6 +751,7 @@ def feedback_analyzer():
             perms=perms,
             time_window=time_window,
             sentiment=sentiment,
+            inbox_tab=inbox_tab,
             scope_feedback_query=_scope_feedback_query,
         )
         return jsonify(result), 200
@@ -805,6 +827,10 @@ def product_pulse():
 
         if sentiment_arg in ("positive", "negative", "neutral"):
             q = q.filter(func.lower(Feedback.sentiment_label) == sentiment_arg)
+
+        inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
+        if inbox_tab in ("read", "unread", "replied"):
+            q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
         q = q.group_by(
             FeedbackPolicyMatch.product_prefix,
@@ -968,6 +994,13 @@ def product_detail():
                 {
                     "policy_hash": r.policy_hash,
                     "policy_masked": r.policy_masked,
+                    "policy_number": (
+                        r.policy_masked
+                        if is_policy_number_match(r.policy_masked)
+                        else None
+                    ),
+                    "is_name_match": is_product_name_match(r.policy_masked),
+                    "policy_type": group or product_prefix,
                     "product_prefix": r.product_prefix,
                     "product_group": group,
                     "total": total,
@@ -984,6 +1017,131 @@ def product_detail():
                     ),
                 }
             )
+
+        # Individual feedback rows: policy number ↔ product type, complaint, received time.
+        from ...services.policy_detection import _strip_html_for_policy_scan
+
+        # Reuse the same filtered Feedback IDs as the aggregate query (avoids join/scoping
+        # edge cases that can empty a multi-entity select).
+        id_q = (
+            db.query(Feedback.id)
+            .join(FeedbackPolicyMatch, FeedbackPolicyMatch.feedback_id == Feedback.id)
+            .filter(Feedback.deleted_at.is_(None))
+            .filter(~func.lower(Feedback.source).in_(["api", "web"]))
+            .filter(FeedbackPolicyMatch.is_primary.is_(True))
+            .filter(FeedbackPolicyMatch.product_prefix == product_prefix)
+        )
+        if product_group is not None:
+            pgs = (product_group or "").strip()
+            if pgs:
+                id_q = id_q.filter(FeedbackPolicyMatch.product_group == pgs)
+            else:
+                id_q = id_q.filter(
+                    or_(FeedbackPolicyMatch.product_group.is_(None), FeedbackPolicyMatch.product_group == "")
+                )
+        if filter_from is not None:
+            id_q = id_q.filter(Feedback.created_at >= filter_from)
+        if filter_to is not None:
+            id_q = id_q.filter(Feedback.created_at < filter_to)
+        else:
+            id_q = id_q.filter(Feedback.created_at <= now)
+
+        id_q = _scope_feedback_query(db, id_q, user=user, perms=perms)
+        feedback_ids = [
+            int(r[0])
+            for r in id_q.order_by(desc(Feedback.created_at), desc(Feedback.id)).limit(200).all()
+            if r and r[0] is not None
+        ]
+
+        search_by_id: Dict[int, str] = {}
+        if feedback_ids:
+            for doc in (
+                db.query(FeedbackSearchDocument.feedback_id, FeedbackSearchDocument.message_search_text)
+                .filter(FeedbackSearchDocument.feedback_id.in_(feedback_ids))
+                .all()
+            ):
+                search_by_id[int(doc.feedback_id)] = (doc.message_search_text or "").strip()
+
+        match_by_fid: Dict[int, Any] = {}
+        if feedback_ids:
+            for m in (
+                db.query(FeedbackPolicyMatch)
+                .filter(FeedbackPolicyMatch.feedback_id.in_(feedback_ids))
+                .filter(FeedbackPolicyMatch.is_primary.is_(True))
+                .all()
+            ):
+                # Prefer the match for this product prefix/group if multiples exist.
+                existing = match_by_fid.get(int(m.feedback_id))
+                if existing is None:
+                    match_by_fid[int(m.feedback_id)] = m
+                elif (m.product_prefix or "") == product_prefix:
+                    match_by_fid[int(m.feedback_id)] = m
+
+        feedback_items = []
+        if feedback_ids:
+            fb_rows = (
+                db.query(Feedback)
+                .filter(Feedback.id.in_(feedback_ids))
+                .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                .all()
+            )
+            for fb in fb_rows:
+                m = match_by_fid.get(int(fb.id))
+                masked = getattr(m, "policy_masked", None) if m else None
+                has_number = is_policy_number_match(masked)
+                group = getattr(m, "product_group", None) if m else None
+                prefix = (getattr(m, "product_prefix", None) if m else None) or product_prefix
+
+                complaint = search_by_id.get(int(fb.id), "")
+                if not complaint:
+                    try:
+                        complaint = _strip_html_for_policy_scan(
+                            decrypt_text(fb.message_encrypted) or ""
+                        ).strip()
+                    except Exception:
+                        complaint = ""
+                # Prefer a readable plain-text lead-in over raw HTML dumps in search docs.
+                if "<" in complaint and ">" in complaint:
+                    complaint = _strip_html_for_policy_scan(complaint).strip()
+                if len(complaint) > 280:
+                    complaint = complaint[:280].rstrip() + "…"
+
+                theme = None
+                meta = normalize_channel_metadata(fb.source, fb.channel_metadata)
+                tags = meta.get("insurance_tags") if isinstance(meta, dict) else None
+                if isinstance(tags, list) and tags:
+                    theme = str(tags[0] or "").replace("_", " ").strip() or None
+                if not theme and fb.category:
+                    theme = str(fb.category).replace("_", " ").strip() or None
+
+                sent = (fb.sentiment_label or "neutral").lower()
+                if sent not in ("positive", "neutral", "negative"):
+                    sent = "neutral"
+
+                feedback_items.append(
+                    {
+                        "feedback_id": int(fb.id),
+                        "policy_number": masked if has_number else None,
+                        "policy_masked": masked,
+                        "is_name_match": is_product_name_match(masked),
+                        "policy_type": (group or prefix or product_name or product_prefix),
+                        "product_prefix": prefix,
+                        "product_group": group,
+                        "theme": theme,
+                        "complaint": complaint or None,
+                        "sentiment": sent,
+                        "received_at": fb.created_at.isoformat() if fb.created_at else None,
+                        "source": fb.source,
+                    }
+                )
+
+        verified_policy_numbers = sorted(
+            {
+                p["policy_number"]
+                for p in policies
+                if p.get("policy_number")
+            }
+        )
 
         t = totals["total"] or 0
 
@@ -1006,8 +1164,11 @@ def product_detail():
                 "first_seen_at": first_seen_overall.isoformat() if first_seen_overall else None,
                 "last_seen_at": last_seen_overall.isoformat() if last_seen_overall else None,
                 "policy_count": len(policies),
+                "verified_policy_count": len(verified_policy_numbers),
+                "verified_policy_numbers": verified_policy_numbers,
             },
             "policies": policies,
+            "feedback_items": feedback_items,
             "range_days": range_days,
         }
         if time_window:

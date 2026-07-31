@@ -654,6 +654,7 @@ def _serialize_feedback_batch(
     ticket_summary = ticket_summary or {}
     ids = [int(r.id) for r in rows if getattr(r, "id", None)]
     pol_by_fid: Dict[int, List[FeedbackPolicyMatch]] = {i: [] for i in ids}
+    search_by_fid: Dict[int, str] = {}
     if ids:
         all_pol = (
             db.query(FeedbackPolicyMatch)
@@ -669,13 +670,25 @@ def _serialize_feedback_batch(
             fid = getattr(pm, "feedback_id", None)
             if fid in pol_by_fid:
                 pol_by_fid[fid].append(pm)
+        for fid, text in (
+            db.query(FeedbackSearchDocument.feedback_id, FeedbackSearchDocument.message_search_text)
+            .filter(FeedbackSearchDocument.feedback_id.in_(ids))
+            .all()
+        ):
+            if fid is None:
+                continue
+            search_by_fid[int(fid)] = (text or "").strip()
 
     out: List[Dict[str, Any]] = []
     for feedback in rows:
         meta = _normalize_metadata(feedback)
         customer_key = meta.get("customer_key")
         customer_label = meta.get("customer_label")
-        msg = decrypt_text(feedback.message_encrypted)
+        # Prefer search-document plaintext (already decrypted/normalized) to avoid
+        # Fernet decrypt of large HTML bodies on every inbox page load.
+        msg = search_by_fid.get(int(feedback.id)) if feedback.id else None
+        if not msg:
+            msg = decrypt_text(feedback.message_encrypted)
         pol_rows = pol_by_fid.get(int(feedback.id), []) if feedback.id else []
         score = score_feedback(
             feedback=feedback,

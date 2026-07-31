@@ -14,7 +14,7 @@ export function useInsightsProductParams(insightsProductKey) {
 export function useInsightsProductOptions({
   enabled,
   getProductPulse,
-  insightsRange,
+  timeWindow = 'all',
   insightsProductKey,
   setInsightsProductKey,
   setInsightsProductOptions,
@@ -29,7 +29,7 @@ export function useInsightsProductOptions({
     let cancelled = false
     ;(async () => {
       try {
-        const pulse = await getProductPulse({ range_days: insightsRange })
+        const pulse = await getProductPulse({ time_window: timeWindow || 'all' })
         if (cancelled) return
         const items = Array.isArray(pulse?.items) ? pulse.items : []
         const opts = items
@@ -53,7 +53,7 @@ export function useInsightsProductOptions({
     return () => {
       cancelled = true
     }
-  }, [enabled, getProductPulse, insightsRange, setInsightsProductKey, setInsightsProductOptions])
+  }, [enabled, getProductPulse, timeWindow, setInsightsProductKey, setInsightsProductOptions])
 
   useEffect(() => {
     if (!enabled) return

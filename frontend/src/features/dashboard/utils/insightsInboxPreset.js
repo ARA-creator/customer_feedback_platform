@@ -1,50 +1,68 @@
-/** Map insights range to inbox date_range (90d not supported in inbox yet). */
-export function insightsRangeToDateRange(rangeDays) {
-  const d = Number(rangeDays)
-  if (d === 7) return '7d'
-  if (d === 30) return '30d'
-  if (d === 90) return '30d'
+/** Map overview/insights time windows to inbox date_range values. */
+export function timeWindowToInboxDateRange(timeWindow) {
+  const tw = String(timeWindow || 'all').toLowerCase()
+  if (tw === 'today' || tw === 'week') return '7d'
+  if (tw === 'month') return '30d'
+  if (tw === 'all') return 'all'
   return '30d'
 }
 
-export function buildThemePreset(themeKey, rangeDays) {
+/** Approximate day span for APIs that still take range_days (e.g. product-pulse-trend). */
+export function timeWindowToRangeDays(timeWindow) {
+  const tw = String(timeWindow || 'all').toLowerCase()
+  if (tw === 'today') return 1
+  if (tw === 'week') return 7
+  if (tw === 'month') return 30
+  if (tw === 'all') return 90
+  return 30
+}
+
+export function buildThemePreset(themeKey, timeWindow, sentiment = 'all', status = 'all') {
   const tag = String(themeKey || '').trim()
   if (!tag) return null
-  return {
+  const preset = {
     insurance_tag: tag,
-    date_range: insightsRangeToDateRange(rangeDays),
-    sentiment: 'all',
+    date_range: timeWindowToInboxDateRange(timeWindow),
+    sentiment: sentiment || 'all',
   }
+  if (status === 'read' || status === 'replied') preset.list_tab = status
+  return preset
 }
 
-export function buildSourcePreset(sourceKey, rangeDays) {
+export function buildSourcePreset(sourceKey, timeWindow, sentiment = 'all', status = 'all') {
   const src = String(sourceKey || '').trim().toLowerCase()
   if (!src) return null
-  return {
+  const preset = {
     source: src,
-    date_range: insightsRangeToDateRange(rangeDays),
-    sentiment: 'all',
+    date_range: timeWindowToInboxDateRange(timeWindow),
+    sentiment: sentiment || 'all',
   }
+  if (status === 'read' || status === 'replied') preset.list_tab = status
+  return preset
 }
 
-export function buildCombinedPreset({ themeKey, sourceKey, rangeDays, sentiment = 'all' }) {
+export function buildCombinedPreset({ themeKey, sourceKey, timeWindow, sentiment = 'all', status = 'all' }) {
   const preset = {
-    date_range: insightsRangeToDateRange(rangeDays),
+    date_range: timeWindowToInboxDateRange(timeWindow),
     sentiment: sentiment || 'all',
   }
   const tag = String(themeKey || '').trim()
   const src = String(sourceKey || '').trim().toLowerCase()
   if (tag) preset.insurance_tag = tag
   if (src) preset.source = src
+  if (status === 'read' || status === 'replied') preset.list_tab = status
+  if (!tag && !src && status === 'all') return null
+  if (!tag && !src && (status === 'read' || status === 'replied')) return preset
   if (!tag && !src) return null
   return preset
 }
 
-export function buildPeakPreset({ dow, hour, rangeDays }) {
+export function buildPeakPreset({ dow, hour, timeWindow }) {
   const preset = {}
   if (Number.isFinite(Number(dow))) preset.dow = Number(dow)
   if (Number.isFinite(Number(hour))) preset.hour = Number(hour)
-  if (Number.isFinite(Number(rangeDays))) preset.range_days = Number(rangeDays)
+  const rangeDays = timeWindowToRangeDays(timeWindow)
+  if (Number.isFinite(rangeDays)) preset.range_days = rangeDays
   return preset
 }
 

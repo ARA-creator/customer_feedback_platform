@@ -30,6 +30,30 @@ export function thisWeekRange() {
   return { dateFrom: toISODate(startOfWeek(now)), dateTo: toISODate(now) }
 }
 
+export function todayRange() {
+  const iso = toISODate(new Date())
+  return { dateFrom: iso, dateTo: iso }
+}
+
+export function thisMonthRange() {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  return { dateFrom: toISODate(start), dateTo: toISODate(now) }
+}
+
+export function allTimeRange() {
+  return { dateFrom: '', dateTo: '' }
+}
+
+/** Resolve quick-pack id to date filter range. */
+export function quickPackRange(packId) {
+  if (packId === 'today') return todayRange()
+  if (packId === 'week') return thisWeekRange()
+  if (packId === 'month') return thisMonthRange()
+  if (packId === 'all') return allTimeRange()
+  return thisWeekRange()
+}
+
 export function formatDisplayRange(dateFrom, dateTo) {
   const fmt = (iso) => {
     if (!iso) return ''
@@ -38,7 +62,7 @@ export function formatDisplayRange(dateFrom, dateTo) {
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
   }
   if (!dateFrom && !dateTo) return 'All time'
-  if (dateFrom && dateTo) return `${fmt(dateFrom)} – ${fmt(dateTo)}`
+  if (dateFrom && dateTo) return `${fmt(dateFrom)} -> ${fmt(dateTo)}`
   if (dateFrom) return `From ${fmt(dateFrom)}`
   return `Until ${fmt(dateTo)}`
 }

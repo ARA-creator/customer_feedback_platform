@@ -9,6 +9,7 @@ export function useOverviewRecentFeedback({
   enabled,
   sentiment = 'all',
   timeWindow = 'all',
+  status = 'all',
   getRecentFeedback,
   setRecentFeedback,
   paramsRef,
@@ -19,7 +20,7 @@ export function useOverviewRecentFeedback({
     if (!enabled) return undefined
 
     let cancelled = false
-    const params = buildOverviewRecentFeedbackParams({ sentiment, timeWindow })
+    const params = buildOverviewRecentFeedbackParams({ sentiment, timeWindow, status })
     if (paramsRef) paramsRef.current = params
 
     setLoading(true)
@@ -41,7 +42,7 @@ export function useOverviewRecentFeedback({
     return () => {
       cancelled = true
     }
-  }, [enabled, sentiment, timeWindow, getRecentFeedback, setRecentFeedback, paramsRef])
+  }, [enabled, sentiment, timeWindow, status, getRecentFeedback, setRecentFeedback, paramsRef])
 
   return { recentFeedbackLoading: loading }
 }

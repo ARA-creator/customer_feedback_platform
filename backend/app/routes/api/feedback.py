@@ -60,8 +60,10 @@ from ._helpers import (
     _normalize_metadata,
     _parse_dt,
     _require_any_permission,
+    _require_user,
     _scope_feedback_query,
     _serialize_feedback,
+    _serialize_feedback_batch,
     _safe_json_dumps,
     _ensure_workflow,
     _upsert_customer_entities,
@@ -172,6 +174,9 @@ def get_recent_feedback():
         limit = min(limit, 1000)
         sentiment = (request.args.get("sentiment") or "all").strip().lower()
         time_window = (request.args.get("time_window") or "all").strip().lower()
+        inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
+        if inbox_tab not in ("all", "read", "unread", "replied"):
+            inbox_tab = "all"
 
         q = (
             db.query(Feedback)
@@ -188,9 +193,15 @@ def get_recent_feedback():
         if filter_to is not None:
             q = q.filter(Feedback.created_at < filter_to)
 
+        if inbox_tab in ("read", "unread", "replied"):
+            user = _require_user(db)
+            q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
+
         recent = q.order_by(desc(Feedback.created_at)).limit(limit).all()
         feedback_list = [_serialize_feedback(f) for f in recent]
         return jsonify({"feedback": feedback_list, "count": len(feedback_list)})
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
     except Exception:
         logger.exception("Error fetching recent feedback")
         return jsonify({"error": "Failed to fetch recent feedback"}), 500
@@ -763,12 +774,11 @@ def feedback_feed():
                     "cursor_id": last.id,
                 }
 
-        # Legacy backfill: older feedback rows may not have `email_hash` populated even though
-        # channel metadata includes sender email. Without `email_hash`, we can't generate a stable
-        # `customer_key` (email_hash:...) for Customer 360, so "View customer" stays unavailable.
+        # Legacy backfill: older feedback may lack email_hash. Keep this tiny and
+        # never block the list on customer upserts (list UX > backfill completeness).
         try:
             touched = False
-            backfill_budget = 3
+            backfill_budget = 1
             for fb in page:
                 if backfill_budget <= 0:
                     break
@@ -781,12 +791,6 @@ def feedback_feed():
                 fb.email_hash = hash_email(derived_email)
                 if not getattr(fb, "email_encrypted", None):
                     fb.email_encrypted = encrypt_text(derived_email)
-                try:
-                    msg_plain = decrypt_text(fb.message_encrypted) or ""
-                except Exception:
-                    msg_plain = ""
-                _upsert_customer_entities(db, feedback=fb, message_plaintext=msg_plain)
-                _upsert_search_document(db, feedback=fb, message_plaintext=msg_plain)
                 touched = True
                 backfill_budget -= 1
             if touched:
@@ -795,7 +799,7 @@ def feedback_feed():
             db.rollback()
             logger.exception("Failed legacy customer identity backfill")
 
-        items = [_serialize_feedback(f) for f in page]
+        items = _serialize_feedback_batch(db, page)
         if user:
             read_ids, pinned_ids = get_user_inbox_state_maps(db, int(user.id))
             for item in items:

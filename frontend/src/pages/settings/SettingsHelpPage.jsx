@@ -80,7 +80,7 @@ export default function SettingsHelpPage({ auth }) {
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {guide.isAdmin
             ? 'You are signed in as a platform administrator. Use the sidebar Admin section for operations; Settings is under Account.'
-            : 'Use the left sidebar to move between areas. Most day-to-day work flows Overview → Insights → Inbox.'}
+            : 'Use the left sidebar to move between areas. Most day-to-day work flows Overview → Reports (Insights) → Inbox.'}
         </p>
         <ol className="mt-4 space-y-2 list-decimal list-inside text-sm text-gray-700 dark:text-gray-300">
           {guide.workflowSteps.map((step) => (

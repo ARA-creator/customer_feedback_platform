@@ -12,7 +12,7 @@ export default function DashboardTopBar({
   onToggleAutoRefresh,
   onRefresh,
 }) {
-  if (mode === 'overview') {
+  if (mode === 'overview' || mode === 'insights') {
     return null
   }
 

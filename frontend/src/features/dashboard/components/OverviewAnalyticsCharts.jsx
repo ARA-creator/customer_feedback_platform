@@ -315,21 +315,7 @@ export default function OverviewAnalyticsCharts({
                       {trendEmptyMessage}
                     </p>
                   )}
-                  <div
-                    style={{ height: '320px' }}
-                    role={onNavigateToInsights ? 'button' : undefined}
-                    tabIndex={onNavigateToInsights ? 0 : undefined}
-                    onClick={() => onNavigateToInsights?.()}
-                    onKeyDown={(e) => {
-                      if (!onNavigateToInsights) return
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onNavigateToInsights()
-                      }
-                    }}
-                    className={onNavigateToInsights ? 'cursor-pointer' : undefined}
-                    aria-label={onNavigateToInsights ? 'Open insights' : undefined}
-                  >
+                  <div style={{ height: '320px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart
                         data={trendData}

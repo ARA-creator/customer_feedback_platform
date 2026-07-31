@@ -123,11 +123,13 @@ export default function ThemeLandscapeCard({
   insuranceTagsBreakdown,
   insuranceTagsTrends,
   metrics,
-  insightsRange,
+  timeWindow = 'all',
   selectedThemeKey,
   onSelectTheme,
   onNavigateToInbox,
   loading,
+  sentimentFilter = 'all',
+  statusFilter = 'all',
 }) {
   const [sortMode, setSortMode] = useState('volume')
   const totalFeedback = Number(metrics?.totalFeedback ?? 0) || 0
@@ -141,16 +143,15 @@ export default function ThemeLandscapeCard({
   }, [insuranceTagsBreakdown, sortMode])
 
   const openInbox = (themeKey) => {
-    const preset = buildThemePreset(themeKey, insightsRange)
+    const preset = buildThemePreset(themeKey, timeWindow, sentimentFilter, statusFilter)
     if (preset) onNavigateToInbox?.(preset)
   }
 
   return (
     <InsightsSectionCard
       title="Theme landscape"
-      subtitle="Click to select · double-click or use inbox icon to open filtered inbox. 90-day view uses 30-day inbox filter."
+      subtitle="Select a theme to investigate. Double-click to open inbox."
       right={<SortToggle sortMode={sortMode} onChange={setSortMode} />}
-      className="lg:col-span-2"
     >
       {loading ? (
         <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
@@ -158,7 +159,7 @@ export default function ThemeLandscapeCard({
         <p className="text-sm text-gray-600 dark:text-gray-300">No theme data yet.</p>
       ) : (
         <>
-          <div className="hidden lg:flex flex-wrap gap-2 min-h-[200px]">
+          <div className="hidden lg:flex flex-wrap content-start gap-2">
             {themes.map((t, idx) => (
               <BentoTile
                 key={t.key}

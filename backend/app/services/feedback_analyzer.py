@@ -46,6 +46,7 @@ def gather_analyzer_context(
     perms: set[str],
     time_window: str,
     sentiment: str = "",
+    inbox_tab: str = "all",
     scope_feedback_query,
 ) -> Dict[str, Any]:
     now = datetime.now(tz=timezone.utc)
@@ -66,6 +67,12 @@ def gather_analyzer_context(
     sent = (sentiment or "").strip().lower()
     if sent in ("positive", "negative", "neutral"):
         scoped = scoped.filter(func.lower(Feedback.sentiment_label) == sent)
+
+    tab = (inbox_tab or "all").strip().lower()
+    if tab in ("read", "unread", "replied"):
+        from ..services.inbox_state import apply_inbox_tab_filter
+
+        scoped = apply_inbox_tab_filter(scoped, db, int(user.id), tab)
 
     total = scoped.count() or 0
 
@@ -304,6 +311,7 @@ def run_feedback_analyzer(
     perms: set[str],
     time_window: str,
     sentiment: str = "",
+    inbox_tab: str = "all",
     scope_feedback_query,
 ) -> Dict[str, Any]:
     context = gather_analyzer_context(
@@ -312,6 +320,7 @@ def run_feedback_analyzer(
         perms=perms,
         time_window=time_window,
         sentiment=sentiment,
+        inbox_tab=inbox_tab,
         scope_feedback_query=scope_feedback_query,
     )
     total = int(context["metrics"].get("total_feedback") or 0)
