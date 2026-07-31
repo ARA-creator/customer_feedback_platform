@@ -108,6 +108,7 @@ export default function Customer360({ onNavigate }) {
           map.set(key, {
             policy_hash: m.policy_hash,
             policy_masked: m.policy_masked,
+            policy_number: m.policy_number || null,
             product_prefix: m.product_prefix,
             product_group: m.product_group,
             needs_review: !!m.needs_review,
@@ -120,6 +121,7 @@ export default function Customer360({ onNavigate }) {
         row.product_group = row.product_group || m.product_group
         row.product_prefix = row.product_prefix || m.product_prefix
         row.policy_masked = row.policy_masked || m.policy_masked
+        row.policy_number = row.policy_number || m.policy_number || null
       }
     }
     return Array.from(map.values()).sort((a, b) => (b.total_mentions || 0) - (a.total_mentions || 0))
@@ -204,8 +206,13 @@ export default function Customer360({ onNavigate }) {
         </div>
       </div>
 
-      {customerKey ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 break-all font-mono">{customerKey}</p>
+      {data?.customer?.email ? (
+        <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email </span>
+          {data.customer.email}
+        </p>
+      ) : customerKey ? (
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 break-all">{customerKey.replace(/^email_hash:/, 'Customer key: ')}</p>
       ) : null}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -379,7 +386,7 @@ export default function Customer360({ onNavigate }) {
                     policySummary.slice(0, 18).map((p) => {
                       const isActive = policyFilterHash && p.policy_hash === policyFilterHash
                       const labelLeft = p.product_group || p.product_prefix || 'product'
-                      const labelRight = p.policy_masked || 'policy'
+                      const labelRight = p.policy_number || p.policy_masked || 'policy'
                       return (
                         <button
                           key={p.policy_hash}

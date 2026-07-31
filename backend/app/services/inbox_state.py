@@ -153,14 +153,19 @@ def apply_inbox_state_patch(
 
 
 def apply_inbox_tab_filter(query, db, user_id: int, inbox_tab: Optional[str]):
-    """Filter feedback query by per-user read state (all | read | unread)."""
+    """Filter feedback query by per-user read state or replied (all | read | unread | replied)."""
     from sqlalchemy import and_, exists
 
     from ..models import Feedback, UserFeedbackInboxState
 
     tab = (inbox_tab or "all").strip().lower()
+    if tab == "replied":
+        return query.filter(Feedback.replied_at.isnot(None))
     if tab not in ("read", "unread"):
         return query
+
+    # Read/Unread operate on unreplied items (replied live on the Replied tab).
+    query = query.filter(Feedback.replied_at.is_(None))
 
     read_exists = exists().where(
         and_(
@@ -175,12 +180,20 @@ def apply_inbox_tab_filter(query, db, user_id: int, inbox_tab: Optional[str]):
 
 
 def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
-    """Count all/read/unread for the current scoped feedback query."""
+    """Count all/read/unread/replied for the current scoped feedback query."""
     from sqlalchemy import and_, exists, func
 
     from ..models import Feedback, UserFeedbackInboxState
 
     total = base_query.with_entities(func.count(Feedback.id)).scalar() or 0
+    replied_count = (
+        base_query.filter(Feedback.replied_at.isnot(None))
+        .with_entities(func.count(Feedback.id))
+        .scalar()
+        or 0
+    )
+    unreplied = base_query.filter(Feedback.replied_at.is_(None))
+    unreplied_total = unreplied.with_entities(func.count(Feedback.id)).scalar() or 0
     read_exists = exists().where(
         and_(
             UserFeedbackInboxState.feedback_id == Feedback.id,
@@ -188,9 +201,15 @@ def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
             UserFeedbackInboxState.read_at.isnot(None),
         )
     )
-    read_count = base_query.filter(read_exists).with_entities(func.count(Feedback.id)).scalar() or 0
-    unread_count = max(int(total) - int(read_count), 0)
-    return {"all": int(total), "read": int(read_count), "unread": unread_count}
+    read_count = unreplied.filter(read_exists).with_entities(func.count(Feedback.id)).scalar() or 0
+    unread_count = max(int(unreplied_total) - int(read_count), 0)
+    return {
+        "all": int(unreplied_total),
+        "read": int(read_count),
+        "unread": int(unread_count),
+        "replied": int(replied_count),
+        "total": int(total),
+    }
 
 
 def get_inbox_open_activity(db, *, limit: int = 50) -> Dict[str, object]:

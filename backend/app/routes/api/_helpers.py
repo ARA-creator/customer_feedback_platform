@@ -687,6 +687,7 @@ def _serialize_feedback_batch(
             {
                 "policy_hash": r.policy_hash,
                 "policy_masked": r.policy_masked,
+                "policy_number": r.policy_masked if r.policy_masked and "(name match)" not in str(r.policy_masked) else None,
                 "product_prefix": r.product_prefix,
                 "product_group": r.product_group,
                 "product_description": r.product_description,
@@ -766,6 +767,7 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         {
             "policy_hash": r.policy_hash,
             "policy_masked": r.policy_masked,
+            "policy_number": r.policy_masked if r.policy_masked and "(name match)" not in str(r.policy_masked) else None,
             "product_prefix": r.product_prefix,
             "product_group": r.product_group,
             "product_description": r.product_description,

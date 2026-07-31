@@ -23,22 +23,21 @@ from ...models import (
     Feedback,
     FeedbackPolicyMatch,
 )
-from ...security import encrypt_text, hash_email
+from ...security import decrypt_text, encrypt_text, hash_email
 from ...services.metadata_normalization import safe_json_loads
+from ...services.policy_detection import is_policy_number_match
+from ...services.prioritization import normalize_source_group
 from . import api_bp
 from ._helpers import (
     _find_customer_profile,
     _normalize_metadata,
-    _parse_dt,
     _purchase_summary_for_customer,
     _require_user,
     _scope_feedback_query,
-    _safe_json_dumps,
     _serialize_feedback_batch,
     _ticket_summary_for_customer,
     _user_permission_keys,
 )
-from ...services.prioritization import normalize_source_group
 
 
 @api_bp.route("/customers/<path:customer_key>", methods=["GET"])
@@ -201,18 +200,75 @@ def customer_profile(customer_key: str):
                 continue
             linked_policy_count += 1
             label = str(getattr(ident, "label", "") or "")
-            if "•••••" in label:
+            # Prefer the policy fragment after " · " when present.
+            policy_part = label.split(" · ")[-1].strip() if " · " in label else label
+            if is_policy_number_match(policy_part) or is_policy_number_match(label):
                 verified_policy_count += 1
         if verified_policy_count:
             policy_holder_status = "verified"
         elif linked_policy_count:
             policy_holder_status = "estimated"
 
+        # Decrypt email for officers (internal tool — show plaintext, not hash).
+        email_plain = None
+        if profile and getattr(profile, "primary_email_encrypted", None):
+            email_plain = decrypt_text(profile.primary_email_encrypted)
+        if not email_plain:
+            for row in rows[:5]:
+                if getattr(row, "email_encrypted", None):
+                    email_plain = decrypt_text(row.email_encrypted)
+                    if email_plain:
+                        break
+                meta = _normalize_metadata(row)
+                cand = (
+                    meta.get("sender_email")
+                    or meta.get("email")
+                    or meta.get("from_email")
+                )
+                if cand and "@" in str(cand):
+                    email_plain = str(cand).strip()
+                    break
+
+        identifiers_payload = []
+        for ident in identifiers:
+            itype = str(ident.identifier_type or "").lower()
+            label = ident.label
+            display_type = itype.replace("_", " ")
+            if itype in {"email_hash", "email"}:
+                display_type = "email"
+                if email_plain:
+                    label = email_plain
+            elif itype == "policy_hash":
+                display_type = "policy"
+            identifiers_payload.append(
+                {
+                    "id": ident.id,
+                    "identifier_type": display_type,
+                    "identifier_value": ident.identifier_value,
+                    "label": label,
+                    "source": ident.source,
+                }
+            )
+        if email_plain and not any(
+            str(i.get("identifier_type") or "").lower() == "email" for i in identifiers_payload
+        ):
+            identifiers_payload.insert(
+                0,
+                {
+                    "id": None,
+                    "identifier_type": "email",
+                    "identifier_value": email_plain,
+                    "label": email_plain,
+                    "source": "feedback",
+                },
+            )
+
         return jsonify(
             {
                 "customer": {
                     "customer_key": customer_key,
                     "label": customer_label or raw_value,
+                    "email": email_plain,
                     "profile_id": getattr(profile, "id", None),
                     "external_customer_id": getattr(profile, "external_customer_id", None),
                     "customer_tier": getattr(profile, "customer_tier", None),
@@ -227,16 +283,7 @@ def customer_profile(customer_key: str):
                     "linked_policy_count": linked_policy_count,
                     "verified_policy_count": verified_policy_count,
                 },
-                "identifiers": [
-                    {
-                        "id": ident.id,
-                        "identifier_type": ident.identifier_type,
-                        "identifier_value": ident.identifier_value,
-                        "label": ident.label,
-                        "source": ident.source,
-                    }
-                    for ident in identifiers
-                ],
+                "identifiers": identifiers_payload,
                 "purchases": purchases_payload,
                 "tickets": tickets_payload,
                 "demographics": demographics_payload,

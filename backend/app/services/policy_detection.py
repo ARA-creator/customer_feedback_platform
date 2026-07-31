@@ -10,8 +10,8 @@ We therefore accept:
   - prefix + 8 digits (supported but lower confidence; flag needs_review unless strong context)
 
 Privacy:
-  - Never persist raw policy numbers by default.
-  - Persist salted hash for linking + a masked display string.
+  - Policy numbers are shown in full to authenticated officers in the internal app.
+  - We still store a salted hash for stable linking across feedback.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ class DetectedPolicy:
     confidence: float
     is_primary: bool
     needs_review: bool
+    policy_number: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -131,8 +132,10 @@ for prefix, c in _CATALOG_BY_PREFIX.items():
 _PREFIXES = sorted(PRODUCT_PREFIX_MAP.keys(), key=len, reverse=True)
 _PREFIX_ALT = "|".join(map(re.escape, _PREFIXES))
 
-# We normalize by stripping separators, so prefix+digits are expected contiguous.
-_POLICY_RE = re.compile(rf"(?P<prefix>{_PREFIX_ALT})(?P<digits>\d{{7,8}})")
+# Accept 6–8 digits after a known product prefix.
+# Standard is 7 digits (11 chars total); 8 digits = exceptional 12-char form;
+# 6 digits appears in real customer emails (e.g. EB2V000024) and must be caught.
+_POLICY_RE = re.compile(rf"(?P<prefix>{_PREFIX_ALT})(?P<digits>\d{{6,8}})")
 
 # Phone-ish candidates (Ghana includes +233 / 0xxxxxxxxx common). We only use this to avoid
 # accidental misclassification and for potential future linking; we do not persist raw by default.
@@ -215,11 +218,8 @@ def _normalize_for_scan(text: str) -> str:
 
 
 def _mask_policy(prefix: str, digits: str) -> str:
-    raw = f"{prefix}{digits}"
-    if len(raw) <= 7:
-        return raw
-    # Show prefix + last 3 digits, mask the middle.
-    return f"{prefix}•••••{digits[-3:]}"
+    """Display form for officers — full policy number (internal tool)."""
+    return f"{prefix}{digits}".upper()
 
 
 def _hash_policy(prefix: str, digits: str) -> str:
@@ -243,8 +243,14 @@ def _mask_product_name(prefix: str, group_name: str) -> str:
 
 
 def is_policy_number_match(masked: Optional[str]) -> bool:
-    """True when the match came from a detected policy number (masked middle digits)."""
-    return "•••••" in (masked or "")
+    """True when the match came from a detected policy number (not product-name only)."""
+    s = masked or ""
+    if "(name match)" in s:
+        return False
+    # Full or historically masked policy numbers.
+    if "•••••" in s:
+        return True
+    return bool(re.search(r"^[A-Z0-9]{4}\d{6,8}$", s.upper()))
 
 
 def is_product_name_match(masked: Optional[str]) -> bool:
@@ -337,6 +343,7 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         group, desc = PRODUCT_PREFIX_MAP.get(prefix, ("UNKNOWN", ""))
         is_11 = len(digits) == 7
         is_12 = len(digits) == 8
+        is_10 = len(digits) == 6  # prefix+6 digits (e.g. EB2V000024)
 
         score = 0.60  # base for prefix match (prefix is required by regex)
         needs_review = False
@@ -346,8 +353,10 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         elif is_12:
             score += 0.10
             needs_review = True  # until the 12-char format is confirmed
+        elif is_10:
+            score += 0.12
+            needs_review = True  # shorter-than-standard digit runs
         else:
-            # Shouldn't happen due to regex, but keep safe.
             needs_review = True
 
         # Context boost: look for keywords near the original text (not normalized)
@@ -355,13 +364,14 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         # Since we matched on normalized, we only do a coarse check in original message.
         if any(k in msg_lc for k in _CTX_KEYWORDS):
             score += 0.07
-            if is_12:
+            if is_12 or is_10:
                 needs_review = False  # strong context reduces review requirement
 
         # Clamp
         score = max(0.0, min(0.99, score))
 
         pol_hash = _hash_policy(prefix, digits)
+        policy_number = f"{prefix}{digits}".upper()
         masked = _mask_policy(prefix, digits)
         detected.append(
             DetectedPolicy(
@@ -373,6 +383,7 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
                 confidence=round(score, 3),
                 is_primary=False,
                 needs_review=bool(needs_review),
+                policy_number=policy_number,
             )
         )
 

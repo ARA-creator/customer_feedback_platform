@@ -3,7 +3,10 @@ export function safePolicyMatches(item) {
 }
 
 export function isVerifiedPolicyMatch(match) {
-  return String(match?.policy_masked || '').includes('•••••')
+  const s = String(match?.policy_masked || match?.policy_number || '')
+  if (s.includes('(name match)')) return false
+  if (s.includes('•••••')) return true
+  return /^[A-Za-z0-9]{4}\d{6,8}$/.test(s)
 }
 
 export function policyHolderStatusFromItem(item) {
@@ -23,7 +26,7 @@ export function getPolicySummary(item) {
   return {
     primary,
     labelLeft: primary.product_group || primary.product_prefix || 'product',
-    labelRight: primary.policy_masked || 'policy',
+    labelRight: primary.policy_number || primary.policy_masked || 'policy',
     extra: Math.max(0, matches.length - 1),
     needsReview: matches.some((m) => m && m.needs_review),
     status,

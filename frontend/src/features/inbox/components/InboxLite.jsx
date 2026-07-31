@@ -264,7 +264,7 @@ export default function InboxLite({ onNavigate }) {
   })
   const [folder, setFolder] = useState('inbox') // inbox | archive
   const [listTab, setListTab] = useState('all') // all | read | unread | replied
-  const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0 })
+  const [inboxTabCounts, setInboxTabCounts] = useState({ all: 0, read: 0, unread: 0, replied: 0 })
   const [sortBy, setSortBy] = useState('newest') // newest | oldest | priority
   const [activeQuickFilter, setActiveQuickFilter] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
@@ -533,7 +533,8 @@ export default function InboxLite({ onNavigate }) {
           sort: isPriority ? 'impact' : 'chronological',
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
-          inbox_tab: listTab === 'read' || listTab === 'unread' ? listTab : undefined,
+          inbox_tab:
+            listTab === 'read' || listTab === 'unread' || listTab === 'replied' ? listTab : undefined,
           ...dateParams,
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
@@ -551,7 +552,17 @@ export default function InboxLite({ onNavigate }) {
           .map((it) => normFeedbackId(it.id))
           .filter(Boolean)
         if (append && !isPriority) {
-          setItems((prev) => [...prev, ...newItems])
+          setItems((prev) => {
+            const seen = new Set((prev || []).map((it) => Number(it?.id)).filter(Number.isFinite))
+            const merged = [...(prev || [])]
+            for (const it of newItems) {
+              const id = Number(it?.id)
+              if (!Number.isFinite(id) || seen.has(id)) continue
+              seen.add(id)
+              merged.push(it)
+            }
+            return merged
+          })
           setScopedInboxIds((prev) => {
             const next = new Set(prev)
             for (const id of inboxIds) next.add(id)
@@ -569,6 +580,7 @@ export default function InboxLite({ onNavigate }) {
             all: Number(feed.inbox_tab_counts.all) || 0,
             read: Number(feed.inbox_tab_counts.read) || 0,
             unread: Number(feed.inbox_tab_counts.unread) || 0,
+            replied: Number(feed.inbox_tab_counts.replied) || 0,
           })
         }
         if (!append) {
@@ -645,29 +657,33 @@ export default function InboxLite({ onNavigate }) {
     itemsRef.current = items
   }, [items])
 
-  const { visibleItems, inboxCount, repliedCount, archiveCount } = useMemo(() => {
+  const repliedCount = useMemo(() => {
+    const tabs = inboxTabCounts?.replied
+    if (Number.isFinite(tabs) && tabs >= 0) return tabs
+    const arr = Array.isArray(items) ? items : []
+    return arr.filter((it) => !archivedIds.has(it?.id) && it?.replied_at).length
+  }, [inboxTabCounts?.replied, items, archivedIds])
+
+  const { visibleItems, inboxCount, archiveCount } = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
     let a = 0
     let i = 0
-    let r = 0
     for (const it of arr) {
       if (archivedIds.has(it?.id)) {
         a += 1
         continue
       }
-      if (it?.replied_at) r += 1
-      else i += 1
+      if (!it?.replied_at) i += 1
     }
     const filtered = arr.filter((it) => {
       const archived = archivedIds.has(it?.id)
       const replied = Boolean(it?.replied_at)
       if (folder === 'archive') return archived
-      // Inbox folder + Replied list tab
+      // Server already scopes replied tab; keep a client guard for consistency.
       if (listTab === 'replied') return !archived && replied
-      // All / Read / Unread: unreplied inbox items
       return !archived && !replied
     })
-    return { visibleItems: filtered, inboxCount: i, repliedCount: r, archiveCount: a }
+    return { visibleItems: filtered, inboxCount: i, archiveCount: a }
   }, [items, archivedIds, folder, listTab])
 
   const sortedVisibleItems = useMemo(() => {
@@ -728,7 +744,6 @@ export default function InboxLite({ onNavigate }) {
 
   const unreadTabActive = listTab === 'unread'
   const readTabActive = listTab === 'read'
-  const repliedTabActive = listTab === 'replied'
 
   const loadedUnreadOnPage = useMemo(
     () =>
@@ -748,26 +763,21 @@ export default function InboxLite({ onNavigate }) {
     [visibleItems, readIds],
   )
 
-  /** Read/Unread/Replied tabs filter client-side; paginate until matching rows appear or feed ends. */
+  /** Read/Unread tabs filter client-side; paginate until matching rows appear or feed ends.
+   * Replied is server-filtered (`inbox_tab=replied`) — do not auto-append through the whole feed. */
   useEffect(() => {
-    if (!unreadTabActive && !readTabActive && !repliedTabActive) return
+    if (!unreadTabActive && !readTabActive) return
     if (loading || loadingMore) return
     if (!feedHasMore) return
-    if (repliedTabActive) {
-      if (visibleItems.length > 0) return
-    } else {
-      const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
-      if (loadedOnPage > 0) return
-    }
+    const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
+    if (loadedOnPage > 0) return
     if (items.length === 0) return
     load({ append: true })
   }, [
     unreadTabActive,
     readTabActive,
-    repliedTabActive,
     loadedUnreadOnPage,
     loadedReadOnPage,
-    visibleItems.length,
     feedHasMore,
     loading,
     loadingMore,
@@ -776,7 +786,7 @@ export default function InboxLite({ onNavigate }) {
   ])
 
   const prefetchingList =
-    (unreadTabActive || readTabActive || repliedTabActive) &&
+    (unreadTabActive || readTabActive) &&
     !loading &&
     displayedItems.length === 0 &&
     items.length > 0 &&
