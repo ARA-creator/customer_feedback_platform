@@ -22,6 +22,37 @@ function safeTags(item) {
   return Array.isArray(raw) ? raw : []
 }
 
+function localDayKey(d = new Date()) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** True when feedback arrived on the user's local calendar day. */
+export function isCreatedToday(item, now = new Date()) {
+  const raw = item?.created_at
+  if (!raw) return false
+  const t = new Date(raw)
+  if (!Number.isFinite(t.getTime())) return false
+  return localDayKey(t) === localDayKey(now)
+}
+
+function isUnreadId(readIds, id) {
+  const n = Number(id)
+  if (!Number.isFinite(n)) return true
+  return !readIds?.has?.(n)
+}
+
+/**
+ * "New feedback" = arrived today, or still unread.
+ * Today's items stay "new" even after a quick open; unread covers the backlog.
+ */
+export function isNewFeedback(item, readIds, now = new Date()) {
+  if (isCreatedToday(item, now)) return true
+  return isUnreadId(readIds, item?.id)
+}
+
 export function extractFeedbackTitle(item) {
   const msg = String(item?.message || item?.message_preview || '').trim()
   if (!msg) return 'Feedback'
@@ -34,7 +65,7 @@ export function getPriorityBadge(item) {
   const score = Number(item?.priority ?? item?.impact_score ?? 0)
   if (score >= 80) return { label: 'High', tone: 'high' }
   if (score >= 50) return { label: 'Medium', tone: 'medium' }
-  return { label: 'New', tone: 'new' }
+  return { label: 'Low', tone: 'low' }
 }
 
 export function isHighPriority(item) {
@@ -52,12 +83,6 @@ export function needsResponse(item) {
  * Stable unread count for the current inbox filter.
  * Uses server total when available; unloaded rows count as unread until marked read.
  */
-function isUnreadId(readIds, id) {
-  const n = Number(id)
-  if (!Number.isFinite(n)) return true
-  return !readIds?.has?.(n)
-}
-
 export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItems }) {
   const totalN = Number(total)
   const scoped = scopedIds?.size ? scopedIds : null
@@ -85,22 +110,42 @@ export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItem
   return arr.filter((it) => isUnreadId(readIds, it?.id)).length
 }
 
-export function computeInboxStats(items, { readIds, folder }) {
+/**
+ * New feedback count: all unread, plus today's items already marked read
+ * (so "arrived today" still counts after opening).
+ */
+export function computeNewFeedbackCount({ unreadCount, loadedItems, readIds, now = new Date() }) {
+  const unread = Math.max(0, Number(unreadCount) || 0)
+  const arr = Array.isArray(loadedItems) ? loadedItems : []
+  let todayRead = 0
+  for (const it of arr) {
+    if (!isCreatedToday(it, now)) continue
+    if (isUnreadId(readIds, it?.id)) continue
+    todayRead += 1
+  }
+  return unread + todayRead
+}
+
+export function computeInboxStats(items, { readIds, folder, unreadCount } = {}) {
   const arr = Array.isArray(items) ? items : []
   const inboxItems = folder === 'archive' ? arr : arr
   let high = 0
   let negative = 0
-  let unread = 0
   for (const it of inboxItems) {
-    if (isUnreadId(readIds, it?.id)) unread += 1
     if (isHighPriority(it)) high += 1
     if (String(it?.sentiment_label || '').toLowerCase() === 'negative') negative += 1
   }
   const total = inboxItems.length
   const negativePct = total > 0 ? Math.round((negative / total) * 100) : 0
+  const loadedUnread = inboxItems.filter((it) => isUnreadId(readIds, it?.id)).length
+  const newCount = computeNewFeedbackCount({
+    unreadCount: unreadCount != null ? unreadCount : loadedUnread,
+    loadedItems: inboxItems,
+    readIds,
+  })
 
   return {
-    newCount: unread,
+    newCount,
     highPriorityCount: high,
     negativePct,
     avgResponseLabel: '—',

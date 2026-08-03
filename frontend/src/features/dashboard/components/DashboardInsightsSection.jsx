@@ -29,19 +29,12 @@ import ChannelMonitorsCard from './insights/ChannelMonitorsCard'
 import SourceThemeMatrixCard from './insights/SourceThemeMatrixCard'
 import InsightsInvestigateBar from './insights/InsightsInvestigateBar'
 import InsightsSectionCard from './insights/InsightsSectionCard'
+import { formatTrendAxisDate } from './overview/chartUi'
 
 function clamp(n, min, max) {
   const x = Number(n)
   if (!Number.isFinite(x)) return min
   return Math.min(max, Math.max(min, x))
-}
-
-function fmtDayLabel(iso) {
-  if (!iso) return ''
-  const s = String(iso)
-  const parts = s.split('-')
-  if (parts.length >= 3) return `${parts[1]}/${parts[2]}`
-  return s
 }
 
 function StatCard({ label, value, sub, accent = 'slate', trackPct = 100 }) {
@@ -136,12 +129,22 @@ export default function DashboardInsightsSection({
   }))
 
   const sourceData = Array.isArray(sourceTrends?.data) ? sourceTrends.data : []
-  const sources = Array.isArray(sourceTrends?.sources) ? sourceTrends.sources : []
+  const sourcesRaw = Array.isArray(sourceTrends?.sources) ? sourceTrends.sources : []
   const sourceTotals = (() => {
     const totals = {}
     let totalAll = 0
+    const keys = sourcesRaw.length
+      ? sourcesRaw
+      : Array.from(
+          sourceData.reduce((set, row) => {
+            Object.keys(row || {}).forEach((k) => {
+              if (k !== 'date') set.add(k)
+            })
+            return set
+          }, new Set()),
+        )
     for (const row of sourceData) {
-      for (const k of sources) {
+      for (const k of keys) {
         if (k === 'date') continue
         const n = Number(row?.[k] ?? 0) || 0
         totals[k] = (totals[k] || 0) + n
@@ -150,6 +153,8 @@ export default function DashboardInsightsSection({
     }
     return { totals, totalAll }
   })()
+  // Plot only channels with volume in this period (hides flat "Other" at zero).
+  const sources = sourcesRaw.filter((k) => k && k !== 'date' && (Number(sourceTotals.totals?.[k]) || 0) > 0)
 
   const topThemes = buildTopThemes(insuranceTagsBreakdown, 8)
 
@@ -249,12 +254,8 @@ export default function DashboardInsightsSection({
     }
   }
 
-  // Source trend legend pills: shares among channels with >0 volume (avoids misleading 50/50 on zeros).
-  const sourcePillKeys = (() => {
-    const keys = sources.filter((k) => k && k !== 'date')
-    const nonZero = keys.filter((k) => (Number(sourceTotals.totals?.[k]) || 0) > 0)
-    return nonZero.length > 0 ? nonZero : keys
-  })()
+  // Channel trend legend pills: shares among channels with >0 volume.
+  const sourcePillKeys = sources
   const sourcePillTotal = sourcePillKeys.reduce((sum, k) => sum + (Number(sourceTotals.totals?.[k]) || 0), 0)
 
   return (
@@ -384,8 +385,8 @@ export default function DashboardInsightsSection({
       {/* Charts grid */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         <InsightsSectionCard
-          title="Source trend"
-          subtitle="Daily volume by top channels (others grouped)."
+          title="Channel trend"
+          subtitle="Daily volume by top channels for the selected period (others grouped)."
           right={
             <div className="flex flex-wrap gap-2">
               {sourcePillKeys.slice(0, 6).map((k, idx) => {
@@ -410,6 +411,10 @@ export default function DashboardInsightsSection({
         >
           {loadingState ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
+          ) : sources.length === 0 ? (
+            <p className="flex h-72 items-center justify-center text-sm text-gray-600 dark:text-gray-300">
+              No channel volume in this period.
+            </p>
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -419,7 +424,7 @@ export default function DashboardInsightsSection({
                     dataKey="date"
                     tick={{ fill: isDarkMode ? '#cbd5e1' : '#64748b', fontSize: 11 }}
                     axisLine={{ stroke: isDarkMode ? '#334155' : '#e2e8f0' }}
-                    tickFormatter={fmtDayLabel}
+                    tickFormatter={formatTrendAxisDate}
                   />
                   <YAxis
                     tick={{ fill: isDarkMode ? '#cbd5e1' : '#64748b', fontSize: 11 }}
@@ -434,6 +439,7 @@ export default function DashboardInsightsSection({
                       boxShadow: '0 18px 48px rgba(2,6,23,0.12)',
                     }}
                     labelStyle={{ color: isDarkMode ? '#e5e7eb' : '#0f172a', fontWeight: 700 }}
+                    labelFormatter={formatTrendAxisDate}
                   />
                   <Legend formatter={(value) => humanizeSource(value)} />
                   {sources.map((src) => {
@@ -459,14 +465,14 @@ export default function DashboardInsightsSection({
         </InsightsSectionCard>
 
         <InsightsSectionCard
-          title="Top issues"
-          subtitle="Themes with the most negative feedback in this window."
+          title="Topics"
+          subtitle="Topics with the most negative feedback in this window."
         >
           {loadingState ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
           ) : topIssuesEmpty ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              No negative feedback by theme in this range yet.
+              No negative feedback by topic in this range yet.
             </p>
           ) : (
             <div className="h-72">

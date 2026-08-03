@@ -29,11 +29,15 @@ const SUMMARY_CARDS = [
     key: 'newCount',
     label: 'New feedback',
     color: '#10B981',
+    // Daily arrivals (today + recent days); unread backlog is reflected in the count value.
     sparkPredicate: null,
+    useNewSpark: true,
+    hint: 'Received today, or not yet read',
   },
 ]
 
 const QUICK_FILTERS = [
+  { id: 'new', label: 'New', dot: true },
   { id: 'unread', label: 'Unread', dot: true },
   { id: 'needs_response', label: 'Needs response' },
   { id: 'high_priority', label: 'High priority' },
@@ -59,11 +63,13 @@ export default function InboxSidebar({
   onSelectTheme,
   activeTheme = 'all',
   unreadCount,
+  newCount,
   needsResponseCount,
   highPriorityCount,
   negative7dCount = 0,
 }) {
   const quickCounts = {
+    new: newCount ?? stats?.newCount,
     unread: unreadCount,
     needs_response: needsResponseCount,
     high_priority: highPriorityCount,
@@ -121,25 +127,50 @@ export default function InboxSidebar({
                   return tags.some((t) => String(t || '').trim().toLowerCase() === topThemeKey)
                 }
               : undefined
-            const spark = buildDailySparkline(items, {
+            // New-feedback spark = daily arrivals; count value = today + unread.
+            const sparkPredicate = card.useNewSpark
+              ? undefined
+              : themePredicate || card.sparkPredicate || undefined
+            const sparkData = buildDailySparkline(items, {
               days: 7,
-              predicate: themePredicate || card.sparkPredicate || undefined,
+              predicate: sparkPredicate,
             })
             const value = card.isText ? stats?.[card.key] ?? '—' : stats?.[card.key] ?? 0
             const valueClass =
               card.isText && String(value).length > 14
                 ? 'text-sm font-bold leading-snug text-gray-900 dark:text-gray-100'
                 : 'text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100'
-            return (
-              <div
-                key={card.key}
-                className="rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 dark:border-gray-800 dark:bg-gray-900/50"
-              >
+            const interactive = card.key === 'newCount'
+            const body = (
+              <>
                 <p className={valueClass}>{value}</p>
                 <p className="mt-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
+                {card.hint ? (
+                  <p className="mt-0.5 text-[10px] leading-snug text-gray-400 dark:text-gray-500">{card.hint}</p>
+                ) : null}
                 <div className="mt-2 h-8">
-                  <MiniSparkline data={spark} color={card.color} height={32} />
+                  <MiniSparkline data={sparkData} color={card.color} height={32} />
                 </div>
+              </>
+            )
+            const shellClass =
+              'rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 text-left dark:border-gray-800 dark:bg-gray-900/50'
+            if (interactive) {
+              return (
+                <button
+                  type="button"
+                  key={card.key}
+                  title={card.hint || undefined}
+                  onClick={() => onQuickFilter?.(activeQuickFilter === 'new' ? 'clear' : 'new')}
+                  className={`${shellClass} cursor-pointer transition-colors hover:border-[#009750]/40 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20`}
+                >
+                  {body}
+                </button>
+              )
+            }
+            return (
+              <div key={card.key} className={shellClass} title={card.hint || undefined}>
+                {body}
               </div>
             )
           })}

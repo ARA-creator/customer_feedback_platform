@@ -31,7 +31,6 @@ export default function OverviewChartsSection({
   productPulse = [],
   recentFeedback = [],
   overviewSentimentFilter = 'all',
-  overviewStatusFilter = 'all',
   recentFeedbackLoading = false,
   navigateToInboxPreset,
   onNavigateToInsights,
@@ -113,9 +112,6 @@ export default function OverviewChartsSection({
       navigateToInboxPreset({
         sentiment: overviewSentimentFilter || 'all',
         priority: 'all',
-        ...(overviewStatusFilter === 'read' || overviewStatusFilter === 'replied'
-          ? { list_tab: overviewStatusFilter }
-          : {}),
       })
       return
     }

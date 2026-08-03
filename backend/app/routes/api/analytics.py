@@ -7,7 +7,7 @@ Moved from legacy `backend/app/routes/api.py`.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from flask import jsonify, request
@@ -81,12 +81,11 @@ def get_analytics():
         metrics_to = filter_to
         trend_from = filter_from
         trend_to = filter_to
+        # "All time" must apply to trend charts too (not a silent last-30-days clip).
         if time_window == "all":
-            req_range = request.args.get("range_days", type=int) or 30
-            range_days = req_range if req_range in (7, 30, 90) else 30
             metrics_from = None
             metrics_to = None
-            trend_from = now - timedelta(days=range_days)
+            trend_from = None
             trend_to = None
 
         pf_prefix = (request.args.get("product_prefix") or "").strip()
@@ -214,8 +213,15 @@ def get_analytics():
             chart_end = now.date()
         if trend_from is not None:
             chart_start = trend_from.date()
+        elif trends_map:
+            try:
+                chart_start = min(date.fromisoformat(k) for k in trends_map.keys())
+            except Exception:
+                chart_start = chart_end - timedelta(days=max(int(range_days or 30) - 1, 0))
         else:
-            chart_start = chart_end - timedelta(days=max(range_days - 1, 0))
+            chart_start = chart_end - timedelta(days=max(int(range_days or 30) - 1, 0))
+        if chart_start > chart_end:
+            chart_start = chart_end
         trends_filled: list[Dict[str, Any]] = []
         d = chart_start
         while d <= chart_end:
@@ -388,6 +394,7 @@ def get_analytics():
 
         top_sources = [k for (k, _) in sorted(source_totals.items(), key=lambda kv: kv[1], reverse=True)[:5]]
         source_trends_data: list[Dict[str, Any]] = []
+        other_period_total = 0
         for row in trends:
             day_key = row.get("date")
             if not day_key:
@@ -400,12 +407,16 @@ def get_analytics():
                     out[src] = int(c or 0)
                 else:
                     other_total += int(c or 0)
+            other_period_total += other_total
             if other_total > 0:
                 out["other"] = other_total
             for src in top_sources:
                 out.setdefault(src, 0)
-            out.setdefault("other", 0)
             source_trends_data.append(out)
+        # Only expose "other" when there is non-top channel volume in the period.
+        if other_period_total > 0:
+            for out in source_trends_data:
+                out.setdefault("other", 0)
 
         source_rows = (
             _pf(
@@ -581,7 +592,10 @@ def get_analytics():
                 "peak_times": peak_times,
                 "score_histogram": score_histogram,
                 "category_trends": category_trends,
-                "source_trends": {"sources": top_sources + ["other"], "data": source_trends_data},
+                "source_trends": {
+                    "sources": top_sources + (["other"] if other_period_total > 0 else []),
+                    "data": source_trends_data,
+                },
                 "source_performance": source_performance,
                 "csat_trends": csat_trends,
                 "insurance_tags_breakdown": insurance_tags_breakdown,

@@ -182,16 +182,14 @@ function Dashboard({
     return p === 'last_week' ? 'week' : p
   })
   const [overviewSentimentFilter, setOverviewSentimentFilter] = useState('all')
-  const [overviewStatusFilter, setOverviewStatusFilter] = useState('all')
   const overviewRecentFeedbackParamsRef = useRef({})
 
   useEffect(() => {
     overviewRecentFeedbackParamsRef.current = buildOverviewRecentFeedbackParams({
       sentiment: overviewSentimentFilter,
       timeWindow: overviewTimeFilter,
-      status: overviewStatusFilter,
     })
-  }, [overviewSentimentFilter, overviewTimeFilter, overviewStatusFilter])
+  }, [overviewSentimentFilter, overviewTimeFilter])
 
   useEffect(() => {
     const onPrefsChanged = (e) => {
@@ -338,7 +336,6 @@ function Dashboard({
     enabled: mode === 'overview',
     sentiment: overviewSentimentFilter,
     timeWindow: overviewTimeFilter,
-    status: overviewStatusFilter,
     getRecentFeedback,
     setRecentFeedback,
     paramsRef: overviewRecentFeedbackParamsRef,
@@ -349,7 +346,6 @@ function Dashboard({
     insightsProductParams,
       overviewTimeFilter,
     overviewSentimentFilter,
-    overviewStatusFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,
@@ -477,9 +473,6 @@ function Dashboard({
       if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
         analyzerParams.sentiment = overviewSentimentFilter
       }
-      if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
-        analyzerParams.inbox_tab = overviewStatusFilter
-      }
       const data = await getFeedbackAnalyzer(analyzerParams)
       setAnalyzerResult(data)
       setAnalyzerError(null)
@@ -507,7 +500,7 @@ function Dashboard({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, overviewTimeFilter, overviewSentimentFilter, overviewStatusFilter, analyticsDelayPassed, loading])
+  }, [mode, overviewTimeFilter, overviewSentimentFilter, analyticsDelayPassed, loading])
 
   const handleCloseAnalyzer = () => {
     setAnalyzerOpen(false)
@@ -518,11 +511,8 @@ function Dashboard({
     if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
       params.sentiment = overviewSentimentFilter
     }
-    if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
-      params.inbox_tab = overviewStatusFilter
-    }
     return params
-  }, [overviewSentimentFilter, overviewStatusFilter, overviewTimeFilter])
+  }, [overviewSentimentFilter, overviewTimeFilter])
 
   const { exportOverviewCsv: handleExportCsv, exportInboxCsv: handleExportCSV } = useDashboardExports({
     exportParams,
@@ -626,8 +616,6 @@ function Dashboard({
             onChange={setOverviewTimeFilter}
             sentimentValue={overviewSentimentFilter}
             onSentimentChange={setOverviewSentimentFilter}
-            statusValue={overviewStatusFilter}
-            onStatusChange={setOverviewStatusFilter}
             onExportCsv={handleExportCsv}
             exportDisabled={loading || !analyticsDelayPassed}
             isAdminUser={isAdminUser}
@@ -673,7 +661,6 @@ function Dashboard({
               productPulse={productPulse}
               recentFeedback={recentFeedback}
               overviewSentimentFilter={overviewSentimentFilter}
-              overviewStatusFilter={overviewStatusFilter}
               recentFeedbackLoading={recentFeedbackLoading}
               navigateToInboxPreset={navigateToInboxPreset}
               onNavigateToInsights={onNavigateToInsights}
@@ -700,7 +687,6 @@ function Dashboard({
               timeWindow={overviewTimeFilter}
               timeWindowLabel={overviewTimeFilterLabel}
               sentimentFilter={overviewSentimentFilter}
-              statusFilter={overviewStatusFilter}
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
               isDarkMode={isDarkMode}

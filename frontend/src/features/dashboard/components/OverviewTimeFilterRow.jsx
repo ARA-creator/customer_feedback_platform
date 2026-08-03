@@ -1,4 +1,4 @@
-import { FiCalendar, FiCheckCircle, FiClock, FiDownload, FiEye, FiLayers } from 'react-icons/fi'
+import { FiCalendar, FiClock, FiDownload } from 'react-icons/fi'
 import { SENTIMENT_COLORS } from '../constants/palette'
 
 const TIME_FILTERS = [
@@ -13,12 +13,6 @@ const SENTIMENT_FILTERS = [
   { id: 'positive', label: 'Positive', color: SENTIMENT_COLORS.Positive },
   { id: 'negative', label: 'Negative', color: SENTIMENT_COLORS.Negative },
   { id: 'neutral', label: 'Neutral', color: SENTIMENT_COLORS.Neutral },
-]
-
-const STATUS_FILTERS = [
-  { id: 'all', label: 'All status', Icon: FiLayers },
-  { id: 'read', label: 'Read', Icon: FiEye },
-  { id: 'replied', label: 'Replied', Icon: FiCheckCircle },
 ]
 
 const PILL_ACTIVE =
@@ -47,8 +41,6 @@ export default function OverviewTimeFilterRow({
   onChange,
   sentimentValue = 'all',
   onSentimentChange,
-  statusValue = 'all',
-  onStatusChange,
   onExportCsv,
   exportDisabled = false,
   isAdminUser = false,
@@ -94,26 +86,6 @@ export default function OverviewTimeFilterRow({
                         aria-hidden
                       />
                     ) : null}
-                    {label}
-                  </FilterPill>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400">Status</span>
-            <div className="-mx-1 flex w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch]">
-              {STATUS_FILTERS.map(({ id, label, Icon }) => {
-                const active = statusValue === id
-                return (
-                  <FilterPill
-                    key={id}
-                    active={active}
-                    onClick={() => onStatusChange?.(id)}
-                    ariaLabel={`Filter by ${label}`}
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                     {label}
                   </FilterPill>
                 )

@@ -51,7 +51,7 @@ export function buildTopThemes(insuranceTagsBreakdown, limit = 8) {
     .slice(0, limit)
 }
 
-/** Top issues chart: negative feedback by theme (insurance tags), with legacy category fallback. */
+/** Topics chart: negative feedback by theme (insurance tags), with legacy category fallback. */
 export function buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeMap, limit = 8) {
   const fromThemes = buildTopThemes(insuranceTagsBreakdown, limit * 2)
     .map((t) => ({ name: t.label, value: t.negative }))

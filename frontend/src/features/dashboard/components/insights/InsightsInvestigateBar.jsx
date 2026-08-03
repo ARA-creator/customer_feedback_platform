@@ -21,8 +21,10 @@ export default function InsightsInvestigateBar({
   if (sentimentFilter && sentimentFilter !== 'all') {
     parts.push(sentimentFilter.charAt(0).toUpperCase() + sentimentFilter.slice(1))
   }
-  if (statusFilter === 'read' || statusFilter === 'replied') {
-    parts.push(statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1))
+  if (statusFilter === 'read') {
+    parts.push('Read')
+  } else if (statusFilter === 'replied') {
+    parts.push('Attended to')
   }
 
   const openInbox = () => {

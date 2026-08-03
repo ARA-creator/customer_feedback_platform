@@ -9,7 +9,6 @@ export function useDashboardDataLoader({
   insightsProductParams,
   overviewTimeFilter,
   overviewSentimentFilter = 'all',
-  overviewStatusFilter = 'all',
   isAdminUser,
   dashboardAutoRefresh,
 
@@ -65,9 +64,6 @@ export function useDashboardDataLoader({
         const overviewAnalyticsParams = { time_window: overviewTimeFilter }
         if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
           overviewAnalyticsParams.sentiment = overviewSentimentFilter
-        }
-        if (overviewStatusFilter === 'read' || overviewStatusFilter === 'replied') {
-          overviewAnalyticsParams.inbox_tab = overviewStatusFilter
         }
 
         const analyticsData =
@@ -281,7 +277,6 @@ export function useDashboardDataLoader({
     insightsProductParams,
     overviewTimeFilter,
     overviewSentimentFilter,
-    overviewStatusFilter,
     isAdminUser,
     dashboardAutoRefresh,
     getAnalytics,

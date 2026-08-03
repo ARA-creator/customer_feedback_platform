@@ -32,7 +32,7 @@ export function buildHelpGuide(auth) {
       to: '/reports?tab=insights',
       title: 'Insights',
       description:
-        'Deeper analysis under Reports: theme landscape, channel monitors, source × theme matrix, top issues, and peak feedback times. Use Investigate to jump into the inbox with filters applied.',
+        'Deeper analysis under Reports: theme landscape, feedback by channel, channel × theme matrix, topics, and peak feedback times. Use Investigate to jump into the inbox with filters applied.',
     },
     {
       to: '/inbox',

@@ -13,9 +13,11 @@ import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import {
   computeInboxStats,
+  computeNewFeedbackCount,
   computeStableUnreadCount,
   computeTopThemes,
   isHighPriority,
+  isNewFeedback,
   needsResponse,
   sortInboxItems,
 } from '../utils/inboxDerivedStats'
@@ -705,6 +707,9 @@ export default function InboxLite({ onNavigate }) {
         return id != null && !readIds.has(id)
       })
     }
+    if (activeQuickFilter === 'new') {
+      arr = arr.filter((it) => isNewFeedback(it, readIds))
+    }
     return sortInboxItems(arr, sortBy, pinnedIds)
   }, [visibleItems, activeQuickFilter, readIds, sortBy, pinnedIds])
 
@@ -798,11 +803,23 @@ export default function InboxLite({ onNavigate }) {
     (loadingMore || feedHasMore)
 
   const sidebarStats = useMemo(
-    () => ({
-      ...computeInboxStats(inboxItemsForStats, { readIds, folder: 'inbox' }),
-      newCount: unreadInboxCount,
-    }),
+    () =>
+      computeInboxStats(inboxItemsForStats, {
+        readIds,
+        folder: 'inbox',
+        unreadCount: unreadInboxCount,
+      }),
     [inboxItemsForStats, readIds, unreadInboxCount],
+  )
+
+  const newFeedbackCount = useMemo(
+    () =>
+      computeNewFeedbackCount({
+        unreadCount: unreadInboxCount,
+        loadedItems: inboxItemsForStats,
+        readIds,
+      }),
+    [unreadInboxCount, inboxItemsForStats, readIds],
   )
 
   const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 0), [inboxItemsForStats])
@@ -896,6 +913,7 @@ export default function InboxLite({ onNavigate }) {
     }
     setActiveQuickFilter(id)
     if (id === 'unread') setListTab('unread')
+    if (id === 'new') setListTab('all')
   }, [])
 
   const openFeedback = useCallback(
@@ -1182,7 +1200,7 @@ export default function InboxLite({ onNavigate }) {
                   ),
                 )
               } catch (err) {
-                console.error('Failed to mark replied', err)
+                console.error('Failed to mark attended to', err)
               }
             }}
             formatRelativeTime={formatRelativeTime}
@@ -1212,6 +1230,7 @@ export default function InboxLite({ onNavigate }) {
           onSelectTheme={(key) => setInsuranceTagFilter(key || 'all')}
           activeTheme={insuranceTagFilter}
           unreadCount={unreadInboxCount}
+          newCount={newFeedbackCount}
           needsResponseCount={needsResponseCount}
           highPriorityCount={highPriorityCount}
           negative7dCount={negative7dCount}

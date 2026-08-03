@@ -30,7 +30,7 @@ export default function SourceThemeMatrixCard({
 
   return (
     <InsightsSectionCard
-      title="Source × theme"
+      title="Channel × theme"
       subtitle="Click a cell to select both dimensions. Brighter green = more positive; rose = more negative."
     >
       {loading ? (
@@ -43,7 +43,7 @@ export default function SourceThemeMatrixCard({
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-800">
                 <th className="px-2 py-2 text-left font-semibold text-gray-500 dark:text-gray-400 sticky left-0 bg-white/95 dark:bg-gray-950/95">
-                  Source
+                  Channel
                 </th>
                 {themes.map((th) => (
                   <th

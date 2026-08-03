@@ -10,34 +10,41 @@ import {
 } from '../../utils/insightsMetrics'
 import { buildSourcePreset } from '../../utils/insightsInboxPreset'
 
+function moodFromScore(avgScore) {
+  const v = Number(avgScore)
+  if (!Number.isFinite(v)) return { label: 'No score yet', short: '—' }
+  if (v >= 0.2) return { label: 'Mostly positive', short: 'Positive' }
+  if (v <= -0.2) return { label: 'Mostly negative', short: 'Negative' }
+  return { label: 'Mostly neutral', short: 'Neutral' }
+}
+
 function SentimentGauge({ avgScore, size = 48 }) {
   const v = Number(avgScore)
-  const label = Number.isFinite(v) ? v.toFixed(2) : '—'
+  const mood = moodFromScore(avgScore)
   const pct = Number.isFinite(v) ? ((v + 1) / 2) * 100 : 50
   const color = gaugeColorFromScore(avgScore)
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size / 2 + 4 }}>
-      <svg width={size} height={size / 2 + 4} viewBox={`0 0 ${size} ${size / 2 + 4}`} className="overflow-visible">
-        <path
-          d={`M 4 ${size / 2} A ${size / 2 - 4} ${size / 2 - 4} 0 0 1 ${size - 4} ${size / 2}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="4"
-          className="text-gray-200 dark:text-gray-800"
-        />
-        <path
-          d={`M 4 ${size / 2} A ${size / 2 - 4} ${size / 2 - 4} 0 0 1 ${size - 4} ${size / 2}`}
-          fill="none"
-          stroke={color}
-          strokeWidth="4"
-          strokeDasharray={`${(pct / 100) * Math.PI * (size / 2 - 4)} ${Math.PI * (size / 2 - 4)}`}
-        />
-      </svg>
-      <span
-        className="absolute inset-x-0 bottom-0 text-center text-[10px] font-bold tabular-nums text-gray-900 dark:text-gray-100"
-        style={{ lineHeight: 1 }}
-      >
-        {label}
+    <div className="flex shrink-0 flex-col items-end gap-0.5" title={mood.label}>
+      <div className="relative" style={{ width: size, height: size / 2 + 4 }}>
+        <svg width={size} height={size / 2 + 4} viewBox={`0 0 ${size} ${size / 2 + 4}`} className="overflow-visible">
+          <path
+            d={`M 4 ${size / 2} A ${size / 2 - 4} ${size / 2 - 4} 0 0 1 ${size - 4} ${size / 2}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="4"
+            className="text-gray-200 dark:text-gray-800"
+          />
+          <path
+            d={`M 4 ${size / 2} A ${size / 2 - 4} ${size / 2 - 4} 0 0 1 ${size - 4} ${size / 2}`}
+            fill="none"
+            stroke={color}
+            strokeWidth="4"
+            strokeDasharray={`${(pct / 100) * Math.PI * (size / 2 - 4)} ${Math.PI * (size / 2 - 4)}`}
+          />
+        </svg>
+      </div>
+      <span className="text-[10px] font-semibold tabular-nums" style={{ color }}>
+        {mood.short}
       </span>
     </div>
   )
@@ -68,21 +75,22 @@ export default function ChannelMonitorsCard({
 
   return (
     <InsightsSectionCard
-      title="Channel monitors"
-      subtitle="Voice = volume share · Pain = share of all negative feedback"
+      title="Feedback by channel"
+      subtitle="Where messages come from, and which channels bring more complaints. Click to filter; double-click to open Inbox."
     >
       {loading ? (
         <div className="w-full h-64 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
       ) : sources.length === 0 ? (
-        <p className="text-sm text-gray-600 dark:text-gray-300">No source performance yet.</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300">No channel feedback in this period yet.</p>
       ) : (
         <div className="space-y-3">
           {sources.map((s) => {
             const total = Number(s?.total ?? 0) || 0
-            const voiceShare = total / Math.max(1, totalFeedback)
-            const painShare = computePainShare(s, allNegative)
+            const volumeShare = total / Math.max(1, totalFeedback)
+            const negativeShare = computePainShare(s, allNegative)
             const spark = buildSourceSparkline(sourceTrends, s.source)
             const selected = selectedSourceKey === s.source
+            const mood = moodFromScore(s.avg_score)
 
             return (
               <button
@@ -105,7 +113,7 @@ export default function ChannelMonitorsCard({
                       {humanizeSource(s.source)}
                     </p>
                     <p className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300 tabular-nums">
-                      {total} feedback
+                      {total.toLocaleString()} messages · {mood.label}
                     </p>
                   </div>
                   <SentimentGauge avgScore={s.avg_score} />
@@ -113,29 +121,34 @@ export default function ChannelMonitorsCard({
                 <div className="mt-2 space-y-1.5">
                   <div>
                     <div className="flex justify-between text-[10px] font-semibold text-gray-500 dark:text-gray-400">
-                      <span>Voice</span>
-                      <span className="tabular-nums">{fmtPct(voiceShare)}</span>
+                      <span>Share of all messages</span>
+                      <span className="tabular-nums">{fmtPct(volumeShare)}</span>
                     </div>
                     <div className="mt-0.5 h-1.5 rounded-full bg-gray-100 dark:bg-gray-900/60 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-teal-500/80 to-emerald-600/80 transition-all duration-300"
-                        style={{ width: `${Math.max(4, Math.round(voiceShare * 100))}%` }}
+                        style={{ width: `${Math.max(4, Math.round(volumeShare * 100))}%` }}
                       />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between text-[10px] font-semibold text-gray-500 dark:text-gray-400">
-                      <span>Pain</span>
-                      <span className="tabular-nums">{fmtPct(painShare)}</span>
+                      <span>Share of negative messages</span>
+                      <span className="tabular-nums">{fmtPct(negativeShare)}</span>
                     </div>
                     <div className="mt-0.5 h-1.5 rounded-full bg-gray-100 dark:bg-gray-900/60 overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-rose-400/90 to-rose-500/90 transition-all duration-300"
-                        style={{ width: `${Math.max(4, Math.round(painShare * 100))}%` }}
+                        style={{ width: `${Math.max(4, Math.round(negativeShare * 100))}%` }}
                       />
                     </div>
                   </div>
-                  <MiniSparkline data={spark} color="#009750" height={28} />
+                  <div className="pt-0.5">
+                    <p className="mb-0.5 text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+                      Recent volume
+                    </p>
+                    <MiniSparkline data={spark} color="#009750" height={28} />
+                  </div>
                 </div>
               </button>
             )

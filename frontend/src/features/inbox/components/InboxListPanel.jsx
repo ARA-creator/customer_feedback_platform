@@ -61,7 +61,7 @@ export default function InboxListPanel({
     { key: 'all', label: 'All feedback', Icon: FiInbox, count: allCount },
     { key: 'read', label: 'Read', Icon: FiCheck, count: readCount },
     { key: 'unread', label: 'Unread', Icon: FiMail, count: unreadCount },
-    { key: 'replied', label: 'Replied', Icon: FiSend, count: repliedCount },
+    { key: 'replied', label: 'Attended to', Icon: FiSend, count: repliedCount },
   ]
 
   return (

@@ -6,13 +6,16 @@ import {
   sentimentLabelFromItem,
 } from '../../../shared/lib/sentimentDisplay'
 import { getPolicySummary, policyHolderBadge } from '../../../shared/utils/policyMatch'
-import { extractFeedbackTitle, getPriorityBadge } from '../utils/inboxDerivedStats'
+import { extractFeedbackTitle, getPriorityBadge, isCreatedToday } from '../utils/inboxDerivedStats'
 
 const PRIORITY_STYLES = {
-  new: 'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
+  low: 'border-gray-200/80 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
   medium: 'border-blue-200/80 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200',
   high: 'border-rose-200/80 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
 }
+
+const NEW_BADGE_STYLE =
+  'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
 
 const SENTIMENT_STYLES = {
   positive: 'border-emerald-200/70 bg-emerald-50/90 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200',
@@ -70,6 +73,7 @@ export default function InboxFeedbackRow({
       ? preview.slice(title.length).trim().slice(0, 120) || preview.slice(0, 120)
       : preview.slice(0, 120)
   const priority = getPriorityBadge(item)
+  const showNewBadge = isUnread || isCreatedToday(item)
   const rawTags = Array.isArray(item?.insurance_tags)
     ? item.insurance_tags
     : Array.isArray(item?.channel_metadata?.insurance_tags)
@@ -138,6 +142,14 @@ export default function InboxFeedbackRow({
                 aria-label="Unread"
               />
             ) : null}
+            {showNewBadge ? (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${NEW_BADGE_STYLE}`}
+                title={isCreatedToday(item) ? 'Received today' : 'Not yet read'}
+              >
+                New
+              </span>
+            ) : null}
             <span
               className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SENTIMENT_STYLES[sentiment] || SENTIMENT_STYLES.neutral}`}
             >
@@ -151,9 +163,9 @@ export default function InboxFeedbackRow({
             {item?.replied_at ? (
               <span
                 className="rounded-full border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
-                title="Officer reply detected"
+                title="Marked as attended to"
               >
-                Replied
+                Attended to
               </span>
             ) : null}
             <button
@@ -183,8 +195,8 @@ export default function InboxFeedbackRow({
                   ? 'border-sky-200/80 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
                   : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
               }`}
-              title={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
-              aria-label={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
+              title={item?.replied_at ? 'Move back to Inbox' : 'Mark as attended to'}
+              aria-label={item?.replied_at ? 'Move back to Inbox' : 'Mark as attended to'}
             >
               <FiMail className="h-3.5 w-3.5" aria-hidden />
             </button>
