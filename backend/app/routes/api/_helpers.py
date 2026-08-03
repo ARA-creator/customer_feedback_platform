@@ -37,7 +37,7 @@ from ...models import (
     User,
     UserRole,
 )
-from ...security import decrypt_text
+from ...security import decrypt_text, hash_email
 from ...services.metadata_normalization import (
     build_search_text,
     customer_identity_from,
@@ -487,22 +487,255 @@ def _merge_customer_profiles(db, *, keep: CustomerProfile, absorb: CustomerProfi
     return keep
 
 
+def _normalize_phone_identity(raw: Optional[str]) -> Optional[str]:
+    phone = str(raw or "").strip()
+    if not phone or phone.startswith("*"):
+        return None
+    if phone.lower().startswith("whatsapp:"):
+        phone = phone.split(":", 1)[1].strip()
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if len(digits) < 7:
+        return None
+    return f"+{digits}"
+
+
+def _is_unstable_message_key(value: str) -> bool:
+    """Per-message Twilio/Meta ids must not be used for customer matching."""
+    v = str(value or "").strip()
+    if not v:
+        return True
+    upper = v.upper()
+    if upper.startswith("SM") and len(v) >= 32:
+        return True
+    if upper.startswith("MM") and len(v) >= 32:
+        return True
+    if v.lower().startswith("wamid."):
+        return True
+    return False
+
+
+def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> List[Tuple[str, str, Optional[str]]]:
+    """
+    Every stable identity we can use to recognize the same person across channels.
+    Returns list of (identifier_type, identifier_value, label).
+    """
+    out: List[Tuple[str, str, Optional[str]]] = []
+    seen = set()
+
+    def add(itype: str, ivalue: str, label: Optional[str] = None) -> None:
+        ivalue = str(ivalue or "").strip()
+        if not ivalue or ivalue in seen:
+            return
+        if _is_unstable_message_key(ivalue.split(":", 1)[-1] if ":" in ivalue else ivalue):
+            return
+        seen.add(ivalue)
+        out.append((itype, ivalue, label))
+
+    if getattr(feedback, "customer_id", None):
+        cid = str(feedback.customer_id).strip()
+        if cid:
+            add("customer", f"customer:{cid}", cid)
+
+    email_hash_val = str(getattr(feedback, "email_hash", None) or "").strip()
+    if not email_hash_val:
+        for key in ("sender_email", "email", "from_email"):
+            cand = str(meta.get(key) or "").strip()
+            if cand and "@" in cand:
+                email_hash_val = str(hash_email(cand) or "").strip()
+                if email_hash_val:
+                    break
+    if email_hash_val:
+        add(
+            "email_hash",
+            f"email_hash:{email_hash_val}",
+            meta.get("sender_email") or meta.get("customer_label") or "Email contact",
+        )
+
+    phone = _normalize_phone_identity(meta.get("phone") or meta.get("from_number"))
+    if not phone:
+        phone = _normalize_phone_identity(meta.get("wa_id"))
+    if phone:
+        add("phone", f"phone:{phone}", phone)
+
+    wa_id = str(meta.get("wa_id") or "").strip()
+    if wa_id and not str(wa_id).startswith("*"):
+        add("wa", f"wa:{wa_id}", phone or wa_id)
+
+    for key, prefix, label_key in [
+        ("author_id", "author", "author_username"),
+        ("sender_id", "sender", "from_username"),
+        ("external_user_id", "external", "author_handle"),
+        ("user_id", "user", "author_handle"),
+        ("psid", "psid", "author_handle"),
+        ("ig_user_id", "ig", "author_handle"),
+    ]:
+        value = str(meta.get(key) or "").strip()
+        if value:
+            add(prefix, f"{prefix}:{value}", meta.get(label_key) or value)
+
+    # Stable conversation keys only (not per-message SIDs).
+    thread = str(meta.get("thread_id") or "").strip()
+    if thread and not _is_unstable_message_key(thread):
+        # Prefer phone-based threads already covered; still link social thread ids.
+        if not thread.upper().startswith("SM"):
+            add("thread", f"thread:{thread}", meta.get("author_handle") or thread)
+
+    for key in ("author_handle", "author_username", "from_username"):
+        value = str(meta.get(key) or "").strip()
+        if not value or value.startswith("*"):
+            continue
+        # Skip values that are just phones (already added as phone:).
+        if _normalize_phone_identity(value):
+            continue
+        handle = value if value.startswith("@") else value
+        add("handle", f"handle:{handle.lstrip('@').lower()}", value)
+
+    # Primary customer_key from identity resolution.
+    customer_key = str(meta.get("customer_key") or "").strip()
+    if customer_key:
+        add(customer_key.split(":", 1)[0], customer_key, meta.get("customer_label"))
+
+    return out
+
+
+def _link_identifier_or_merge(
+    db,
+    *,
+    profile: CustomerProfile,
+    identifier_type: str,
+    identifier_value: str,
+    label: Optional[str] = None,
+    source: Optional[str] = None,
+) -> CustomerProfile:
+    """
+    Attach an identity key to this profile, or merge with the profile that already owns it.
+    Any shared identity (email, phone, policy, handle, channel id, …) unifies the person.
+    """
+    if not profile or not identifier_value:
+        return profile
+    existing = (
+        db.query(CustomerIdentifier)
+        .filter(CustomerIdentifier.identifier_value == identifier_value)
+        .first()
+    )
+    if existing:
+        if int(existing.customer_profile_id) == int(profile.id):
+            if label and not existing.label:
+                existing.label = label
+            return profile
+        owner = db.query(CustomerProfile).filter(CustomerProfile.id == existing.customer_profile_id).first()
+        if not owner:
+            return profile
+        keep, absorb = (owner, profile)
+        if profile.created_at and owner.created_at and profile.created_at < owner.created_at:
+            keep, absorb = (profile, owner)
+        return _merge_customer_profiles(db, keep=keep, absorb=absorb)
+
+    db.add(
+        CustomerIdentifier(
+            customer_profile_id=profile.id,
+            identifier_type=identifier_type,
+            identifier_value=identifier_value,
+            label=label,
+            source=source,
+        )
+    )
+    return profile
+
+
+def _find_profile_for_identities(db, identities: List[Tuple[str, str, Optional[str]]]) -> Optional[CustomerProfile]:
+    """Find an existing profile that already owns any of these identity keys."""
+    if not identities:
+        return None
+    values = [ivalue for _, ivalue, _ in identities if ivalue]
+    if not values:
+        return None
+    rows = (
+        db.query(CustomerIdentifier)
+        .filter(CustomerIdentifier.identifier_value.in_(values))
+        .all()
+    )
+    if not rows:
+        return None
+    # If multiple profiles match different keys, merge them onto the oldest.
+    profile_ids = []
+    seen_pids = set()
+    for row in rows:
+        pid = int(row.customer_profile_id)
+        if pid in seen_pids:
+            continue
+        seen_pids.add(pid)
+        profile_ids.append(pid)
+    profiles = (
+        db.query(CustomerProfile)
+        .filter(CustomerProfile.id.in_(profile_ids))
+        .order_by(CustomerProfile.created_at.asc(), CustomerProfile.id.asc())
+        .all()
+    )
+    if not profiles:
+        return None
+    keep = profiles[0]
+    for other in profiles[1:]:
+        keep = _merge_customer_profiles(db, keep=keep, absorb=other)
+    return keep
+
+
 def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str) -> Optional[CustomerProfile]:
     """
-    Ensure a CustomerProfile exists for the feedback's customer_key and keep
-    identifiers/demographics up to date. Also persists policy_hash identifiers
-    for cross-platform unification (privacy-safe).
+    Ensure a CustomerProfile exists for this feedback and keep identifiers up to date.
+
+    Cross-channel unification: any shared stable identity (email, phone, policy number,
+    channel user id, handle, customer id, …) merges profiles into one Customer 360.
     """
     meta = _normalize_metadata(feedback)
     customer_key = meta.get("customer_key")
     customer_label = meta.get("customer_label")
-    if not customer_key:
+    identities = _collect_matchable_identities(feedback, meta)
+
+    # Always include detected policy numbers as match keys.
+    try:
+        pol_rows = (
+            db.query(FeedbackPolicyMatch)
+            .filter(FeedbackPolicyMatch.feedback_id == feedback.id)
+            .all()
+        )
+        for r in pol_rows or []:
+            if not r or not r.policy_hash:
+                continue
+            label_bits = []
+            if r.product_group or r.product_prefix:
+                label_bits.append(r.product_group or r.product_prefix)
+            if r.policy_masked:
+                label_bits.append(r.policy_masked)
+            identities.append(
+                (
+                    "policy_hash",
+                    f"policy_hash:{r.policy_hash}",
+                    " · ".join(label_bits) if label_bits else None,
+                )
+            )
+    except Exception:
+        logger.exception("Failed to load policy matches for customer linking")
+
+    # De-dupe identity list after policy append.
+    deduped: List[Tuple[str, str, Optional[str]]] = []
+    seen_vals = set()
+    for itype, ivalue, label in identities:
+        if not ivalue or ivalue in seen_vals:
+            continue
+        seen_vals.add(ivalue)
+        deduped.append((itype, ivalue, label))
+    identities = deduped
+
+    if not customer_key and not identities:
         return None
 
-    ident = db.query(CustomerIdentifier).filter(CustomerIdentifier.identifier_value == customer_key).first()
-    profile = None
-    if ident:
-        profile = db.query(CustomerProfile).filter(CustomerProfile.id == ident.customer_profile_id).first()
+    profile = _find_profile_for_identities(db, identities)
+    if not profile and customer_key:
+        ident = db.query(CustomerIdentifier).filter(CustomerIdentifier.identifier_value == customer_key).first()
+        if ident:
+            profile = db.query(CustomerProfile).filter(CustomerProfile.id == ident.customer_profile_id).first()
+
     if not profile:
         profile = CustomerProfile(
             external_customer_id=feedback.customer_id,
@@ -516,15 +749,6 @@ def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str)
         )
         db.add(profile)
         db.flush()
-        db.add(
-            CustomerIdentifier(
-                customer_profile_id=profile.id,
-                identifier_type=customer_key.split(":", 1)[0],
-                identifier_value=customer_key,
-                label=customer_label,
-                source=feedback.source,
-            )
-        )
     else:
         if customer_label and not profile.display_name:
             profile.display_name = customer_label
@@ -536,68 +760,20 @@ def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str)
         if meta.get("customer_tier"):
             profile.customer_tier = meta.get("customer_tier")
         profile.updated_at = datetime.now(tz=timezone.utc)
-        exists_ident = db.query(CustomerIdentifier).filter(CustomerIdentifier.identifier_value == customer_key).first()
-        if not exists_ident:
-            db.add(
-                CustomerIdentifier(
-                    customer_profile_id=profile.id,
-                    identifier_type=customer_key.split(":", 1)[0],
-                    identifier_value=customer_key,
-                    label=customer_label,
-                    source=feedback.source,
-                )
-            )
 
-    # Policy-based unification: attach policy_hash, or merge profiles that share one.
+    # Link every identity onto this profile (merges if another profile already owns one).
     try:
-        pol_rows = (
-            db.query(FeedbackPolicyMatch)
-            .filter(FeedbackPolicyMatch.feedback_id == feedback.id)
-            .all()
-        )
-        seen_vals = set()
-        for r in pol_rows or []:
-            if not r or not r.policy_hash:
-                continue
-            ident_val = f"policy_hash:{r.policy_hash}"
-            if ident_val in seen_vals:
-                continue
-            seen_vals.add(ident_val)
-            exists_pol = (
-                db.query(CustomerIdentifier)
-                .filter(CustomerIdentifier.identifier_value == ident_val)
-                .first()
-            )
-            if exists_pol:
-                if int(exists_pol.customer_profile_id) != int(profile.id):
-                    owner = (
-                        db.query(CustomerProfile)
-                        .filter(CustomerProfile.id == exists_pol.customer_profile_id)
-                        .first()
-                    )
-                    if owner:
-                        # Prefer the earlier profile (policy owner) as the canonical record.
-                        keep, absorb = (owner, profile)
-                        if profile.created_at and owner.created_at and profile.created_at < owner.created_at:
-                            keep, absorb = (profile, owner)
-                        profile = _merge_customer_profiles(db, keep=keep, absorb=absorb)
-                continue
-            label_bits = []
-            if r.product_group or r.product_prefix:
-                label_bits.append(r.product_group or r.product_prefix)
-            if r.policy_masked:
-                label_bits.append(r.policy_masked)
-            db.add(
-                CustomerIdentifier(
-                    customer_profile_id=profile.id,
-                    identifier_type="policy_hash",
-                    identifier_value=ident_val,
-                    label=" · ".join(label_bits) if label_bits else None,
-                    source=feedback.source,
-                )
+        for itype, ivalue, label in identities:
+            profile = _link_identifier_or_merge(
+                db,
+                profile=profile,
+                identifier_type=itype,
+                identifier_value=ivalue,
+                label=label or customer_label,
+                source=feedback.source,
             )
     except Exception:
-        logger.exception("Failed to upsert policy_hash customer identifiers")
+        logger.exception("Failed to link/merge customer identifiers")
 
     if meta.get("location") or meta.get("language") or meta.get("segment"):
         demo = db.query(CustomerDemographics).filter(CustomerDemographics.customer_profile_id == profile.id).first()
