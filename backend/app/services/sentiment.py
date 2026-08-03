@@ -507,5 +507,16 @@ def analyze_sentiment(
 
     # Combine VADER with phrase rules plus procedural compensation.
     compound = max(-1.0, min(1.0, float(compound) + float(rule_delta)))
+
+    # Insurance lexicon polarity (~1.2k+ terms) — modest additional domain nudge.
+    try:
+        from .insurance_lexicon import lexicon_sentiment_delta
+
+        lex_delta = float(lexicon_sentiment_delta(prepared) or 0.0)
+        if abs(lex_delta) >= 0.01:
+            compound = max(-1.0, min(1.0, float(compound) + lex_delta))
+    except Exception:
+        pass
+
     label = _derive_sentiment_label(compound, phrase_domain)
     return {"label": label, "score": compound, "domain_score": phrase_domain}

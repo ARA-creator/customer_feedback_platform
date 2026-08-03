@@ -334,6 +334,7 @@ def categorize_insurance_tags(text: str, source: Optional[str] = None) -> List[s
     Deterministic (rules-only) insurance categorization.
 
     Returns a list of tags from TAXONOMY. Multi-tag is allowed.
+    Enriched with the platform insurance lexicon themes when available.
     If nothing matches, returns ['other'].
     """
     prepared = _prepare_text(text, source)
@@ -352,17 +353,22 @@ def categorize_insurance_tags(text: str, source: Optional[str] = None) -> List[s
     if any(w in text_l for w in ("days", "weeks", "months", "since")) and not any(t == "speed_delays" for t, _ in hits):
         hits.append(("speed_delays", 1))
 
-    if not hits:
-        return ["other"]
-
-    # Keep all matched tags; stable order by score desc then taxonomy order.
-    order = {k: i for i, k in enumerate(TAXONOMY)}
-    hits_sorted = sorted(hits, key=lambda x: (-x[1], order.get(x[0], 999)))
     out: List[str] = []
     seen = set()
-    for tag, _ in hits_sorted:
-        if tag in TAXONOMY and tag not in seen:
-            seen.add(tag)
-            out.append(tag)
+    if hits:
+        order = {k: i for i, k in enumerate(TAXONOMY)}
+        hits_sorted = sorted(hits, key=lambda x: (-x[1], order.get(x[0], 999)))
+        for tag, _ in hits_sorted:
+            if tag in TAXONOMY and tag not in seen:
+                seen.add(tag)
+                out.append(tag)
+
+    try:
+        from .insurance_lexicon import enrich_insurance_tags_with_lexicon
+
+        out = enrich_insurance_tags_with_lexicon(prepared, out)
+    except Exception:
+        pass
+
     return out or ["other"]
 
