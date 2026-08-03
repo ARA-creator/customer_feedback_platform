@@ -224,10 +224,14 @@ function AuthenticatedApp({ auth, setAuth }) {
     }, 6500)
   }, [])
 
+  // Always keep unread polling available for the sidebar badge (independent of toast prefs).
   const { handleStreamEvent } = useLiveNotificationToasts({
-    enabled: !isAdminUI && notificationPrefsLoaded && realtimeEnabled,
+    enabled: !isAdminUI && notificationPrefsLoaded,
     deliveryPrefs,
-    onToast: (n) => pushLiveToast(n),
+    onToast: (n) => {
+      if (!realtimeEnabled) return
+      pushLiveToast(n)
+    },
   })
 
   const navigateToInboxWithPreset = useCallback(
@@ -246,9 +250,9 @@ function AuthenticatedApp({ auth, setAuth }) {
   )
 
   useEffect(() => {
-    if (isAdminUI || !notificationPrefsLoaded || !realtimeEnabled) return undefined
+    if (isAdminUI || !notificationPrefsLoaded) return undefined
     return connectNotificationsStream(handleStreamEvent)
-  }, [isAdminUI, notificationPrefsLoaded, realtimeEnabled, handleStreamEvent])
+  }, [isAdminUI, notificationPrefsLoaded, handleStreamEvent])
 
   if (!isAdminUI && isAdminPath(location.pathname)) {
     return <Navigate to="/" replace />

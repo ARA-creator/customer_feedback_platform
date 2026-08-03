@@ -287,6 +287,7 @@ export default function InboxLite({ onNavigate }) {
   const visibleItemsRef = useRef([])
   const itemsRef = useRef([])
   const searchInputRef = useRef(null)
+  const inboxTopRef = useRef(null)
 
   useEffect(() => {
     listHighlightRef.current = listHighlightId
@@ -1030,8 +1031,28 @@ export default function InboxLite({ onNavigate }) {
     [totalPages],
   )
 
+  const scrollInboxToTop = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const main = document.querySelector('main')
+    if (main) {
+      main.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+    try {
+      inboxTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Keep the list at the top when paging, switching tabs, or changing filters.
+  useEffect(() => {
+    scrollInboxToTop()
+  }, [page, listTab, pageSize, filterKey, scrollInboxToTop])
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-5">
+    <div ref={inboxTopRef} className="scroll-mt-4 p-4 sm:p-6 lg:p-8 space-y-5">
       <InboxPageIntro />
 
       <InboxFilterToolbar

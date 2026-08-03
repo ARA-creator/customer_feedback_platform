@@ -17,13 +17,18 @@ import {
   FiUsers,
   FiDownload,
 } from 'react-icons/fi'
-import { connectNotificationsStream, getUnreadCount } from '../../../features/notifications/services/notifications.api'
+import {
+  connectNotificationsStream,
+  getUnreadCount,
+  publishUnreadCount,
+} from '../../../features/notifications/services/notifications.api'
 import {
   NOTIFICATIONS_UNREAD_KEY,
   readNotificationsUnreadFromStorage,
 } from '../../../shared/lib/crossTabSync'
 
 const RAIL_KEY = 'cfp_sidebar_rail_collapsed'
+const UNREAD_POLL_MS = 8_000
 
 /**
  * Ref layout uses Enterprise Life #009750 for active items (index.css .sidebar-link-active).
@@ -123,27 +128,11 @@ function Sidebar({
     }
   }, [])
 
-  useEffect(() => {
-    if (isAdminUI) return undefined
-    let mounted = true
-    ;(async () => {
-      try {
-        const res = await getUnreadCount()
-        if (!mounted) return
-        const n = Number(res?.unread ?? 0)
-        setNotificationsUnread(Number.isFinite(n) && n >= 0 ? n : 0)
-      } catch {
-        // ignore — badge refreshes on stream / visibility
-      }
-    })()
-    return () => {
-      mounted = false
-    }
-  }, [isAdminUI])
-
   const applyUnreadFromServer = useCallback((n) => {
     const v = Number(n)
-    setNotificationsUnread(Number.isFinite(v) && v >= 0 ? v : 0)
+    const safe = Number.isFinite(v) && v >= 0 ? v : 0
+    setNotificationsUnread(safe)
+    publishUnreadCount(safe)
   }, [])
 
   useEffect(() => {
@@ -159,7 +148,7 @@ function Sidebar({
     const onUnreadEvent = (e) => {
       const fromDetail = Number(e?.detail?.unread)
       if (Number.isFinite(fromDetail) && fromDetail >= 0) {
-        applyUnreadFromServer(fromDetail)
+        setNotificationsUnread(fromDetail)
         return
       }
       refreshUnread()
@@ -167,26 +156,39 @@ function Sidebar({
     const onStorage = (ev) => {
       if (ev.key !== NOTIFICATIONS_UNREAD_KEY) return
       const cached = readNotificationsUnreadFromStorage()
-      if (cached != null) applyUnreadFromServer(cached)
+      if (cached != null) setNotificationsUnread(cached)
     }
     const cached = readNotificationsUnreadFromStorage()
-    if (cached != null) applyUnreadFromServer(cached)
+    if (cached != null) setNotificationsUnread(cached)
 
     document.addEventListener('visibilitychange', onVis)
     window.addEventListener('cfp-notifications-unread', onUnreadEvent)
     window.addEventListener('storage', onStorage)
+
+    // Live badge: poll so multi-worker / missed SSE still shows the real unread count.
+    refreshUnread()
+    const pollId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshUnread()
+    }, UNREAD_POLL_MS)
 
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type === 'notification.unread_count' && Number.isFinite(Number(evt.unread))) {
         applyUnreadFromServer(evt.unread)
         return
       }
-      if (evt?.type === 'notification.created' && Number.isFinite(Number(evt.unread))) {
-        applyUnreadFromServer(evt.unread)
+      if (evt?.type === 'notification.created') {
+        if (Number.isFinite(Number(evt.unread))) {
+          applyUnreadFromServer(evt.unread)
+        } else {
+          // Optimistic bump, then reconcile with filtered server count.
+          setNotificationsUnread((prev) => Math.max(0, (Number(prev) || 0) + 1))
+        }
+        refreshUnread()
       }
     })
     return () => {
       cleanup()
+      window.clearInterval(pollId)
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('cfp-notifications-unread', onUnreadEvent)
       window.removeEventListener('storage', onStorage)
@@ -427,15 +429,19 @@ function Sidebar({
               <FiBell className="h-5 w-5 shrink-0" aria-hidden />
               <span className={c ? 'md:sr-only' : ''}>Notifications</span>
               <span
-                className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  currentView === 'notifications'
-                    ? 'bg-white/15 text-white'
-                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
+                className={`ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                  notificationsUnread > 0
+                    ? currentView === 'notifications'
+                      ? 'bg-white text-[#009750]'
+                      : 'bg-[#009750] text-white'
+                    : currentView === 'notifications'
+                      ? 'bg-white/15 text-white'
+                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                 } ${c ? 'md:absolute md:right-1.5 md:top-1.5 md:ml-0 md:px-1.5' : ''}`}
                 aria-label={`${notificationsUnread} unread notifications`}
                 title={`${notificationsUnread} unread`}
               >
-                {notificationsUnread}
+                {notificationsUnread > 99 ? '99+' : notificationsUnread}
               </span>
             </button>
           </>
