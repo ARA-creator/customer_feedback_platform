@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FiAlertCircle, FiArrowLeft, FiRefreshCw, FiUser, FiX } from 'react-icons/fi'
 import { getCustomerProfile } from '../services/customers.api'
 import { Customer360Skeleton, LastUpdated, PageIntro } from '../../../shared/components/ui'
+import { SourcePill } from '../../dashboard/components/SourceIndicators'
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -291,9 +292,7 @@ export default function Customer360({ onNavigate }) {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <SentimentPill label={it.sentiment_label} />
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {(it.source_group || it.source || 'source').toString().replace(/_/g, ' ')}
-                          </span>
+                          <SourcePill source={it.source_group || it.source} />
                         </div>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{fmtRelative(it.created_at)}</span>
                       </div>
@@ -343,26 +342,24 @@ export default function Customer360({ onNavigate }) {
               <div className="card p-5">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {safeArr(data.identifiers).length === 0 ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-300">No customer identity yet.</p>
-                  ) : (
-                    safeArr(data.identifiers).slice(0, 14).map((ident) => (
-                      <button
-                        key={ident.id}
-                        type="button"
-                        onClick={() => {
-                          const v = String(ident?.identifier_value || '')
-                          if (v.startsWith('policy_hash:')) {
-                            setPolicyFilterHash(v.replace(/^policy_hash:/, '').trim())
-                          }
-                        }}
-                        className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900"
-                        title={ident.identifier_value}
+                  {(() => {
+                    const idents = safeArr(data.identifiers).filter((ident) => {
+                      const t = String(ident?.identifier_type || '').toLowerCase()
+                      return t !== 'policy' && t !== 'policy_hash' && !String(ident?.identifier_value || '').startsWith('policy_hash:')
+                    })
+                    if (idents.length === 0) {
+                      return <p className="text-sm text-gray-600 dark:text-gray-300">No customer identity yet.</p>
+                    }
+                    return idents.slice(0, 14).map((ident, idx) => (
+                      <span
+                        key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
+                        className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+                        title={ident.label || ident.identifier_value}
                       >
                         {(ident.identifier_type || 'id').toString().replace(/_/g, ' ')}: {ident.label || ident.identifier_value}
-                      </button>
+                      </span>
                     ))
-                  )}
+                  })()}
                 </div>
               </div>
 
@@ -490,9 +487,7 @@ export default function Customer360({ onNavigate }) {
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <SentimentPill label={openItem.sentiment_label} />
-              <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                {(openItem.source_group || openItem.source || 'source').toString().replace(/_/g, ' ')}
-              </span>
+              <SourcePill source={openItem.source_group || openItem.source} />
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 ID #{openItem.id}
               </span>

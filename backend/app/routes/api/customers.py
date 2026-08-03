@@ -299,22 +299,34 @@ def customer_profile(customer_key: str):
                     break
 
         identifiers_payload = []
+        seen_display = set()
         for ident in identifiers:
             itype = str(ident.identifier_type or "").lower()
+            # Policy numbers belong under Products & policies, not Customer Identity.
+            if itype in {"policy_hash", "policy"}:
+                continue
             label = ident.label
             display_type = itype.replace("_", " ")
             if itype in {"email_hash", "email"}:
                 display_type = "email"
                 if email_plain:
                     label = email_plain
-            elif itype == "policy_hash":
-                display_type = "policy"
             elif itype in {"phone", "wa"}:
                 display_type = "phone"
                 raw = str(ident.identifier_value or "")
                 phone_val = raw.split(":", 1)[1].strip() if ":" in raw else raw
+                if phone_val.lower().startswith("whatsapp:"):
+                    phone_val = phone_val.split(":", 1)[1].strip()
+                if phone_val.startswith("*"):
+                    continue
                 if phone_val:
                     label = phone_val
+            elif itype in {"msg", "message_sid", "thread"} and str(label or "").startswith("*"):
+                continue
+            key = f"{display_type}:{(label or ident.identifier_value or '').strip().lower()}"
+            if key in seen_display:
+                continue
+            seen_display.add(key)
             identifiers_payload.append(
                 {
                     "id": ident.id,
@@ -337,6 +349,43 @@ def customer_profile(customer_key: str):
                     "source": "feedback",
                 },
             )
+            seen_display.add(f"email:{email_plain.strip().lower()}")
+
+        # Surface phone numbers from channel metadata (even for older WhatsApp rows
+        # that only stored a masked display value or used MessageSid as identity).
+        phones_seen = {
+            str(i.get("label") or "").strip()
+            for i in identifiers_payload
+            if str(i.get("identifier_type") or "").lower() == "phone"
+        }
+        for row in rows:
+            meta = _normalize_metadata(row)
+            for key in ("phone", "from_number", "wa_id", "author_handle"):
+                cand = str(meta.get(key) or "").strip()
+                if not cand:
+                    continue
+                if cand.lower().startswith("whatsapp:"):
+                    cand = cand.split(":", 1)[1].strip()
+                # Skip masked placeholders and non-phone handles.
+                if cand.startswith("*") or "@" in cand:
+                    continue
+                digits = "".join(ch for ch in cand if ch.isdigit())
+                if len(digits) < 7:
+                    continue
+                if not cand.startswith("+") and cand.isdigit():
+                    cand = f"+{cand}"
+                if cand in phones_seen:
+                    continue
+                phones_seen.add(cand)
+                identifiers_payload.append(
+                    {
+                        "id": None,
+                        "identifier_type": "phone",
+                        "identifier_value": f"phone:{cand}",
+                        "label": cand,
+                        "source": getattr(row, "source", None) or "feedback",
+                    }
+                )
 
         return jsonify(
             {

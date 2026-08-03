@@ -28,7 +28,7 @@ export default function InsightBriefBanner({
       <p className="pl-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#007a42] dark:text-emerald-300/90">
         Brief · {timeWindowLabel}
       </p>
-      <p className="mt-2 pl-2 text-sm leading-relaxed text-gray-800 dark:text-gray-100 sm:text-[15px] max-w-3xl">
+      <p className="mt-2 pl-2 text-sm leading-relaxed text-gray-800 dark:text-gray-100 sm:text-[15px]">
         {brief.headline}
       </p>
       {(brief.topRiskTheme || brief.lowestSource) && (

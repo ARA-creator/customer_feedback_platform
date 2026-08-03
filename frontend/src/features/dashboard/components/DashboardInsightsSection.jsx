@@ -303,14 +303,14 @@ export default function DashboardInsightsSection({
           trackPct={100}
         />
         <StatCard
-          label="Read share"
+          label="Read"
           value={fmtPct((Number(metrics?.read ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
           sub={`${Number(metrics?.read ?? 0) || 0} read`}
           accent="teal"
           trackPct={((Number(metrics?.read ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
         />
         <StatCard
-          label="Replied share"
+          label="Replied"
           value={fmtPct((Number(metrics?.replied ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
           sub={`${Number(metrics?.replied ?? 0) || 0} replied`}
           accent="sky"

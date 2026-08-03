@@ -50,11 +50,13 @@ export default function OverviewTimeFilterRow({
 
   return (
     <div className="mb-5 rounded-2xl border border-gray-200/80 bg-white px-3 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-gray-800 dark:bg-gray-950 sm:px-4">
-      <div className={`flex flex-col gap-2.5 ${showAdminRefresh ? 'lg:flex-row lg:items-center lg:justify-between lg:gap-4' : ''}`}>
-        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-          <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400">Period</span>
-            <div className="-mx-1 flex w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:items-center md:gap-6 lg:gap-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400">
+              Period
+            </span>
+            <div className="-mx-1 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto px-1 [-webkit-overflow-scrolling:touch]">
               {TIME_FILTERS.map(({ id, label, Icon }) => {
                 const active = value === id
                 return (
@@ -67,9 +69,11 @@ export default function OverviewTimeFilterRow({
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400">Sentiment</span>
-            <div className="-mx-1 flex w-full flex-nowrap items-center gap-2 overflow-x-auto px-1 pb-1 [-webkit-overflow-scrolling:touch]">
+          <div className="flex min-w-0 items-center gap-3 md:ml-auto">
+            <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400 md:w-auto">
+              Sentiment
+            </span>
+            <div className="-mx-1 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto px-1 [-webkit-overflow-scrolling:touch]">
               {SENTIMENT_FILTERS.map(({ id, label, color }) => {
                 const active = sentimentValue === id
                 return (

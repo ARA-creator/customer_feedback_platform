@@ -378,7 +378,12 @@ function DetailDrawer({
                     <div>
                       <p className="font-medium text-gray-800 dark:text-gray-200">Customer Identity</p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        {customerProfile.identifiers.map((ident) => (
+                        {customerProfile.identifiers
+                          .filter((ident) => {
+                            const t = String(ident?.identifier_type || '').toLowerCase()
+                            return t !== 'policy' && t !== 'policy_hash' && !String(ident?.identifier_value || '').startsWith('policy_hash:')
+                          })
+                          .map((ident) => (
                           <span key={`${ident.identifier_type}-${ident.identifier_value}`} className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] dark:bg-gray-800">
                             {ident.identifier_type}: {ident.label || ident.identifier_value}
                           </span>
