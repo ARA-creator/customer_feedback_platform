@@ -447,30 +447,6 @@ export default function InboxLite({ onNavigate }) {
     }
   }, [])
 
-  useEffect(() => {
-    const onOpen = (e) => {
-      const id = Number(e?.detail?.feedbackId)
-      if (!Number.isFinite(id) || id <= 0) return
-      try {
-        sessionStorage.removeItem('cfp_inbox_open_feedback_id')
-      } catch {
-        // ignore
-      }
-      setListTab('all')
-      setPage(1)
-      setOpenFeedbackId(id)
-    }
-    const onCreated = () => {
-      if (page === 1) load({ soft: true })
-    }
-    window.addEventListener('cfp-open-inbox-feedback', onOpen)
-    window.addEventListener('cfp-feedback-created', onCreated)
-    return () => {
-      window.removeEventListener('cfp-open-inbox-feedback', onOpen)
-      window.removeEventListener('cfp-feedback-created', onCreated)
-    }
-  }, [load, page])
-
   const dateParams = useMemo(() => {
     const todayUtc = startOfUtcDay(new Date())
     if (dateRange === 'all') return { date_from: undefined, date_to: undefined }
@@ -685,6 +661,30 @@ export default function InboxLite({ onNavigate }) {
       pageSize,
     ],
   )
+
+  useEffect(() => {
+    const onOpen = (e) => {
+      const id = Number(e?.detail?.feedbackId)
+      if (!Number.isFinite(id) || id <= 0) return
+      try {
+        sessionStorage.removeItem('cfp_inbox_open_feedback_id')
+      } catch {
+        // ignore
+      }
+      setListTab('all')
+      setPage(1)
+      setOpenFeedbackId(id)
+    }
+    const onCreated = () => {
+      if (page === 1) load({ soft: true })
+    }
+    window.addEventListener('cfp-open-inbox-feedback', onOpen)
+    window.addEventListener('cfp-feedback-created', onCreated)
+    return () => {
+      window.removeEventListener('cfp-open-inbox-feedback', onOpen)
+      window.removeEventListener('cfp-feedback-created', onCreated)
+    }
+  }, [load, page])
 
   useEffect(() => {
     load({ soft: false })
