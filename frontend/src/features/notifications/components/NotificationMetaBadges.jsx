@@ -19,10 +19,7 @@ function SentimentPill({ label }) {
   )
 }
 
-/**
- * Channel + sentiment pills for new_feedback notifications.
- * Falls back to plain body text when meta is missing.
- */
+/** Channel + sentiment pills for new_feedback notifications. */
 export default function NotificationMetaBadges({ meta, body, className = '' }) {
   const source = String(meta?.source || '').trim()
   const sentiment = String(meta?.sentiment_label || meta?.sentiment || '').trim()

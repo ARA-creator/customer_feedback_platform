@@ -22,6 +22,7 @@ import Notifications from '../features/notifications/components/Notifications'
 import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui/LoadingSkeleton'
 import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
+import SoftErrorBoundary from '../shared/components/ui/SoftErrorBoundary'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import InboxPage from '../pages/inbox/Inbox'
 import SettingsLayout from '../pages/settings/SettingsLayout'
@@ -414,7 +415,7 @@ function AuthenticatedApp({ auth, setAuth }) {
           {liveToasts.map((t) => (
             <div
               key={t.id}
-              className="rounded-2xl border border-emerald-200/60 bg-white/70 px-4 py-3 shadow-[0_18px_46px_rgba(16,185,129,0.16),0_10px_30px_rgba(2,6,23,0.10)] backdrop-blur-md dark:border-emerald-400/15 dark:bg-gray-950/35"
+              className="rounded-2xl border border-emerald-200/60 bg-white px-4 py-3 shadow-[0_18px_46px_rgba(16,185,129,0.16),0_10px_30px_rgba(2,6,23,0.10)] dark:border-emerald-400/15 dark:bg-gray-950"
               role="status"
               aria-live="polite"
             >
@@ -422,7 +423,9 @@ function AuthenticatedApp({ auth, setAuth }) {
                 <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-[#009750]" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.title}</p>
-                  <NotificationMetaBadges meta={t.meta} body={t.body} className="mt-1" />
+                  <SoftErrorBoundary fallback={t.body ? <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{t.body}</p> : null}>
+                    <NotificationMetaBadges meta={t.meta} body={t.body} className="mt-1" />
+                  </SoftErrorBoundary>
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"

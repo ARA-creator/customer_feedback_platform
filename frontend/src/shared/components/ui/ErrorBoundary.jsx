@@ -12,7 +12,6 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Keep this minimal; production errors are still visible in Vercel logs / browser console.
     console.error('UI crashed:', error, info)
   }
 
@@ -20,13 +19,13 @@ export default class ErrorBoundary extends Component {
     if (!this.state.hasError) return this.props.children
 
     return (
-      <div className="min-h-screen app-shell-bg text-gray-900 dark:text-gray-100 flex items-center justify-center p-6">
-        <div className="card p-6 max-w-lg w-full">
+      <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 flex items-center justify-center p-6">
+        <div className="w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <h1 className="text-lg font-semibold">Something went wrong</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
             The app hit an unexpected error while rendering. Reload the page and try again.
           </p>
-          <pre className="mt-3 whitespace-pre-wrap break-words text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3">
+          <pre className="mt-3 whitespace-pre-wrap break-words text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3 dark:bg-rose-950/40 dark:border-rose-900/50 dark:text-rose-300">
             {this.state.message}
           </pre>
           <div className="mt-4 flex gap-2">
@@ -43,4 +42,3 @@ export default class ErrorBoundary extends Component {
     )
   }
 }
-
