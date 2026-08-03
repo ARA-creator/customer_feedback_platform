@@ -39,21 +39,29 @@ function safeArr(x) {
 
 function extractUrls(text) {
   const s = String(text || '')
-  const re = /\bhttps?:\/\/[^\s<>"')]+/gi
-  const matches = s.match(re)
-  return matches ? Array.from(new Set(matches)) : []
+  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
+  const out = []
+  let m
+  while ((m = re.exec(s))) {
+    const raw = m[0].replace(/[.,;:]+$/g, '')
+    const url = raw.startsWith('http') ? raw : `https://${raw}`
+    if (!out.includes(url)) out.push(url)
+  }
+  return out
 }
 
 function renderLinkedText(text) {
   const s = String(text || '')
-  const re = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi
+  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
   const parts = []
   let last = 0
   let m
   let linkIdx = 0
   while ((m = re.exec(s))) {
     const start = m.index
-    const raw = m[0]
+    let raw = m[0]
+    const trailing = raw.match(/[.,;:]+$/)?.[0] || ''
+    if (trailing) raw = raw.slice(0, -trailing.length)
     const url = raw.startsWith('http') ? raw : `https://${raw}`
     if (start > last) parts.push(s.slice(last, start))
     parts.push(
@@ -62,14 +70,14 @@ function renderLinkedText(text) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="text-[#009750] hover:underline break-words"
+        className="font-medium text-[#009750] hover:underline break-words"
         onClick={(e) => e.stopPropagation()}
       >
         {raw}
       </a>,
     )
     linkIdx += 1
-    last = start + raw.length
+    last = start + m[0].length - trailing.length
   }
   if (last < s.length) parts.push(s.slice(last))
   return parts.length ? parts : s

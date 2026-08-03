@@ -29,6 +29,22 @@ function formatThemeLabel(tag) {
   return String(tag || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+/** Prefer the active theme filter so multi-tagged items still show why they matched. */
+function orderTagsForDisplay(tags, highlightTheme, limit = 3) {
+  const list = (Array.isArray(tags) ? tags : [])
+    .map((t) => String(t || '').trim())
+    .filter(Boolean)
+  const needle = String(highlightTheme || '').trim().toLowerCase()
+  if (!needle || needle === 'all') return list.slice(0, limit)
+  const matched = []
+  const rest = []
+  for (const t of list) {
+    if (t.toLowerCase() === needle) matched.push(t)
+    else rest.push(t)
+  }
+  return [...matched, ...rest].slice(0, limit)
+}
+
 export default function InboxFeedbackRow({
   item,
   active,
@@ -36,6 +52,7 @@ export default function InboxFeedbackRow({
   isUnread = true,
   isPinned = false,
   isArchived,
+  highlightTheme = 'all',
   onSelect,
   onToggleSelect,
   onTogglePinned,
@@ -53,11 +70,13 @@ export default function InboxFeedbackRow({
       ? preview.slice(title.length).trim().slice(0, 120) || preview.slice(0, 120)
       : preview.slice(0, 120)
   const priority = getPriorityBadge(item)
-  const tags = Array.isArray(item?.insurance_tags)
+  const rawTags = Array.isArray(item?.insurance_tags)
     ? item.insurance_tags
     : Array.isArray(item?.channel_metadata?.insurance_tags)
       ? item.channel_metadata.insurance_tags
       : []
+  const tags = orderTagsForDisplay(rawTags, highlightTheme)
+  const activeThemeKey = String(highlightTheme || '').trim().toLowerCase()
   const policySummary = getPolicySummary(item)
   const holderBadge = policyHolderBadge(item)
 
@@ -197,14 +216,22 @@ export default function InboxFeedbackRow({
             {SourceIcon ? <SourceIcon source={item.source_group || item.source} /> : null}
             {formatSourceLabel(item.source_group || item.source)}
           </span>
-          {tags.slice(0, 2).map((t) => (
-            <span
-              key={`${item.id}-${t}`}
-              className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-            >
-              {formatThemeLabel(t)}
-            </span>
-          ))}
+          {tags.map((t) => {
+            const isMatch = activeThemeKey && activeThemeKey !== 'all' && String(t).toLowerCase() === activeThemeKey
+            return (
+              <span
+                key={`${item.id}-${t}`}
+                className={`rounded-md border px-2 py-0.5 text-[10px] font-medium ${
+                  isMatch
+                    ? 'border-emerald-300 bg-emerald-50 font-semibold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100'
+                    : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'
+                }`}
+                title={isMatch ? 'Matched theme filter' : undefined}
+              >
+                {formatThemeLabel(t)}
+              </span>
+            )
+          })}
           {holderBadge ? (
             <span
               className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${holderBadge.className}`}

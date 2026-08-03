@@ -53,6 +53,7 @@ export default function InboxListPanel({
   onLoadMore,
   onClearFilters,
   prefetchingList = false,
+  highlightTheme = 'all',
 }) {
   const showListControls = !loading && !error && displayedItems.length > 0
 
@@ -209,6 +210,7 @@ export default function InboxListPanel({
                   isUnread={isUnread}
                   isPinned={isPinned}
                   isArchived={archivedIds.has(it.id)}
+                  highlightTheme={highlightTheme}
                   onSelect={() => onOpenItem?.(it)}
                   onToggleSelect={() => onToggleSelected?.(it.id)}
                   onTogglePinned={() => onTogglePinned?.(it.id)}

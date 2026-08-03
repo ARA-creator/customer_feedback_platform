@@ -460,17 +460,13 @@ export default function DashboardInsightsSection({
 
         <InsightsSectionCard
           title="Top issues"
-          subtitle={
-            topIssuesChartRows.source === 'themes'
-              ? 'Themes with the most negative feedback in this window.'
-              : 'Categories with the most negative feedback in this window.'
-          }
+          subtitle="Themes with the most negative feedback in this window."
         >
           {loadingState ? (
             <div className="w-full h-72 rounded-2xl bg-gray-50 dark:bg-gray-900/40 animate-pulse" />
           ) : topIssuesEmpty ? (
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              No negative feedback by category or theme in this range yet.
+              No negative feedback by theme in this range yet.
             </p>
           ) : (
             <div className="h-72">

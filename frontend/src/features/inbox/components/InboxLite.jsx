@@ -98,13 +98,13 @@ function formatRelativeTime(iso) {
 
 function extractUrls(text) {
   const s = String(text || '')
-  const re = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi
+  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
   const out = []
   let m
   while ((m = re.exec(s))) {
-    const raw = m[0]
+    const raw = m[0].replace(/[.,;:]+$/g, '')
     const url = raw.startsWith('http') ? raw : `https://${raw}`
-    out.push(url)
+    if (!out.includes(url)) out.push(url)
     if (out.length >= 8) break
   }
   return out
@@ -112,13 +112,15 @@ function extractUrls(text) {
 
 function renderLinkedText(text) {
   const s = String(text || '')
-  const re = /(https?:\/\/[^\s)]+|www\.[^\s)]+)/gi
+  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
   const parts = []
   let last = 0
   let m
   while ((m = re.exec(s))) {
     const start = m.index
-    const raw = m[0]
+    let raw = m[0]
+    const trailing = raw.match(/[.,;:]+$/)?.[0] || ''
+    if (trailing) raw = raw.slice(0, -trailing.length)
     const url = raw.startsWith('http') ? raw : `https://${raw}`
     if (start > last) parts.push(s.slice(last, start))
     parts.push(
@@ -127,13 +129,13 @@ function renderLinkedText(text) {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="text-[#009750] underline break-all"
+        className="font-medium text-[#009750] underline decoration-[#009750]/40 underline-offset-2 break-all hover:decoration-[#009750]"
         onClick={(e) => e.stopPropagation()}
       >
         {raw}
       </a>
     )
-    last = start + raw.length
+    last = start + m[0].length - trailing.length
   }
   if (last < s.length) parts.push(s.slice(last))
   return parts.length ? parts : s
@@ -803,7 +805,7 @@ export default function InboxLite({ onNavigate }) {
     [inboxItemsForStats, readIds, unreadInboxCount],
   )
 
-  const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 5), [inboxItemsForStats])
+  const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 0), [inboxItemsForStats])
 
   const needsResponseCount = useMemo(
     () => inboxItemsForStats.filter(needsResponse).length,
@@ -884,10 +886,6 @@ export default function InboxLite({ onNavigate }) {
   const handleQuickFilter = useCallback((id) => {
     if (id === 'clear') {
       setActiveQuickFilter(null)
-      return
-    }
-    if (id === 'clear_themes') {
-      setInsuranceTagFilter('all')
       return
     }
     if (id === 'negative_7d') {
@@ -1147,6 +1145,7 @@ export default function InboxLite({ onNavigate }) {
             onSortChange={setSortBy}
             displayedItems={displayedItems}
             listHighlightId={listHighlightId}
+            highlightTheme={insuranceTagFilter}
             loadingMore={loadingMore}
             selectedIds={selectedIds}
             selectedCount={selectedIds.size}
@@ -1210,6 +1209,8 @@ export default function InboxLite({ onNavigate }) {
           topThemes={topThemes}
           activeQuickFilter={activeQuickFilter}
           onQuickFilter={handleQuickFilter}
+          onSelectTheme={(key) => setInsuranceTagFilter(key || 'all')}
+          activeTheme={insuranceTagFilter}
           unreadCount={unreadInboxCount}
           needsResponseCount={needsResponseCount}
           highPriorityCount={highPriorityCount}
@@ -1495,9 +1496,76 @@ export default function InboxLite({ onNavigate }) {
                 </div>
               </div>
 
-            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100">
-              <div className="whitespace-pre-wrap break-words">
-                {renderLinkedText(openItem.message || openItem.message_preview || 'No message')}
+            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+              {(() => {
+                const meta = openItem.channel_metadata || {}
+                const source = String(openItem.source || openItem.source_group || '').toLowerCase()
+                const isEmail = source === 'email'
+                const subject = String(meta.email_subject || '').trim()
+                const fromName = String(meta.sender_name || meta.author_handle || '').trim()
+                const fromEmail = String(meta.sender_email || '').trim()
+                const when = meta.email_date || openItem.created_at
+                if (!isEmail && !subject && !fromEmail && !fromName) return null
+                return (
+                  <div className="border-b border-gray-100 bg-gradient-to-br from-[#eaf7f0]/80 via-white to-white px-4 py-3 dark:border-gray-800 dark:from-emerald-950/25 dark:via-gray-950 dark:to-gray-950">
+                    {subject ? (
+                      <p className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                        {subject}
+                      </p>
+                    ) : (
+                      <p className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                        Incoming message
+                      </p>
+                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-300">
+                      {(fromName || fromEmail) && (
+                        <span>
+                          <span className="font-semibold text-gray-500 dark:text-gray-400">From </span>
+                          {fromName ? <span className="font-medium text-gray-900 dark:text-gray-100">{fromName}</span> : null}
+                          {fromEmail ? (
+                            <a
+                              href={`mailto:${fromEmail}`}
+                              className="ml-1 font-medium text-[#009750] hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {fromName ? `<${fromEmail}>` : fromEmail}
+                            </a>
+                          ) : null}
+                        </span>
+                      )}
+                      {when ? (
+                        <span className="text-gray-500 dark:text-gray-400">
+                          {typeof when === 'string' && when.includes(',')
+                            ? when
+                            : new Date(when).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })()}
+              <div className="px-4 py-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
+                <div className="whitespace-pre-wrap break-words">
+                  {renderLinkedText(openItem.message || openItem.message_preview || 'No message')}
+                </div>
+              </div>
+              <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
+                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                  Customer Pulse · Enterprise Life
+                  {openItem.channel_metadata?.sender_email ? (
+                    <>
+                      {' '}
+                      · Reply in your mail client to{' '}
+                      <a
+                        href={`mailto:${openItem.channel_metadata.sender_email}`}
+                        className="font-semibold text-[#009750] hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {openItem.channel_metadata.sender_email}
+                      </a>
+                    </>
+                  ) : null}
+                </p>
               </div>
             </div>
 

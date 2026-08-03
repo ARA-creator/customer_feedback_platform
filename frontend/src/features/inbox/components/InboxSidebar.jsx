@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MiniSparkline from '../../dashboard/components/insights/MiniSparkline'
 import { buildDailySparkline } from '../utils/inboxDerivedStats'
 import { getInboxOpenActivity } from '../services/inbox.api'
@@ -40,6 +40,8 @@ const QUICK_FILTERS = [
   { id: 'negative_7d', label: 'Negative (7d)' },
 ]
 
+const THEMES_PREVIEW_COUNT = 5
+
 function displayUserName(u) {
   const name = String(u?.full_name || '').trim()
   if (name) return name
@@ -54,6 +56,8 @@ export default function InboxSidebar({
   topThemes,
   activeQuickFilter,
   onQuickFilter,
+  onSelectTheme,
+  activeTheme = 'all',
   unreadCount,
   needsResponseCount,
   highPriorityCount,
@@ -68,6 +72,14 @@ export default function InboxSidebar({
 
   const [openActivity, setOpenActivity] = useState(null)
   const [openActivityError, setOpenActivityError] = useState(null)
+  const [themesExpanded, setThemesExpanded] = useState(false)
+
+  const allThemes = Array.isArray(topThemes) ? topThemes : []
+  const visibleThemes = useMemo(() => {
+    if (themesExpanded) return allThemes
+    return allThemes.slice(0, THEMES_PREVIEW_COUNT)
+  }, [allThemes, themesExpanded])
+  const canExpandThemes = allThemes.length > THEMES_PREVIEW_COUNT
 
   useEffect(() => {
     let cancelled = false
@@ -183,36 +195,54 @@ export default function InboxSidebar({
 
       <section className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Top themes</h2>
-        {topThemes.length === 0 ? (
+        {allThemes.length === 0 ? (
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">No themes in this view yet.</p>
         ) : (
           <ul className="mt-3 space-y-3">
-            {topThemes.map((t) => (
-              <li key={t.key}>
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="font-medium text-gray-800 dark:text-gray-200">{t.label}</span>
-                  <span className="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
-                    {t.count}{' '}
-                    <span className="text-gray-400">{t.pct}%</span>
-                  </span>
-                </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                  <div
-                    className="h-full rounded-full bg-[#10B981]"
-                    style={{ width: `${Math.min(100, t.pct)}%` }}
-                  />
-                </div>
-              </li>
-            ))}
+            {visibleThemes.map((t) => {
+              const active = String(activeTheme || 'all').toLowerCase() === String(t.key).toLowerCase()
+              return (
+                <li key={t.key}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectTheme?.(active ? 'all' : t.key)}
+                    className={`w-full rounded-lg text-left transition-colors ${
+                      active ? 'bg-emerald-50/80 dark:bg-emerald-950/30' : 'hover:bg-gray-50 dark:hover:bg-gray-900'
+                    } px-1 py-0.5 -mx-1`}
+                    title={active ? 'Clear theme filter' : `Filter inbox by ${t.label}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className={`font-medium ${active ? 'text-emerald-900 dark:text-emerald-100' : 'text-gray-800 dark:text-gray-200'}`}>
+                        {t.label}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
+                        {t.count}{' '}
+                        <span className="text-gray-400">{t.pct}%</span>
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                      <div
+                        className="h-full rounded-full bg-[#10B981]"
+                        style={{ width: `${Math.min(100, t.pct)}%` }}
+                      />
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
-        <button
-          type="button"
-          className="mt-4 text-xs font-semibold text-[#009750] hover:underline"
-          onClick={() => onQuickFilter?.('clear_themes')}
-        >
-          View all themes
-        </button>
+        {canExpandThemes ? (
+          <button
+            type="button"
+            className="mt-4 text-xs font-semibold text-[#009750] hover:underline"
+            onClick={() => setThemesExpanded((v) => !v)}
+          >
+            {themesExpanded
+              ? 'Show fewer themes'
+              : `View all themes (${allThemes.length})`}
+          </button>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">

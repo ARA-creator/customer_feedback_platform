@@ -38,9 +38,9 @@ _CLOSED_STATUSES = {"closed", "resolved"}
 
 def _plain_text_for_export(text: str, *, max_len: int = 8000) -> str:
     """Turn HTML email bodies into readable plain text for CSV cells."""
-    from ..services.policy_detection import _strip_html_for_policy_scan
+    from ..services.html_text import normalize_message_text
 
-    plain = _strip_html_for_policy_scan(text or "")
+    plain = normalize_message_text(text or "")
     if max_len and len(plain) > max_len:
         return plain[:max_len].rstrip() + "…"
     return plain

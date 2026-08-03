@@ -156,15 +156,16 @@ export function computeTopThemes(items, limit = 5) {
     }
   }
   const total = Array.from(counts.values()).reduce((a, b) => a + b, 0) || 1
-  return Array.from(counts.entries())
+  const ranked = Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
     .map(([key, count]) => ({
       key,
       label: formatThemeLabel(key),
       count,
       pct: Math.round((count / total) * 100),
     }))
+  if (limit == null || limit <= 0) return ranked
+  return ranked.slice(0, limit)
 }
 
 /** Simple daily buckets for sparklines (last N days). */

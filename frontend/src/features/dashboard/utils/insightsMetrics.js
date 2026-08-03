@@ -51,8 +51,17 @@ export function buildTopThemes(insuranceTagsBreakdown, limit = 8) {
     .slice(0, limit)
 }
 
-/** Top issues chart: negative feedback only, by category or theme. */
+/** Top issues chart: negative feedback by theme (insurance tags), with legacy category fallback. */
 export function buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeMap, limit = 8) {
+  const fromThemes = buildTopThemes(insuranceTagsBreakdown, limit * 2)
+    .map((t) => ({ name: t.label, value: t.negative }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value)
+
+  if (fromThemes.length > 0) {
+    return { rows: fromThemes.slice(0, limit), source: 'themes' }
+  }
+
   const fromCategories = Object.entries(categoryNegativeMap || {})
     .map(([name, value]) => ({
       name: formatCategoryChartLabel(name),
@@ -62,16 +71,10 @@ export function buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeM
     .sort((a, b) => b.value - a.value)
 
   if (fromCategories.length > 0) {
-    return { rows: fromCategories.slice(0, limit), source: 'category' }
+    return { rows: fromCategories.slice(0, limit), source: 'themes' }
   }
 
-  const rows = buildTopThemes(insuranceTagsBreakdown, limit * 2)
-    .map((t) => ({ name: t.label, value: t.negative }))
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, limit)
-
-  return { rows, source: 'themes' }
+  return { rows: [], source: 'themes' }
 }
 
 export function buildInsightBrief({ topThemes, sourcePerformance, metrics, rangeLabel = 'selected period' }) {

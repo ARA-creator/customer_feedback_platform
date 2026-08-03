@@ -108,7 +108,8 @@ def parse_email_message(msg) -> Optional[Dict]:
         to_emails = extract_email_addresses(to_raw)
         to_header = _decode_header_value(to_raw)
 
-        # Prefer plain text, fallback to html
+        # Prefer plain text; convert HTML to readable plain text (with links expanded).
+        html_body = ""
         if msg.is_multipart():
             for part in msg.walk():
                 content_type = part.get_content_type()
@@ -117,14 +118,29 @@ def parse_email_message(msg) -> Optional[Dict]:
                     if payload:
                         body = payload.decode("utf-8", errors="ignore")
                         break
-                elif content_type == "text/html" and not body:
+                elif content_type == "text/html" and not html_body:
                     payload = part.get_payload(decode=True)
                     if payload:
-                        body = payload.decode("utf-8", errors="ignore")
+                        html_body = payload.decode("utf-8", errors="ignore")
         else:
             payload = msg.get_payload(decode=True)
             if payload:
-                body = payload.decode("utf-8", errors="ignore")
+                decoded = payload.decode("utf-8", errors="ignore")
+                ctype = (msg.get_content_type() or "").lower()
+                if ctype == "text/html" or ("<html" in decoded.lower() or "<!doctype" in decoded.lower()):
+                    html_body = decoded
+                else:
+                    body = decoded
+
+        if not body.strip() and html_body:
+            from ..services.html_text import html_to_plain_text
+
+            body = html_to_plain_text(html_body)
+        else:
+            from ..services.html_text import looks_like_html, html_to_plain_text
+
+            if looks_like_html(body):
+                body = html_to_plain_text(body)
 
         if not body.strip() and not subject.strip():
             return None

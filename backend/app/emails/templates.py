@@ -108,6 +108,27 @@ def _base_html(*, title: str, preheader: str, body_html: str) -> str:
         padding: 14px 22px 22px 22px;
         border-top: 1px solid rgba(17,24,39,0.06);
       }}
+      .signature {{
+        margin-top: 8px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(17,24,39,0.06);
+      }}
+      .signature-name {{
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: #0b3b1f;
+      }}
+      .signature-role {{
+        margin: 2px 0 0 0;
+        font-size: 12px;
+        color: rgba(17,24,39,0.62);
+      }}
+      .signature a {{
+        color: #009750;
+        text-decoration: none;
+        font-weight: 700;
+      }}
       .preheader {{
         display:none !important;
         visibility:hidden;
@@ -139,12 +160,20 @@ def _base_html(*, title: str, preheader: str, body_html: str) -> str:
         </div>
         <div class="content">
           {body_html}
+          <div class="signature">
+            <p class="signature-name">Customer Pulse</p>
+            <p class="signature-role">Enterprise Life · Feedback Platform</p>
+            <p class="signature-role" style="margin-top:6px;">
+              <a href="mailto:{support}">{support}</a>
+            </p>
+          </div>
         </div>
         <div class="footer">
           <p class="muted">
-            Need help? Contact <a href="mailto:{support}" style="color:#009750;text-decoration:none;font-weight:700">{support}</a>.
+            This message was sent by Customer Pulse. Need help? Contact
+            <a href="mailto:{support}" style="color:#009750;text-decoration:none;font-weight:700">{support}</a>.
           </p>
-          <p class="muted" style="margin-top:8px;">© {year} Customer Pulse</p>
+          <p class="muted" style="margin-top:8px;">© {year} Customer Pulse · Enterprise Life</p>
         </div>
       </div>
     </div>

@@ -689,6 +689,9 @@ def _serialize_feedback_batch(
         msg = search_by_fid.get(int(feedback.id)) if feedback.id else None
         if not msg:
             msg = decrypt_text(feedback.message_encrypted)
+        from ...services.html_text import normalize_message_text
+
+        msg = normalize_message_text(msg)
         pol_rows = pol_by_fid.get(int(feedback.id), []) if feedback.id else []
         score = score_feedback(
             feedback=feedback,
@@ -753,7 +756,9 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
     meta = _normalize_metadata(feedback)
     customer_key = meta.get("customer_key")
     customer_label = meta.get("customer_label")
-    msg = decrypt_text(feedback.message_encrypted)
+    from ...services.html_text import normalize_message_text
+
+    msg = normalize_message_text(decrypt_text(feedback.message_encrypted))
     profile = None
     purchase_summary: Dict[str, Any] = {}
     ticket_summary: Dict[str, Any] = {}
