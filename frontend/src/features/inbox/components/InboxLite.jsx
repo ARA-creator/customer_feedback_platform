@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefreshCw, FiX } from 'react-icons/fi'
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe, FiLayers } from 'react-icons/fi'
@@ -1033,23 +1033,35 @@ export default function InboxLite({ onNavigate }) {
 
   const scrollInboxToTop = useCallback(() => {
     if (typeof window === 'undefined') return
+    // The app shell scrolls inside <main>, not the window. Use instant scroll —
+    // smooth scroll is cancelled when the list re-renders during page loads.
     const main = document.querySelector('main')
     if (main) {
-      main.scrollTo({ top: 0, behavior: 'smooth' })
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      main.scrollTop = 0
     }
-    try {
-      inboxTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    } catch {
-      // ignore
+    window.scrollTo(0, 0)
+    const el = inboxTopRef.current
+    if (el) {
+      try {
+        el.scrollIntoView({ block: 'start', behavior: 'auto' })
+      } catch {
+        // ignore
+      }
     }
   }, [])
 
-  // Keep the list at the top when paging, switching tabs, or changing filters.
-  useEffect(() => {
+  // Scroll as soon as page/tab/filters change…
+  useLayoutEffect(() => {
     scrollInboxToTop()
   }, [page, listTab, pageSize, filterKey, scrollInboxToTop])
+
+  // …and again after the feed settles (DOM height changes cancel earlier scrolls).
+  useLayoutEffect(() => {
+    if (loading || pageLoading) return undefined
+    scrollInboxToTop()
+    const t = window.setTimeout(scrollInboxToTop, 0)
+    return () => window.clearTimeout(t)
+  }, [loading, pageLoading, items, page, listTab, scrollInboxToTop])
 
   return (
     <div ref={inboxTopRef} className="scroll-mt-4 p-4 sm:p-6 lg:p-8 space-y-5">
