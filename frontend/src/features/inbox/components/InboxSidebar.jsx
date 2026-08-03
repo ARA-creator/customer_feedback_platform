@@ -27,7 +27,7 @@ const SUMMARY_CARDS = [
   },
   {
     key: 'newCount',
-    label: 'New feedback',
+    label: "Today's Feedback",
     color: '#10B981',
     // Daily arrivals (today + recent days); unread backlog is reflected in the count value.
     sparkPredicate: null,

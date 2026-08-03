@@ -39,9 +39,11 @@ function SignatureLines({ text, renderLinkedText }) {
           )
         const isMeta =
           /@/.test(t) ||
-          /\+?\d[\d\s().-]{6,}\d/.test(t) ||
-          /^(tel|phone|mobile|email|web|www\.)\b/i.test(t) ||
-          /^https?:\/\//i.test(t)
+          /\+?\d[\d\s()./\-]{6,}\d/.test(t) ||
+          /^(tel|phone|mobile|email|web|www\.|fax)\b/i.test(t) ||
+          /^https?:\/\//i.test(t) ||
+          /\b(?:officer|manager|director|executive|analyst|specialist)\b/i.test(t) ||
+          /\b(?:road|street|avenue|complex|accra|ghana|pmb|gpo)\b/i.test(t)
         return (
           <LinkedBlock
             key={`${i}-${t.slice(0, 24)}`}

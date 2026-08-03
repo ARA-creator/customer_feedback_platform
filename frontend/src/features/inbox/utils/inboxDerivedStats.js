@@ -69,7 +69,7 @@ export function needsResponse(item) {
 }
 
 /**
- * "New feedback" = arrived on the user's local calendar day only.
+ * "Today's Feedback" = arrived on the user's local calendar day only.
  * Resets each day (yesterday's items are no longer "new").
  */
 export function isNewFeedback(item, _readIds, now = new Date()) {

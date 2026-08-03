@@ -6,9 +6,19 @@ function metaOf(item) {
 }
 
 export function channelKind(item) {
+  const meta = item?.channel_metadata && typeof item.channel_metadata === 'object' ? item.channel_metadata : {}
   const s = String(item?.source_group || item?.source || '')
     .trim()
     .toLowerCase()
+  // Prefer metadata: ingested mail always carries subject / sender even if source is odd.
+  if (
+    meta.email_subject ||
+    meta.sender_email ||
+    meta.email_date ||
+    meta.message_id
+  ) {
+    return 'email'
+  }
   if (!s) return 'generic'
   if (s === 'email' || s.includes('mail')) return 'email'
   if (s.includes('whatsapp')) return 'whatsapp'
