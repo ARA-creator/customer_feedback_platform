@@ -43,5 +43,9 @@ def test_inbox_tab_filter_read_unread(app):
         read_rows = apply_inbox_tab_filter(base, db, user.id, "read").all()
         assert len(read_rows) == 1
         assert read_rows[0].id == read_fb.id
+
+        all_rows = apply_inbox_tab_filter(base, db, user.id, "all").all()
+        assert len(all_rows) == 2
+        assert {r.id for r in all_rows} == {read_fb.id, unread_fb.id}
     finally:
         db.close()

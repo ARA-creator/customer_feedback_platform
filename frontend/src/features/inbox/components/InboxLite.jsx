@@ -47,7 +47,8 @@ const INSURANCE_TAG_OPTIONS = [...INSURANCE_TAG_BASE].sort((a, b) =>
   a.replace(/_/g, ' ').localeCompare(b.replace(/_/g, ' '), undefined, { sensitivity: 'base' }),
 )
 
-const INBOX_PAGE_SIZE = 25
+const INBOX_PAGE_SIZE = 50
+const INBOX_PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 const SENTIMENT_COLORS = {
   positive: '#6FBF73',
@@ -278,11 +279,11 @@ export default function InboxLite({ onNavigate }) {
   const { readIds, pinnedIds, mergeFromFeedItems, markIdsRead, markIdsUnread, togglePinned, setPinnedMany } =
     useInboxUserState()
   const [scopedInboxIds, setScopedInboxIds] = useState(() => new Set())
-  const feedCursorRef = useRef(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(INBOX_PAGE_SIZE)
+  const [feedTotal, setFeedTotal] = useState(0)
   const [feedHasMore, setFeedHasMore] = useState(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const loadMoreSentinelRef = useRef(null)
-  const loadMoreCoolDownRef = useRef(false)
+  const [pageLoading, setPageLoading] = useState(false)
   const visibleItemsRef = useRef([])
   const itemsRef = useRef([])
   const searchInputRef = useRef(null)
@@ -522,43 +523,43 @@ export default function InboxLite({ onNavigate }) {
   }, [])
 
   const load = useCallback(
-    async ({ append = false, soft = false } = {}) => {
+    async ({ soft = false } = {}) => {
       // Soft refresh must not cancel (or be cancelled by) hard loads via seq bumping.
       const seq = soft ? loadSeq.current : ++loadSeq.current
-      const hardReplace = !append && !soft
-      if (append) setLoadingMore(true)
-      else if (hardReplace) {
+      const hasExisting = (itemsRef.current || []).length > 0
+      const pageFlip = !soft && hasExisting
+      const hardReplace = !soft && !pageFlip
+      if (hardReplace) {
         setLoading(true)
         // Counts are filter-dependent; clear immediately to avoid showing stale totals
         // if the background counts request times out.
         setCounts({})
-        feedCursorRef.current = null
         setFeedHasMore(false)
+      } else if (pageFlip || soft) {
+        setPageLoading(true)
       }
       setError(null)
       try {
         const loc = typeof locationFilter === 'string' ? locationFilter.trim() : ''
         const isPriority = sortBy === 'priority'
-        const pageLimit =
-          append && isPriority ? itemsRef.current.length + INBOX_PAGE_SIZE : INBOX_PAGE_SIZE
+        const offset = Math.max(0, (page - 1) * pageSize)
         const params = {
           source: source === 'all' ? 'all' : source,
           sentiment,
           q: q || undefined,
-          limit: pageLimit,
+          limit: pageSize,
+          offset,
           sort: isPriority ? 'impact' : 'chronological',
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
           inbox_tab:
-            listTab === 'read' || listTab === 'unread' || listTab === 'replied' ? listTab : undefined,
+            listTab === 'read' || listTab === 'unread' || listTab === 'replied' || listTab === 'all'
+              ? listTab
+              : 'all',
           ...dateParams,
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
           range_days: peakRangeDays ?? undefined,
-        }
-        if (append && !isPriority && feedCursorRef.current) {
-          params.cursor_created_at = feedCursorRef.current.cursor_created_at
-          params.cursor_id = feedCursorRef.current.cursor_id
         }
         const feed = await getFeedbackFeed(params)
         if (seq !== loadSeq.current) return
@@ -567,25 +568,8 @@ export default function InboxLite({ onNavigate }) {
           .filter((it) => it?.id && !archivedIds.has(it.id))
           .map((it) => normFeedbackId(it.id))
           .filter(Boolean)
-        if (append && !isPriority) {
-          setItems((prev) => {
-            const seen = new Set((prev || []).map((it) => Number(it?.id)).filter(Number.isFinite))
-            const merged = [...(prev || [])]
-            for (const it of newItems) {
-              const id = Number(it?.id)
-              if (!Number.isFinite(id) || seen.has(id)) continue
-              seen.add(id)
-              merged.push(it)
-            }
-            return merged
-          })
-          setScopedInboxIds((prev) => {
-            const next = new Set(prev)
-            for (const id of inboxIds) next.add(id)
-            return next
-          })
-        } else if (soft) {
-          setItems((prev) => mergeFeedbackItems(prev, newItems))
+        if (soft) {
+          setItems((prev) => mergeFeedbackItems(prev, newItems, { max: pageSize }))
           setScopedInboxIds((prev) => {
             const next = new Set(prev)
             for (const id of inboxIds) next.add(id)
@@ -596,38 +580,37 @@ export default function InboxLite({ onNavigate }) {
           setScopedInboxIds(new Set(inboxIds))
         }
         mergeFromFeedItems(newItems)
-        if (!soft) {
-          feedCursorRef.current = feed?.next_cursor ?? null
-          setFeedHasMore(Boolean(feed?.has_more))
-        } else if (!feedCursorRef.current) {
-          feedCursorRef.current = feed?.next_cursor ?? null
-          setFeedHasMore(Boolean(feed?.has_more))
+        setFeedHasMore(Boolean(feed?.has_more))
+        const totalFromFeed = Number(feed?.total)
+        if (Number.isFinite(totalFromFeed) && totalFromFeed >= 0) {
+          setFeedTotal(totalFromFeed)
         }
         if (feed?.inbox_tab_counts && typeof feed.inbox_tab_counts === 'object') {
-          setInboxTabCounts({
+          const nextCounts = {
             all: Number(feed.inbox_tab_counts.all) || 0,
             read: Number(feed.inbox_tab_counts.read) || 0,
             unread: Number(feed.inbox_tab_counts.unread) || 0,
             replied: Number(feed.inbox_tab_counts.replied) || 0,
-          })
+          }
+          setInboxTabCounts(nextCounts)
+          const tabKey = listTab === 'read' || listTab === 'unread' || listTab === 'replied' ? listTab : 'all'
+          if (!(Number.isFinite(totalFromFeed) && totalFromFeed >= 0)) {
+            setFeedTotal(Number(nextCounts[tabKey]) || 0)
+          }
         }
-        if (!append) {
-          setLastLoadedAt(new Date())
-        }
+        setLastLoadedAt(new Date())
 
         // Tab counts are secondary; don't block showing the feed if this is slow.
-        if (!append) {
-          try {
-            const sc = await getSourceCounts(params)
-            if (seq !== loadSeq.current) return
-            const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
-            const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
-            const total = Number(sc?.total ?? 0)
-            const base = grouped || raw || {}
-            setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
-          } catch {
-            // Keep feed visible; counts refresh on next load.
-          }
+        try {
+          const sc = await getSourceCounts(params)
+          if (seq !== loadSeq.current) return
+          const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
+          const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
+          const total = Number(sc?.total ?? 0)
+          const base = grouped || raw || {}
+          setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
+        } catch {
+          // Keep feed visible; counts refresh on next load.
         }
       } catch (e) {
         if (seq !== loadSeq.current) return
@@ -642,13 +625,13 @@ export default function InboxLite({ onNavigate }) {
           setScopedInboxIds(new Set())
           setCounts({})
           setLastLoadedAt(null)
-          feedCursorRef.current = null
           setFeedHasMore(false)
+          setFeedTotal(0)
         }
       } finally {
         if (seq !== loadSeq.current) return
-        if (append) setLoadingMore(false)
-        else if (hardReplace) setLoading(false)
+        if (hardReplace) setLoading(false)
+        setPageLoading(false)
       }
     },
     [
@@ -665,12 +648,36 @@ export default function InboxLite({ onNavigate }) {
       listTab,
       archivedIds,
       mergeFromFeedItems,
+      page,
+      pageSize,
     ],
   )
 
   useEffect(() => {
-    load({ append: false })
+    load({ soft: false })
   }, [load])
+
+  // Reset to first page when filters / tab / sort / page size change (not when page itself changes).
+  const filterKey = [
+    source,
+    sentiment,
+    q,
+    insuranceTagFilter,
+    locationFilter,
+    JSON.stringify(dateParams),
+    peakDow,
+    peakHour,
+    peakRangeDays,
+    sortBy,
+    listTab,
+    pageSize,
+  ].join('|')
+  const filterKeyRef = useRef(filterKey)
+  useEffect(() => {
+    if (filterKeyRef.current === filterKey) return
+    filterKeyRef.current = filterKey
+    setPage(1)
+  }, [filterKey])
 
   // Live feedback: soft-merge new rows without wiping the loaded list.
   useEffect(() => {
@@ -684,7 +691,8 @@ export default function InboxLite({ onNavigate }) {
           if (data?.type !== 'feedback_created') return
           if (debounceTimer) window.clearTimeout(debounceTimer)
           debounceTimer = window.setTimeout(() => {
-            load({ soft: true })
+            // New items belong on page 1; soft-refresh current view otherwise.
+            if (page === 1) load({ soft: true })
           }, 400)
         } catch {
           // ignore malformed events
@@ -701,7 +709,7 @@ export default function InboxLite({ onNavigate }) {
         // ignore
       }
     }
-  }, [load])
+  }, [load, page])
 
   useEffect(() => {
     if (!openFeedbackId) return
@@ -766,7 +774,6 @@ export default function InboxLite({ onNavigate }) {
   }, [visibleItems, activeQuickFilter, readIds, sortBy, pinnedIds])
 
   const displayedItems = sortedVisibleItems
-  const hasMoreToShow = feedHasMore
 
   const inboxItemsForStats = useMemo(() => {
     const arr = Array.isArray(items) ? items : []
@@ -804,55 +811,22 @@ export default function InboxLite({ onNavigate }) {
     }).length
   }, [inboxTabCounts?.read, totalInboxCount, unreadInboxCount, inboxItemsForStats, readIds])
 
-  const unreadTabActive = listTab === 'unread'
-  const readTabActive = listTab === 'read'
+  const tabTotal = useMemo(() => {
+    if (listTab === 'read') return readInboxCount
+    if (listTab === 'unread') return unreadInboxCount
+    if (listTab === 'replied') return repliedCount
+    return totalInboxCount
+  }, [listTab, readInboxCount, unreadInboxCount, repliedCount, totalInboxCount])
 
-  const loadedUnreadOnPage = useMemo(
-    () =>
-      visibleItems.filter((it) => {
-        const id = normFeedbackId(it?.id)
-        return id != null && !readIds.has(id)
-      }).length,
-    [visibleItems, readIds],
-  )
+  const paginationTotal = Number.isFinite(feedTotal) && feedTotal > 0 ? feedTotal : tabTotal
+  const totalPages = Math.max(1, Math.ceil(Math.max(paginationTotal, 0) / pageSize) || 1)
+  const pageStart = paginationTotal === 0 ? 0 : (page - 1) * pageSize + 1
+  const pageEnd = Math.min(page * pageSize, paginationTotal)
 
-  const loadedReadOnPage = useMemo(
-    () =>
-      visibleItems.filter((it) => {
-        const id = normFeedbackId(it?.id)
-        return id != null && readIds.has(id)
-      }).length,
-    [visibleItems, readIds],
-  )
-
-  /** Read/Unread tabs filter client-side; paginate until matching rows appear or feed ends.
-   * Replied is server-filtered (`inbox_tab=replied`) — do not auto-append through the whole feed. */
+  // Clamp page if totals shrink (e.g. after filters).
   useEffect(() => {
-    if (!unreadTabActive && !readTabActive) return
-    if (loading || loadingMore) return
-    if (!feedHasMore) return
-    const loadedOnPage = unreadTabActive ? loadedUnreadOnPage : loadedReadOnPage
-    if (loadedOnPage > 0) return
-    if (items.length === 0) return
-    load({ append: true })
-  }, [
-    unreadTabActive,
-    readTabActive,
-    loadedUnreadOnPage,
-    loadedReadOnPage,
-    feedHasMore,
-    loading,
-    loadingMore,
-    items.length,
-    load,
-  ])
-
-  const prefetchingList =
-    (unreadTabActive || readTabActive) &&
-    !loading &&
-    displayedItems.length === 0 &&
-    items.length > 0 &&
-    (loadingMore || feedHasMore)
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const sidebarStats = useMemo(
     () =>
@@ -1047,28 +1021,14 @@ export default function InboxLite({ onNavigate }) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [sortedVisibleItems, openItem, openFeedback])
 
-  const loadNextBatch = useCallback(() => {
-    if (!feedHasMore || loadingMore || loading) return
-    load({ append: true })
-  }, [feedHasMore, loadingMore, loading, load])
-
-  useEffect(() => {
-    const el = loadMoreSentinelRef.current
-    if (!el || !hasMoreToShow) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries[0]?.isIntersecting || loadMoreCoolDownRef.current) return
-        loadMoreCoolDownRef.current = true
-        loadNextBatch()
-        window.setTimeout(() => {
-          loadMoreCoolDownRef.current = false
-        }, 700)
-      },
-      { root: null, rootMargin: '200px 0px 200px 0px', threshold: 0 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasMoreToShow, loadNextBatch, loadingMore])
+  const goToPage = useCallback(
+    (next) => {
+      const n = Number(next)
+      if (!Number.isFinite(n)) return
+      setPage(Math.min(Math.max(1, Math.floor(n)), totalPages))
+    },
+    [totalPages],
+  )
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-5">
@@ -1204,19 +1164,22 @@ export default function InboxLite({ onNavigate }) {
             listTab={listTab}
             onListTabChange={(tab) => {
               setListTab(tab)
+              setPage(1)
               if (tab === 'replied' && folder === 'archive') setFolder('inbox')
             }}
             allCount={totalInboxCount}
             readCount={readInboxCount}
             unreadCount={unreadInboxCount}
             repliedCount={repliedCount}
-            prefetchingList={prefetchingList}
             sortBy={sortBy}
-            onSortChange={setSortBy}
+            onSortChange={(v) => {
+              setSortBy(v)
+              setPage(1)
+            }}
             displayedItems={displayedItems}
             listHighlightId={listHighlightId}
             highlightTheme={insuranceTagFilter}
-            loadingMore={loadingMore}
+            pageLoading={pageLoading}
             selectedIds={selectedIds}
             selectedCount={selectedIds.size}
             readIds={readIds}
@@ -1252,14 +1215,24 @@ export default function InboxLite({ onNavigate }) {
                   ),
                 )
               } catch (err) {
-                console.error('Failed to mark attended to', err)
+                console.error('Failed to mark replied', err)
               }
             }}
             formatRelativeTime={formatRelativeTime}
             SourceIcon={SourceIcon}
-            hasMoreToShow={hasMoreToShow}
-            loadMoreSentinelRef={loadMoreSentinelRef}
-            onLoadMore={loadNextBatch}
+            page={page}
+            pageSize={pageSize}
+            pageSizeOptions={INBOX_PAGE_SIZE_OPTIONS}
+            totalPages={totalPages}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            paginationTotal={paginationTotal}
+            hasNextPage={feedHasMore || page < totalPages}
+            onPageChange={goToPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
             onClearFilters={() => {
               setQDraft('')
               setQ('')
@@ -1269,6 +1242,7 @@ export default function InboxLite({ onNavigate }) {
               setDateRange('all')
               setActiveQuickFilter(null)
               setListTab('all')
+              setPage(1)
             }}
           />
         </div>

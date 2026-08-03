@@ -24,7 +24,7 @@ export default function InsightsInvestigateBar({
   if (statusFilter === 'read') {
     parts.push('Read')
   } else if (statusFilter === 'replied') {
-    parts.push('Attended to')
+    parts.push('Replied')
   }
 
   const openInbox = () => {

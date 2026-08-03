@@ -169,9 +169,9 @@ export default function InboxFeedbackRow({
             {item?.replied_at ? (
               <span
                 className="rounded-full border border-sky-200/80 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
-                title="Marked as attended to"
+                title="Marked as replied"
               >
-                Attended to
+                Replied
               </span>
             ) : null}
             <button
@@ -201,8 +201,8 @@ export default function InboxFeedbackRow({
                   ? 'border-sky-200/80 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200'
                   : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200'
               }`}
-              title={item?.replied_at ? 'Move back to Inbox' : 'Mark as attended to'}
-              aria-label={item?.replied_at ? 'Move back to Inbox' : 'Mark as attended to'}
+              title={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
+              aria-label={item?.replied_at ? 'Move back to Inbox' : 'Mark as replied'}
             >
               <FiMail className="h-3.5 w-3.5" aria-hidden />
             </button>

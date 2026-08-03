@@ -677,6 +677,10 @@ def feedback_feed():
         inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
         cursor_created_at = _parse_dt(request.args.get("cursor_created_at"))
         cursor_id = request.args.get("cursor_id", type=int)
+        offset = request.args.get("offset", type=int) or 0
+        offset = max(0, min(offset, 50_000))
+        if inbox_tab not in ("all", "read", "unread", "replied"):
+            inbox_tab = "all"
 
         q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
         q = _exclude_removed_sources(q)
@@ -742,7 +746,8 @@ def feedback_feed():
             q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
         if sort == "impact":
-            rows = q.limit(min(limit * 4, 400)).all()
+            fetch_n = min(max(offset + limit + 1, limit + 1), 1000)
+            rows = q.limit(fetch_n).all()
             rows = sorted(
                 rows,
                 key=lambda f: (
@@ -752,22 +757,24 @@ def feedback_feed():
                 ),
                 reverse=True,
             )
-            page = rows[:limit]
+            page = rows[offset : offset + limit]
             next_cursor = None
-            has_more = len(rows) > limit
+            has_more = len(rows) > offset + limit
         else:
-            if cursor_created_at and cursor_id:
-                q = q.filter(
+            q_page = q
+            if offset <= 0 and cursor_created_at and cursor_id:
+                q_page = q_page.filter(
                     or_(
                         Feedback.created_at < cursor_created_at,
                         and_(Feedback.created_at == cursor_created_at, Feedback.id < cursor_id),
                     )
                 )
-            page = q.order_by(desc(Feedback.created_at), desc(Feedback.id)).limit(limit + 1).all()
+            ordered = q_page.order_by(desc(Feedback.created_at), desc(Feedback.id))
+            page = ordered.offset(offset if offset > 0 else 0).limit(limit + 1).all()
             has_more = len(page) > limit
             page = page[:limit]
             next_cursor = None
-            if has_more and page:
+            if offset <= 0 and has_more and page:
                 last = page[-1]
                 next_cursor = {
                     "cursor_created_at": last.created_at.isoformat() if last.created_at else None,
@@ -816,12 +823,20 @@ def feedback_feed():
             for item in items:
                 item["inbox_read"] = False
                 item["inbox_pinned"] = False
+        tab_total = None
+        if isinstance(inbox_tab_counts, dict):
+            tab_total = inbox_tab_counts.get(inbox_tab)
+            if tab_total is None and inbox_tab == "all":
+                tab_total = inbox_tab_counts.get("all")
         return jsonify(
             {
                 "items": items,
                 "next_cursor": next_cursor,
                 "has_more": has_more,
                 "inbox_tab_counts": inbox_tab_counts,
+                "offset": offset,
+                "limit": limit,
+                "total": int(tab_total) if tab_total is not None else None,
             }
         )
     except Exception:

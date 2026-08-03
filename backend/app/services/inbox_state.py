@@ -161,8 +161,9 @@ def apply_inbox_tab_filter(query, db, user_id: int, inbox_tab: Optional[str]):
     tab = (inbox_tab or "all").strip().lower()
     if tab == "replied":
         return query.filter(Feedback.replied_at.isnot(None))
+    # "all" = unreplied inbox (matches All feedback tab counts).
     if tab not in ("read", "unread"):
-        return query
+        return query.filter(Feedback.replied_at.is_(None))
 
     # Read/Unread operate on unreplied items (replied live on the Replied tab).
     query = query.filter(Feedback.replied_at.is_(None))
