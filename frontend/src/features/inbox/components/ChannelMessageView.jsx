@@ -5,6 +5,7 @@ import {
   channelMessageTitle,
   emailBodyWithoutSubject,
 } from '../utils/channelMessagePresentation'
+import EmailBodyView from './EmailBodyView'
 
 function formatWhen(when) {
   if (!when) return ''
@@ -69,11 +70,11 @@ export default function ChannelMessageView({ item, renderLinkedText }) {
             </p>
           </div>
         </div>
-        <div className="px-4 py-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
-          <div className="whitespace-pre-wrap break-words">{body}</div>
+        <div className="px-4 py-5 sm:px-5">
+          <EmailBodyView text={bodyText} renderLinkedText={renderLinkedText} />
         </div>
         {fromEmail ? (
-          <div className="border-t border-gray-100 px-4 py-3 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          <div className="border-t border-gray-100 px-4 py-3 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400 sm:px-5">
             Reply in your mail client to{' '}
             <a
               href={`mailto:${fromEmail}`}
