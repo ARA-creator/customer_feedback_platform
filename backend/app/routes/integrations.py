@@ -358,6 +358,21 @@ def _submit_to_feedback_api(payload: dict) -> dict:
         db.commit()
         db.refresh(feedback)
 
+        # Notify inbox SSE listeners immediately (same process / single-worker).
+        try:
+            from ..routes.api._helpers import event_queue
+
+            event_queue.put_nowait(
+                {
+                    "type": "feedback_created",
+                    "id": feedback.id,
+                    "source": feedback.source,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                }
+            )
+        except Exception:
+            pass
+
         # Create Notifications (best-effort). Mirrors api.create_feedback behavior so ingested items notify too.
         try:
             from ..services.notification_policy import should_deliver_notification

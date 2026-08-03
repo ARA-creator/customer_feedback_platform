@@ -162,21 +162,29 @@ def parse_twilio_webhook(form_data: Dict) -> Optional[Dict]:
         if ct:
             media_types.append(ct)
 
-    # mask phone number for privacy
-    masked_number = from_number[-4:].rjust(len(from_number), "*") if from_number else None
+    # Store the real E.164 phone (officers need it); keep a masked copy only as fallback display.
+    phone = (from_number or "").strip()
+    if phone.lower().startswith("whatsapp:"):
+        phone = phone.split(":", 1)[1].strip()
+    masked_number = ("*" * max(0, len(phone) - 4) + phone[-4:]) if phone else None
+    wa_id = "".join(ch for ch in phone if ch.isdigit()) or None
 
     return {
         "message": message_body,
         "source": "whatsapp",
         "category": None,
         "channel_metadata": {
+            "from_number": phone or None,
+            "phone": phone or None,
             "from_number_masked": masked_number,
+            "wa_id": wa_id,
             "to_number": to_number,
             "message_sid": message_sid,
             "account_sid": account_sid,
             "provider": "twilio",
-            "thread_id": message_sid,
-            "author_handle": masked_number,
+            # Stable conversation key = phone, not per-message MessageSid.
+            "thread_id": wa_id or phone or message_sid,
+            "author_handle": phone or masked_number,
             "campaign": None,
             "location": None,
             "language": "en",
@@ -212,23 +220,26 @@ def parse_meta_whatsapp_webhook(payload: Dict) -> Optional[Dict]:
 
         contacts = value.get("contacts", [{}])
         contact = contacts[0] if contacts else {}
-        from_number = message.get("from", "")
-        wa_id = contact.get("wa_id", "")
-
-        # mask phone number
-        masked_number = from_number[-4:].rjust(len(from_number), "*") if from_number else None
+        from_number = str(message.get("from", "") or "").strip()
+        wa_id = str(contact.get("wa_id", "") or from_number or "").strip()
+        phone = from_number
+        if phone and not phone.startswith("+") and phone.isdigit():
+            phone = f"+{phone}"
+        masked_number = ("*" * max(0, len(phone) - 4) + phone[-4:]) if phone else None
 
         return {
             "message": message_text,
             "source": "whatsapp",
             "category": None,
             "channel_metadata": {
+                "from_number": phone or None,
+                "phone": phone or None,
                 "from_number_masked": masked_number,
-                "wa_id": wa_id,
+                "wa_id": wa_id or None,
                 "message_id": message.get("id"),
                 "provider": "meta",
-                "thread_id": message.get("id"),
-                "author_handle": masked_number,
+                "thread_id": wa_id or phone or message.get("id"),
+                "author_handle": phone or wa_id or masked_number,
                 "campaign": None,
                 "location": None,
                 "language": "en",

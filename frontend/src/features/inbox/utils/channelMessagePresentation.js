@@ -1,4 +1,4 @@
-/** Channel-aware presentation helpers for inbox list + detail. */
+/* Channel-aware presentation helpers for inbox list + detail. */
 
 function metaOf(item) {
   const m = item?.channel_metadata
@@ -10,7 +10,7 @@ export function channelKind(item) {
   const s = String(item?.source_group || item?.source || '')
     .trim()
     .toLowerCase()
-  // Prefer metadata: ingested mail always carries subject / sender even if source is odd.
+  // Prefer metadata: ingested email always carries subject / sender even if source is odd.
   if (
     meta.email_subject ||
     meta.sender_email ||
@@ -20,11 +20,11 @@ export function channelKind(item) {
     return 'email'
   }
   if (!s) return 'generic'
-  if (s === 'email' || s.includes('mail')) return 'email'
+  if (s === 'email' || s.includes('email')) return 'email'
   if (s.includes('whatsapp')) return 'whatsapp'
   if (s.includes('facebook')) return 'facebook'
   if (s.includes('instagram')) return 'instagram'
-  if (s === 'x' || s.includes('twitter') || s.startsWith('x_') || s.startsWith('x-')) return 'x'
+  if (s === 'x' || s.includes('twitter') || s.startsWith('x ') || s.startsWith('x-')) return 'x'
   if (s.includes('tiktok')) return 'tiktok'
   if (s.includes('jotform') || s.includes('form') || s === 'web' || s.startsWith('web')) return 'form'
   return 'generic'
@@ -47,7 +47,7 @@ export function emailBodyWithoutSubject(item) {
     const lines = body.split(/\r?\n/)
     const first = (lines[0] || '').trim()
     if (first && first.toLowerCase() === subject.toLowerCase()) {
-      body = lines.slice(1).join('\n').replace(/^\s+/, '')
+      body = lines.slice(1).join('\n').replace(/^\n+/, '')
     }
   }
   return body
@@ -75,7 +75,15 @@ export function channelMessageSubtitle(item) {
     return name || email || ''
   }
   if (kind === 'whatsapp') {
-    return String(meta.customer_label || meta.author_handle || meta.masked_phone || meta.phone || '').trim()
+    return String(
+      meta.phone ||
+        meta.from_number ||
+        meta.customer_label ||
+        meta.author_handle ||
+        meta.masked_phone ||
+        meta.from_number_masked ||
+        '',
+    ).trim()
   }
   if (kind === 'facebook' || kind === 'instagram' || kind === 'x' || kind === 'tiktok') {
     const handle = String(meta.author_handle || meta.customer_label || '').trim()

@@ -10,6 +10,7 @@ import { captureApiSessionFromUrl } from '../shared/lib/authSession'
 import { useNotificationPrefs } from '../features/notifications/hooks/useNotificationPrefs'
 import { connectNotificationsStream } from '../features/notifications/services/notifications.api'
 import { useLiveNotificationToasts } from '../features/notifications/hooks/useLiveNotificationToasts'
+import NotificationMetaBadges from '../features/notifications/components/NotificationMetaBadges'
 import AdminUsers from '../features/admin/components/AdminUsers'
 import AdminRoles from '../features/admin/components/AdminRoles'
 import AdminOverview from '../features/admin/components/AdminOverview'
@@ -207,12 +208,15 @@ function AuthenticatedApp({ auth, setAuth }) {
 
   const pushLiveToast = useCallback((n) => {
     const id = `${Date.now()}-${Math.random()}`
+    const meta = n?.meta && typeof n.meta === 'object' ? n.meta : {}
     setLiveToasts((prev) => [
       {
         id,
         title: n.title || 'New notification',
         body: n.body || '',
         href: n.href || 'notifications',
+        meta,
+        notificationId: n?.id ?? null,
       },
       ...prev,
     ].slice(0, 3))
@@ -224,11 +228,56 @@ function AuthenticatedApp({ auth, setAuth }) {
     }, 6500)
   }, [])
 
+  const openToastTarget = useCallback(
+    (t) => {
+      const href = String(t?.href || 'notifications').trim() || 'notifications'
+      const meta = t?.meta && typeof t.meta === 'object' ? t.meta : {}
+      const feedbackId = Number(meta?.feedback_id)
+      if (href === 'inbox' && Number.isFinite(feedbackId) && feedbackId > 0) {
+        try {
+          sessionStorage.setItem('cfp_inbox_open_feedback_id', String(feedbackId))
+        } catch {
+          // ignore
+        }
+        try {
+          window.dispatchEvent(
+            new CustomEvent('cfp-open-inbox-feedback', { detail: { feedbackId } }),
+          )
+        } catch {
+          // ignore
+        }
+      }
+      if (href === 'inbox' && meta?.inbox_preset && typeof meta.inbox_preset === 'object') {
+        try {
+          sessionStorage.setItem('cfp_inbox_anomaly_preset', JSON.stringify(meta.inbox_preset))
+        } catch {
+          // ignore
+        }
+      }
+      navigateToView(href)
+    },
+    [navigateToView],
+  )
+
   // Always keep unread polling available for the sidebar badge (independent of toast prefs).
   const { handleStreamEvent } = useLiveNotificationToasts({
     enabled: !isAdminUI && notificationPrefsLoaded,
     deliveryPrefs,
     onToast: (n) => {
+      // Soft-refresh inbox as soon as the notification arrives (do not wait for View).
+      try {
+        const fid = Number(n?.meta?.feedback_id)
+        window.dispatchEvent(
+          new CustomEvent('cfp-feedback-created', {
+            detail: {
+              feedbackId: Number.isFinite(fid) && fid > 0 ? fid : null,
+              source: n?.meta?.source || null,
+            },
+          }),
+        )
+      } catch {
+        // ignore
+      }
       if (!realtimeEnabled) return
       pushLiveToast(n)
     },
@@ -373,15 +422,13 @@ function AuthenticatedApp({ auth, setAuth }) {
                 <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-[#009750]" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.title}</p>
-                  {t.body ? (
-                    <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{t.body}</p>
-                  ) : null}
+                  <NotificationMetaBadges meta={t.meta} body={t.body} className="mt-1" />
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         setLiveToasts((prev) => prev.filter((x) => x.id !== t.id))
-                        navigateToView(t.href || 'notifications')
+                        openToastTarget(t)
                       }}
                       className="inline-flex min-h-[36px] items-center rounded-xl bg-[#009750] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#007a42] focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
                     >

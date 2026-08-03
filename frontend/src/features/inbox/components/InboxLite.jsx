@@ -14,7 +14,6 @@ import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import ChannelMessageView from './ChannelMessageView'
-import InboxScrollToTopButton from './InboxScrollToTopButton'
 import {
   computeInboxStats,
   computeStableUnreadCount,
@@ -278,6 +277,15 @@ export default function InboxLite({ onNavigate }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
   const { readIds, pinnedIds, mergeFromFeedItems, markIdsRead, markIdsUnread, togglePinned, setPinnedMany } =
     useInboxUserState()
+  const openFeedback = useCallback(
+    (it) => {
+      const fid = normFeedbackId(it?.id)
+      if (fid) markIdsRead([fid])
+      setOpenItem(it)
+    },
+    [markIdsRead],
+  )
+  const openFeedbackFetchTriedRef = useRef(null)
   const [scopedInboxIds, setScopedInboxIds] = useState(() => new Set())
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(INBOX_PAGE_SIZE)
@@ -438,6 +446,30 @@ export default function InboxLite({ onNavigate }) {
       // ignore
     }
   }, [])
+
+  useEffect(() => {
+    const onOpen = (e) => {
+      const id = Number(e?.detail?.feedbackId)
+      if (!Number.isFinite(id) || id <= 0) return
+      try {
+        sessionStorage.removeItem('cfp_inbox_open_feedback_id')
+      } catch {
+        // ignore
+      }
+      setListTab('all')
+      setPage(1)
+      setOpenFeedbackId(id)
+    }
+    const onCreated = () => {
+      if (page === 1) load({ soft: true })
+    }
+    window.addEventListener('cfp-open-inbox-feedback', onOpen)
+    window.addEventListener('cfp-feedback-created', onCreated)
+    return () => {
+      window.removeEventListener('cfp-open-inbox-feedback', onOpen)
+      window.removeEventListener('cfp-feedback-created', onCreated)
+    }
+  }, [load, page])
 
   const dateParams = useMemo(() => {
     const todayUtc = startOfUtcDay(new Date())
@@ -684,17 +716,19 @@ export default function InboxLite({ onNavigate }) {
   useEffect(() => {
     let es
     let debounceTimer
+    const softRefresh = () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(() => {
+        if (page === 1) load({ soft: true })
+      }, 400)
+    }
     try {
       es = new EventSource(`${getBackendOrigin()}/api/events`, { withCredentials: false })
       es.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data)
           if (data?.type !== 'feedback_created') return
-          if (debounceTimer) window.clearTimeout(debounceTimer)
-          debounceTimer = window.setTimeout(() => {
-            // New items belong on page 1; soft-refresh current view otherwise.
-            if (page === 1) load({ soft: true })
-          }, 400)
+          softRefresh()
         } catch {
           // ignore malformed events
         }
@@ -713,13 +747,51 @@ export default function InboxLite({ onNavigate }) {
   }, [load, page])
 
   useEffect(() => {
-    if (!openFeedbackId) return
+    if (!openFeedbackId) {
+      openFeedbackFetchTriedRef.current = null
+      return
+    }
     const it = (items || []).find((x) => Number(x?.id) === Number(openFeedbackId))
     if (it) {
       openFeedback(it)
       setOpenFeedbackId(null)
+      openFeedbackFetchTriedRef.current = null
+      return
     }
-  }, [openFeedbackId, items])
+    if (openFeedbackFetchTriedRef.current === openFeedbackId) return
+    openFeedbackFetchTriedRef.current = openFeedbackId
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Pull the specific row even if filters/page would hide it, then open it.
+        const feed = await getFeedbackFeed({
+          ids: String(openFeedbackId),
+          limit: 1,
+          inbox_tab: 'all',
+        })
+        if (cancelled) return
+        const found = Array.isArray(feed?.items)
+          ? feed.items.find((x) => Number(x?.id) === Number(openFeedbackId))
+          : null
+        if (found) {
+          setItems((prev) =>
+            mergeFeedbackItems(prev, [found], { max: Math.max(pageSize, (prev || []).length + 1) }),
+          )
+          openFeedback(found)
+          setOpenFeedbackId(null)
+          openFeedbackFetchTriedRef.current = null
+          return
+        }
+        // Not found yet (race with ingest) — soft-refresh once; keep openFeedbackId for merge.
+        if (page === 1) load({ soft: true })
+      } catch {
+        if (!cancelled && page === 1) load({ soft: true })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openFeedbackId, items, openFeedback, load, page, pageSize])
 
   useEffect(() => {
     itemsRef.current = items
@@ -916,15 +988,6 @@ export default function InboxLite({ onNavigate }) {
     }
   }, [])
 
-  const openFeedback = useCallback(
-    (it) => {
-      const fid = normFeedbackId(it?.id)
-      if (fid) markIdsRead([fid])
-      setOpenItem(it)
-    },
-    [markIdsRead],
-  )
-
   useEffect(() => {
     if (!openItem?.id) {
       setOpenReaders(null)
@@ -1041,7 +1104,6 @@ export default function InboxLite({ onNavigate }) {
 
   return (
     <div ref={inboxTopRef} className="scroll-mt-4 p-4 sm:p-6 lg:p-8 space-y-5">
-      <InboxScrollToTopButton onScrollToTop={() => scrollInboxToTop({ smooth: true })} />
       <InboxPageIntro />
 
       <InboxFilterToolbar
@@ -1243,6 +1305,7 @@ export default function InboxLite({ onNavigate }) {
               setPageSize(size)
               setPage(1)
             }}
+            onScrollToTop={() => scrollInboxToTop({ smooth: true })}
             onClearFilters={() => {
               setQDraft('')
               setQ('')

@@ -11,6 +11,7 @@ import {
 } from '../services/notifications.api'
 import { ADMIN_NOTIFICATION_HREFS } from '../../../app/routes'
 import { EmptyState, LastUpdated, NotificationListSkeleton } from '../../../shared/components/ui'
+import NotificationMetaBadges from './NotificationMetaBadges'
 
 const ADMIN_NOTIFICATION_TYPES = new Set(['admin_user_event'])
 
@@ -266,6 +267,13 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       } catch {
         // ignore
       }
+      try {
+        window.dispatchEvent(
+          new CustomEvent('cfp-open-inbox-feedback', { detail: { feedbackId } }),
+        )
+      } catch {
+        // ignore
+      }
     }
     if (href === 'inbox' && meta?.inbox_preset && typeof meta.inbox_preset === 'object') {
       try {
@@ -492,7 +500,15 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                           <span>{fmtRelative(n.created_at)}</span>
                         </div>
                       </div>
-                      {n.body && <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{n.body}</p>}
+                      {(() => {
+                        const hasMeta = Boolean(meta?.source || meta?.sentiment_label || meta?.sentiment)
+                        if (hasMeta) {
+                          return <NotificationMetaBadges meta={meta} body={n.body} className="mt-1.5" />
+                        }
+                        return n.body ? (
+                          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{n.body}</p>
+                        ) : null
+                      })()}
                       <div className="mt-3 flex flex-wrap gap-2">
                         {isUnread && (
                           <button

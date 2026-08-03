@@ -98,21 +98,39 @@ def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str
             )
             return f"email_hash:{value}", str(label)
 
+    # Prefer stable phone / WhatsApp ids over per-message SIDs.
+    phone = str(meta.get("phone") or meta.get("from_number") or "").strip()
+    if phone.lower().startswith("whatsapp:"):
+        phone = phone.split(":", 1)[1].strip()
+    if phone:
+        return f"phone:{phone}", phone
+
+    wa_id = str(meta.get("wa_id") or "").strip()
+    if wa_id:
+        label = phone or meta.get("author_handle") or wa_id
+        return f"wa:{wa_id}", str(label)
+
     for key, prefix, label_key in [
         ("author_id", "author", "author_username"),
         ("sender_id", "sender", "from_username"),
-        ("wa_id", "wa", "from_number_masked"),
-        ("message_sid", "msg", "from_number_masked"),
         ("thread_id", "thread", "author_handle"),
     ]:
         value = str(meta.get(key) or "").strip()
         if value:
+            # Skip Twilio MessageSid-shaped thread keys (unstable per message).
+            if prefix == "thread" and value.upper().startswith("SM") and len(value) >= 32:
+                continue
             label = meta.get(label_key) or meta.get("author_name") or value
             return f"{prefix}:{value}", str(label)
 
     for key in ["author_handle", "author_username", "from_username", "from_name", "sender_name"]:
         value = str(meta.get(key) or "").strip()
         if value:
+            # Skip masked phone placeholders like ****1234 as identity.
+            if value.startswith("*") and value.rstrip("*").isdigit() is False and set(value[:-4]) <= {"*"}:
+                continue
+            if value.startswith("*"):
+                continue
             return f"handle:{value}", value
     return None, None
 
@@ -156,7 +174,17 @@ def normalize_channel_metadata(source: Optional[str], raw_meta: Any) -> Dict[str
         out.setdefault("thread_id", out.get("message_id"))
     elif src == "whatsapp":
         out.setdefault("provider", out.get("provider") or "whatsapp")
-        out.setdefault("thread_id", out.get("message_id") or out.get("message_sid"))
+        phone = str(out.get("phone") or out.get("from_number") or "").strip()
+        if phone.lower().startswith("whatsapp:"):
+            phone = phone.split(":", 1)[1].strip()
+        if phone:
+            out["phone"] = phone
+            out["from_number"] = phone
+            out.setdefault("author_handle", phone)
+        out.setdefault(
+            "thread_id",
+            out.get("wa_id") or out.get("phone") or out.get("message_id") or out.get("message_sid"),
+        )
     elif src == "web":
         out.setdefault("provider", "web")
         out.setdefault("author_handle", out.get("publisher"))

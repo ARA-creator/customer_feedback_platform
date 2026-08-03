@@ -1,6 +1,7 @@
 import { FiBookmark, FiCheck, FiChevronDown, FiChevronLeft, FiChevronRight, FiInbox, FiMail, FiSend } from 'react-icons/fi'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import InboxFeedbackRow from './InboxFeedbackRow'
+import InboxScrollToTopButton from './InboxScrollToTopButton'
 import { normFeedbackId } from '../hooks/useInboxUserState'
 
 function CountBadge({ count, active }) {
@@ -58,6 +59,7 @@ export default function InboxListPanel({
   hasNextPage = false,
   onPageChange,
   onPageSizeChange,
+  onScrollToTop,
   onClearFilters,
   highlightTheme = 'all',
 }) {
@@ -283,6 +285,7 @@ export default function InboxListPanel({
               Next
               <FiChevronRight className="h-4 w-4" aria-hidden />
             </button>
+            <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
           </div>
         </div>
       ) : null}

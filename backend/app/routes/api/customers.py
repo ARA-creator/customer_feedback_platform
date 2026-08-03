@@ -99,6 +99,75 @@ def customer_profile(customer_key: str):
             return jsonify({"error": "Customer not found"}), 404
 
         profile = _find_customer_profile(db, customer_key=customer_key)
+
+        # Expand history across linked identifiers (especially shared policy_hash),
+        # so email + WhatsApp with the same policy appear as one Customer 360.
+        if profile:
+            try:
+                linked = (
+                    db.query(CustomerIdentifier)
+                    .filter(CustomerIdentifier.customer_profile_id == profile.id)
+                    .all()
+                )
+                seen_ids = {int(r.id) for r in rows if getattr(r, "id", None) is not None}
+                policy_hashes = []
+                email_hashes = []
+                meta_needles = []
+                for ident in linked or []:
+                    itype = str(getattr(ident, "identifier_type", "") or "").lower()
+                    ival = str(getattr(ident, "identifier_value", "") or "")
+                    raw = ival.split(":", 1)[1].strip() if ":" in ival else ival.strip()
+                    if not raw:
+                        continue
+                    if itype == "policy_hash":
+                        policy_hashes.append(raw)
+                    elif itype in {"email_hash", "email"}:
+                        email_hashes.append(raw)
+                    elif itype in {"phone", "wa", "handle", "author", "sender", "thread"}:
+                        meta_needles.append(raw)
+
+                base_q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+                base_q = _scope_feedback_query(db, base_q, user=user, perms=perms)
+                extras = []
+                if policy_hashes:
+                    extras.extend(
+                        base_q.join(FeedbackPolicyMatch, FeedbackPolicyMatch.feedback_id == Feedback.id)
+                        .filter(FeedbackPolicyMatch.policy_hash.in_(list(dict.fromkeys(policy_hashes))))
+                        .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                        .limit(100)
+                        .all()
+                    )
+                if email_hashes:
+                    extras.extend(
+                        base_q.filter(Feedback.email_hash.in_(list(dict.fromkeys(email_hashes))))
+                        .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                        .limit(100)
+                        .all()
+                    )
+                for needle in list(dict.fromkeys(meta_needles))[:12]:
+                    extras.extend(
+                        base_q.filter(func.lower(Feedback.channel_metadata).like(f"%{needle.lower()}%"))
+                        .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                        .limit(40)
+                        .all()
+                    )
+                for row in extras:
+                    rid = getattr(row, "id", None)
+                    if rid is None or int(rid) in seen_ids:
+                        continue
+                    rows.append(row)
+                    seen_ids.add(int(rid))
+                rows.sort(
+                    key=lambda r: (
+                        r.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                        r.id or 0,
+                    ),
+                    reverse=True,
+                )
+                rows = rows[:100]
+            except Exception:
+                pass
+
         purchase_summary = (
             _purchase_summary_for_customer(
                 db, getattr(profile, "id", None), getattr(profile, "customer_tier", None)
@@ -240,6 +309,12 @@ def customer_profile(customer_key: str):
                     label = email_plain
             elif itype == "policy_hash":
                 display_type = "policy"
+            elif itype in {"phone", "wa"}:
+                display_type = "phone"
+                raw = str(ident.identifier_value or "")
+                phone_val = raw.split(":", 1)[1].strip() if ":" in raw else raw
+                if phone_val:
+                    label = phone_val
             identifiers_payload.append(
                 {
                     "id": ident.id,

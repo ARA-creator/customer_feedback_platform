@@ -427,6 +427,66 @@ def _find_customer_profile(db, feedback: Optional[Feedback] = None, customer_key
     return None
 
 
+def _merge_customer_profiles(db, *, keep: CustomerProfile, absorb: CustomerProfile) -> CustomerProfile:
+    """Merge absorb into keep so shared policy/channel identifiers unify Customer 360."""
+    if not keep or not absorb:
+        return keep or absorb
+    if int(keep.id) == int(absorb.id):
+        return keep
+
+    for row in db.query(CustomerIdentifier).filter(CustomerIdentifier.customer_profile_id == absorb.id).all():
+        clash = (
+            db.query(CustomerIdentifier)
+            .filter(
+                CustomerIdentifier.customer_profile_id == keep.id,
+                CustomerIdentifier.identifier_value == row.identifier_value,
+            )
+            .first()
+        )
+        if clash:
+            db.delete(row)
+        else:
+            row.customer_profile_id = keep.id
+
+    for row in db.query(CustomerPurchase).filter(CustomerPurchase.customer_profile_id == absorb.id).all():
+        row.customer_profile_id = keep.id
+    for row in db.query(CustomerSupportTicket).filter(CustomerSupportTicket.customer_profile_id == absorb.id).all():
+        row.customer_profile_id = keep.id
+
+    absorb_demo = (
+        db.query(CustomerDemographics).filter(CustomerDemographics.customer_profile_id == absorb.id).first()
+    )
+    keep_demo = db.query(CustomerDemographics).filter(CustomerDemographics.customer_profile_id == keep.id).first()
+    if absorb_demo and keep_demo:
+        keep_demo.location = keep_demo.location or absorb_demo.location
+        keep_demo.language = keep_demo.language or absorb_demo.language
+        keep_demo.segment = keep_demo.segment or absorb_demo.segment
+        keep_demo.age_range = keep_demo.age_range or absorb_demo.age_range
+        keep_demo.gender = keep_demo.gender or absorb_demo.gender
+        keep_demo.occupation = keep_demo.occupation or absorb_demo.occupation
+        keep_demo.updated_at = datetime.now(tz=timezone.utc)
+        db.delete(absorb_demo)
+    elif absorb_demo and not keep_demo:
+        absorb_demo.customer_profile_id = keep.id
+
+    if absorb.display_name and not keep.display_name:
+        keep.display_name = absorb.display_name
+    if absorb.external_customer_id and not keep.external_customer_id:
+        keep.external_customer_id = absorb.external_customer_id
+    if absorb.primary_email_hash and not keep.primary_email_hash:
+        keep.primary_email_hash = absorb.primary_email_hash
+        keep.primary_email_encrypted = absorb.primary_email_encrypted
+    if absorb.customer_tier and not keep.customer_tier:
+        keep.customer_tier = absorb.customer_tier
+    if absorb.company and not keep.company:
+        keep.company = absorb.company
+    keep.updated_at = datetime.now(tz=timezone.utc)
+
+    db.delete(absorb)
+    db.flush()
+    return keep
+
+
 def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str) -> Optional[CustomerProfile]:
     """
     Ensure a CustomerProfile exists for the feedback's customer_key and keep
@@ -488,7 +548,7 @@ def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str)
                 )
             )
 
-    # Policy-based unification: persist policy_hash identifiers (privacy-safe: hash + masked only).
+    # Policy-based unification: attach policy_hash, or merge profiles that share one.
     try:
         pol_rows = (
             db.query(FeedbackPolicyMatch)
@@ -503,8 +563,24 @@ def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str)
             if ident_val in seen_vals:
                 continue
             seen_vals.add(ident_val)
-            exists_pol = db.query(CustomerIdentifier.id).filter(CustomerIdentifier.identifier_value == ident_val).first()
+            exists_pol = (
+                db.query(CustomerIdentifier)
+                .filter(CustomerIdentifier.identifier_value == ident_val)
+                .first()
+            )
             if exists_pol:
+                if int(exists_pol.customer_profile_id) != int(profile.id):
+                    owner = (
+                        db.query(CustomerProfile)
+                        .filter(CustomerProfile.id == exists_pol.customer_profile_id)
+                        .first()
+                    )
+                    if owner:
+                        # Prefer the earlier profile (policy owner) as the canonical record.
+                        keep, absorb = (owner, profile)
+                        if profile.created_at and owner.created_at and profile.created_at < owner.created_at:
+                            keep, absorb = (profile, owner)
+                        profile = _merge_customer_profiles(db, keep=keep, absorb=absorb)
                 continue
             label_bits = []
             if r.product_group or r.product_prefix:
@@ -531,7 +607,7 @@ def _upsert_customer_entities(db, *, feedback: Feedback, message_plaintext: str)
                 location=meta.get("location"),
                 language=meta.get("language"),
                 segment=meta.get("segment"),
-                metadata=_safe_json_dumps({"last_message_excerpt": (message_plaintext or "")[:200]}),
+                demographics_metadata=_safe_json_dumps({"last_message_excerpt": (message_plaintext or "")[:200]}),
             )
             db.add(demo)
         else:

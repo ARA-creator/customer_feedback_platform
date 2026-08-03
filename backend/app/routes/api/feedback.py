@@ -682,10 +682,25 @@ def feedback_feed():
         if inbox_tab not in ("all", "read", "unread", "replied"):
             inbox_tab = "all"
 
+        ids_filter: list[int] = []
+        ids_raw = (request.args.get("ids") or "").strip()
+        if ids_raw:
+            for part in ids_raw.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    ids_filter.append(int(part))
+                except (TypeError, ValueError):
+                    continue
+            ids_filter = ids_filter[:50]
+
         q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
         q = _exclude_removed_sources(q)
         if user and perms:
             q = _scope_feedback_query(db, q, user=user, perms=perms)
+        if ids_filter:
+            q = q.filter(Feedback.id.in_(ids_filter))
         if query_text:
             like_query = f"%{query_text.lower()}%"
             search_hits = (
@@ -743,7 +758,9 @@ def feedback_feed():
         inbox_tab_counts = None
         if user:
             inbox_tab_counts = count_inbox_tabs(db, int(user.id), q)
-            q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
+            # Deep-link by ids should return the rows even if a tab filter would hide them.
+            if not ids_filter:
+                q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
         if sort == "impact":
             fetch_n = min(max(offset + limit + 1, limit + 1), 1000)
