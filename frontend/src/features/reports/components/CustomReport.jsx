@@ -33,7 +33,7 @@ async function blobErrorMessage(err) {
 
 export default function CustomReport({ onBack, embedded = false }) {
   const [sentiment, setSentiment] = useState('all')
-  const [category, setCategory] = useState('all')
+  const [theme, setTheme] = useState('all')
   const [source, setSource] = useState('all')
   const [priority, setPriority] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -46,7 +46,7 @@ export default function CustomReport({ onBack, embedded = false }) {
   const params = useMemo(
     () => ({
       sentiment,
-      category,
+      theme,
       source,
       priority,
       date_from: dateFrom || undefined,
@@ -54,7 +54,7 @@ export default function CustomReport({ onBack, embedded = false }) {
       limit,
       time_window: 'all',
     }),
-    [sentiment, category, source, priority, dateFrom, dateTo, limit]
+    [sentiment, theme, source, priority, dateFrom, dateTo, limit]
   )
 
   const download = async (format) => {
@@ -151,10 +151,10 @@ export default function CustomReport({ onBack, embedded = false }) {
             />
           </div>
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Category</label>
+            <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">Theme</label>
             <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
               className={FIELD_CLASSES}
               placeholder="all or e.g. claims"
             />

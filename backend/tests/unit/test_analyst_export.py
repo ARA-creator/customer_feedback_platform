@@ -69,7 +69,7 @@ def test_analyst_export_csv_is_single_tidy_file(app):
     row = next(r for r in records if r["feedback_id"] == str(fb.id))
     assert row["channel"] == "email"
     assert row["sentiment"] == "negative"
-    assert row["category"] == "claims"
+    assert "category" not in row
     assert "delivery delays" in row["theme"]
     assert row["customer_segment"] == "gold"
     assert row["escalation_flag"] == "true"
@@ -81,7 +81,6 @@ def test_analyst_export_csv_is_single_tidy_file(app):
         "sentiment",
         "priority",
         "theme",
-        "category",
         "feedback_text",
         "assigned_to",
         "status",

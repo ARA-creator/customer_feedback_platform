@@ -25,7 +25,6 @@ FEEDBACK_RECORD_COLUMNS = [
     "sentiment",
     "priority",
     "theme",
-    "category",
     "feedback_text",
     "assigned_to",
     "status",
@@ -130,9 +129,12 @@ def apply_feedback_report_filters(q, params: Dict[str, Any]):
     if sentiment and sentiment != "all":
         q = q.filter(Feedback.sentiment_label.ilike(sentiment))
 
-    category = str(params.get("category") or "all").strip().lower()
-    if category and category != "all":
-        q = q.filter(Feedback.category.ilike(category))
+    # Theme = insurance tags (legacy `category` query param accepted as an alias).
+    theme = str(params.get("theme") or params.get("category") or "all").strip().lower()
+    if theme and theme != "all":
+        # Match tag keys in channel_metadata JSON (e.g. "claims") or humanized labels.
+        needle = theme.replace(" ", "_")
+        q = q.filter(Feedback.channel_metadata.ilike(f"%{needle}%"))
 
     source = str(params.get("source") or "all").strip().lower()
     if source and source != "all":
@@ -527,7 +529,7 @@ def _collect_feedback_export_rows(
 
     record_rows: List[List[Any]] = []
     sentiment_counts: Counter[str] = Counter()
-    category_counts: Counter[str] = Counter()
+    theme_counts: Counter[str] = Counter()
     daily: Dict[str, Dict[str, int]] = defaultdict(lambda: {"total": 0, "positive": 0, "negative": 0, "neutral": 0})
 
     high_priority = 0
@@ -553,8 +555,15 @@ def _collect_feedback_export_rows(
         elif sentiment == "neutral":
             neutral += 1
 
-        cat = str(fb.category or "uncategorized").strip().lower()
-        category_counts[cat] += 1
+        tags = _insurance_tags(meta, fb.tags)
+        theme_label = _theme_label(tags)
+        if theme_label:
+            for part in theme_label.split(" | "):
+                key = part.strip()
+                if key:
+                    theme_counts[key] += 1
+        else:
+            theme_counts["untagged"] += 1
 
         if fb.priority is not None and int(fb.priority) >= 80:
             high_priority += 1
@@ -581,8 +590,6 @@ def _collect_feedback_export_rows(
         if wf:
             escalation_flag = bool(wf.escalated_at) or int(wf.escalation_level or 0) > 0
 
-        tags = _insurance_tags(meta, fb.tags)
-
         record_rows.append(
             [
                 fb.id,
@@ -591,8 +598,7 @@ def _collect_feedback_export_rows(
                 _customer_segment(meta),
                 sentiment,
                 fb.priority if fb.priority is not None else "",
-                _theme_label(tags),
-                cat,
+                theme_label,
                 message,
                 _assigned_to_label(assignee),
                 status,
@@ -626,12 +632,12 @@ def _collect_feedback_export_rows(
         ],
     )
 
-    category_total = sum(category_counts.values()) or 1
-    category_summary = _write_csv(
-        ["category", "count", "percentage"],
+    theme_total = sum(theme_counts.values()) or 1
+    theme_summary = _write_csv(
+        ["theme", "count", "percentage"],
         [
-            [cat, count, round((count / category_total) * 100, 1)]
-            for cat, count in sorted(category_counts.items(), key=lambda x: (-x[1], x[0]))
+            [theme, count, round((count / theme_total) * 100, 1)]
+            for theme, count in sorted(theme_counts.items(), key=lambda x: (-x[1], x[0]))
         ],
     )
 
@@ -654,7 +660,7 @@ def _collect_feedback_export_rows(
     summaries = {
         "summary_metrics.csv": summary_metrics,
         "sentiment_summary.csv": sentiment_summary,
-        "category_summary.csv": category_summary,
+        "theme_summary.csv": theme_summary,
         "daily_trends.csv": daily_trends,
     }
     return record_rows, summaries

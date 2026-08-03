@@ -357,7 +357,7 @@ function AuthenticatedApp({ auth, setAuth }) {
       </Routes>
 
       {liveToasts.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-50 space-y-2 w-[min(92vw,22rem)]">
+        <div className="fixed top-4 right-4 z-[60] space-y-2 w-[min(92vw,22rem)]">
           {liveToasts.map((t) => (
             <div
               key={t.id}

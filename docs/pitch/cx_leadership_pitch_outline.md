@@ -274,12 +274,12 @@ Do not oversell: AI summarizes what is already ingested. If Facebook is not conn
 **Export options:**
 
 - **Overview → Export CSV** — respects current time and sentiment filters
-- **Reports → Custom export** — sentiment, priority, source, category, date range, limit
+- **Reports → Custom export** — sentiment, priority, source, theme, date range, limit
 - **Insights → Export** — JSON snapshot (metrics, brief, matrix, trends)
 
 **Analyst CSV columns (one row per feedback):**
 
-feedback_id · date_received · channel · customer_segment · sentiment · priority · theme · category · feedback_text · assigned_to · status · response_time_hours · resolution_time_hours · escalation_flag
+feedback_id · date_received · channel · customer_segment · sentiment · priority · theme · feedback_text · assigned_to · status · response_time_hours · resolution_time_hours · escalation_flag
 
 **Scheduled reports:** UI supports daily/weekly/monthly definitions; email/Slack delivery can be connected in a later phase
 

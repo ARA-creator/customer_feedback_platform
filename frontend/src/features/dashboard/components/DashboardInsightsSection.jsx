@@ -518,6 +518,7 @@ export default function DashboardInsightsSection({
         </InsightsSectionCard>
 
         <InsightsSectionCard
+          className="lg:col-span-2"
           title="Peak feedback times"
           subtitle={peakHeatmapSubtitle}
         >
@@ -558,13 +559,13 @@ export default function DashboardInsightsSection({
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-gray-200/70 bg-white/90 shadow-sm dark:border-white/10 dark:bg-gray-950/70">
-                <table className="min-w-full text-xs">
+                <table className="w-full table-fixed text-xs">
                   <thead>
                     <tr>
-                      <th className="px-2 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Hour</th>
+                      <th className="w-16 px-2 py-2 text-left text-gray-500 dark:text-gray-400 font-semibold">Hour</th>
                       {days.map((label, i) => (
                         <th key={label} className="px-2 py-2 text-center text-gray-500 dark:text-gray-400 font-semibold">
-                          <span className="inline-flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center gap-2">
                             {label}
                             <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500">
                               {colTotals[i] || 0}
@@ -572,7 +573,7 @@ export default function DashboardInsightsSection({
                           </span>
                         </th>
                       ))}
-                      <th className="px-2 py-2 text-center text-gray-500 dark:text-gray-400 font-semibold">Total</th>
+                      <th className="w-16 px-2 py-2 text-center text-gray-500 dark:text-gray-400 font-semibold">Total</th>
                     </tr>
                   </thead>
                   <tbody>

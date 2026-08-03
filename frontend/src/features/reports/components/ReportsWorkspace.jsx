@@ -49,7 +49,6 @@ function buildExportParams(filters, overrides = {}) {
     sentiment: filters.sentiment || 'all',
     source: filters.source || 'all',
     priority: filters.priority || 'all',
-    category: 'all',
     date_from: filters.dateFrom || undefined,
     date_to: filters.dateTo || undefined,
     limit: 5000,

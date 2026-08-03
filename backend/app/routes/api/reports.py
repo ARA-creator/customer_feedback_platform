@@ -437,7 +437,7 @@ def report_custom_csv():
             [
                 "id",
                 "source",
-                "category",
+                "theme",
                 "sentiment_label",
                 "sentiment_score",
                 "priority",
@@ -453,11 +453,15 @@ def report_custom_csv():
                 message = _plain_text_for_export(decrypt_text(fb.message_encrypted) or "")
             except Exception:
                 message = ""
+            meta = safe_json_loads(fb.channel_metadata) if fb.channel_metadata else {}
+            if not isinstance(meta, dict):
+                meta = {}
+            theme = _theme_label(_insurance_tags(meta, fb.tags))
             writer.writerow(
                 [
                     fb.id,
                     fb.source,
-                    fb.category or "",
+                    theme,
                     fb.sentiment_label or "",
                     fb.sentiment_score if fb.sentiment_score is not None else "",
                     fb.priority if fb.priority is not None else "",

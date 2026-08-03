@@ -360,6 +360,8 @@ def _submit_to_feedback_api(payload: dict) -> dict:
 
         # Create Notifications (best-effort). Mirrors api.create_feedback behavior so ingested items notify too.
         try:
+            from ..services.notification_policy import should_deliver_notification
+
             users = (
                 db.query(User)
                 .filter(User.deleted_at.is_(None))
@@ -373,7 +375,6 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                     perms_u = _user_permission_keys(db, u.id)
                     is_admin = _is_admin_ui(u, perms_u)
                     prefs = _get_notification_prefs(db, u.id, is_admin=is_admin)
-                    from ...services.notification_policy import should_deliver_notification
 
                     if not should_deliver_notification(
                         prefs, notification_type="new_feedback", is_admin=is_admin
@@ -401,20 +402,6 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                     created_rows.append((int(u.id), n))
                 except Exception:
                     continue
-            from ...services.agent_debug_log import agent_debug_log
-
-            # #region agent log
-            agent_debug_log(
-                "integrations.py:_submit_to_feedback_api",
-                "notifications_on_ingest",
-                {
-                    "feedbackId": feedback.id,
-                    "usersTotal": len(users),
-                    "createdCount": len(created_rows),
-                },
-                "H2",
-            )
-            # #endregion
             if created_rows:
                 db.commit()
                 for uid, row in created_rows:
