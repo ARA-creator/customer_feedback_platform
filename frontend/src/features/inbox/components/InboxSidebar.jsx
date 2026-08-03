@@ -36,14 +36,6 @@ const SUMMARY_CARDS = [
   },
 ]
 
-const QUICK_FILTERS = [
-  { id: 'new', label: 'New', dot: true },
-  { id: 'unread', label: 'Unread', dot: true },
-  { id: 'needs_response', label: 'Needs response' },
-  { id: 'high_priority', label: 'High priority' },
-  { id: 'negative_7d', label: 'Negative (7d)' },
-]
-
 const THEMES_PREVIEW_COUNT = 5
 
 function displayUserName(u) {
@@ -62,19 +54,7 @@ export default function InboxSidebar({
   onQuickFilter,
   onSelectTheme,
   activeTheme = 'all',
-  unreadCount,
-  newCount,
-  needsResponseCount,
-  highPriorityCount,
-  negative7dCount = 0,
 }) {
-  const quickCounts = {
-    new: newCount ?? stats?.newCount,
-    unread: unreadCount,
-    needs_response: needsResponseCount,
-    high_priority: highPriorityCount,
-    negative_7d: negative7dCount,
-  }
 
   const [openActivity, setOpenActivity] = useState(null)
   const [openActivityError, setOpenActivityError] = useState(null)
@@ -274,40 +254,6 @@ export default function InboxSidebar({
               : `View all themes (${allThemes.length})`}
           </button>
         ) : null}
-      </section>
-
-      <section className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Quick filters</h2>
-        <ul className="mt-2 space-y-0.5">
-          {QUICK_FILTERS.map((f) => {
-            const active = activeQuickFilter === f.id
-            const count = quickCounts[f.id] ?? 0
-            return (
-              <li key={f.id}>
-                <button
-                  type="button"
-                  onClick={() => onQuickFilter?.(active ? 'clear' : f.id)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
-                    active
-                      ? 'bg-emerald-50 font-semibold text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-900'
-                  }`}
-                >
-                  {f.dot ? (
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${active ? 'bg-[#10B981]' : 'bg-gray-300 dark:bg-gray-600'}`}
-                      aria-hidden
-                    />
-                  ) : (
-                    <span className="w-2 shrink-0" aria-hidden />
-                  )}
-                  <span className="min-w-0 flex-1">{f.label}</span>
-                  <span className="tabular-nums text-xs text-gray-500 dark:text-gray-400">{count}</span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
       </section>
     </aside>
   )

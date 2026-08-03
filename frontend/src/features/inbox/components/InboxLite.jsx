@@ -14,9 +14,9 @@ import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import ChannelMessageView from './ChannelMessageView'
+import InboxScrollToTopButton from './InboxScrollToTopButton'
 import {
   computeInboxStats,
-  computeNewFeedbackCount,
   computeStableUnreadCount,
   computeTopThemes,
   isHighPriority,
@@ -838,34 +838,7 @@ export default function InboxLite({ onNavigate }) {
     [inboxItemsForStats, readIds],
   )
 
-  const newFeedbackCount = useMemo(
-    () =>
-      computeNewFeedbackCount({
-        loadedItems: inboxItemsForStats,
-      }),
-    [inboxItemsForStats],
-  )
-
   const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 0), [inboxItemsForStats])
-
-  const needsResponseCount = useMemo(
-    () => inboxItemsForStats.filter(needsResponse).length,
-    [inboxItemsForStats],
-  )
-
-  const highPriorityCount = useMemo(
-    () => inboxItemsForStats.filter(isHighPriority).length,
-    [inboxItemsForStats],
-  )
-
-  const negative7dCount = useMemo(() => {
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-    return inboxItemsForStats.filter((it) => {
-      if (String(it?.sentiment_label || '').toLowerCase() !== 'negative') return false
-      const t = new Date(it?.created_at).getTime()
-      return Number.isFinite(t) && t >= cutoff
-    }).length
-  }, [inboxItemsForStats])
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
@@ -1031,19 +1004,22 @@ export default function InboxLite({ onNavigate }) {
     [totalPages],
   )
 
-  const scrollInboxToTop = useCallback(() => {
+  const scrollInboxToTop = useCallback((opts = {}) => {
     if (typeof window === 'undefined') return
-    // The app shell scrolls inside <main>, not the window. Use instant scroll —
-    // smooth scroll is cancelled when the list re-renders during page loads.
+    const smooth = Boolean(opts.smooth)
+    const behavior = smooth ? 'smooth' : 'auto'
+    // The app shell scrolls inside <main>, not the window.
     const main = document.querySelector('main')
     if (main) {
-      main.scrollTop = 0
+      if (typeof main.scrollTo === 'function') main.scrollTo({ top: 0, behavior })
+      else main.scrollTop = 0
     }
-    window.scrollTo(0, 0)
+    if (typeof window.scrollTo === 'function') window.scrollTo({ top: 0, behavior })
+    else window.scrollTo(0, 0)
     const el = inboxTopRef.current
     if (el) {
       try {
-        el.scrollIntoView({ block: 'start', behavior: 'auto' })
+        el.scrollIntoView({ block: 'start', behavior })
       } catch {
         // ignore
       }
@@ -1059,12 +1035,13 @@ export default function InboxLite({ onNavigate }) {
   useLayoutEffect(() => {
     if (loading || pageLoading) return undefined
     scrollInboxToTop()
-    const t = window.setTimeout(scrollInboxToTop, 0)
+    const t = window.setTimeout(() => scrollInboxToTop(), 0)
     return () => window.clearTimeout(t)
   }, [loading, pageLoading, items, page, listTab, scrollInboxToTop])
 
   return (
     <div ref={inboxTopRef} className="scroll-mt-4 p-4 sm:p-6 lg:p-8 space-y-5">
+      <InboxScrollToTopButton onScrollToTop={() => scrollInboxToTop({ smooth: true })} />
       <InboxPageIntro />
 
       <InboxFilterToolbar
@@ -1288,11 +1265,6 @@ export default function InboxLite({ onNavigate }) {
           onQuickFilter={handleQuickFilter}
           onSelectTheme={(key) => setInsuranceTagFilter(key || 'all')}
           activeTheme={insuranceTagFilter}
-          unreadCount={unreadInboxCount}
-          newCount={newFeedbackCount}
-          needsResponseCount={needsResponseCount}
-          highPriorityCount={highPriorityCount}
-          negative7dCount={negative7dCount}
         />
       </div>
 
