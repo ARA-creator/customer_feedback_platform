@@ -89,6 +89,16 @@ export default function OverviewChartsSection({
 
   return (
     <div className="space-y-6">
+      <AiInsightBar
+        loading={analyzerLoading}
+        error={analyzerError}
+        result={analyzerResult}
+        timeFilterLabel={overviewTimeFilterLabel}
+        onRefresh={onAnalyzerRefresh}
+        onViewDetails={onAnalyzerDetails}
+        refreshDisabled={analyzerRefreshDisabled}
+      />
+
       <SentimentTrendCard
         ready={ready}
         trendTitle={trendTitle}
@@ -147,16 +157,6 @@ export default function OverviewChartsSection({
           trendData={trendData}
         />
       </div>
-
-      <AiInsightBar
-        loading={analyzerLoading}
-        error={analyzerError}
-        result={analyzerResult}
-        timeFilterLabel={overviewTimeFilterLabel}
-        onRefresh={onAnalyzerRefresh}
-        onViewDetails={onAnalyzerDetails}
-        refreshDisabled={analyzerRefreshDisabled}
-      />
     </div>
   )
 }
