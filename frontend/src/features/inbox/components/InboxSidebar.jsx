@@ -32,7 +32,7 @@ const SUMMARY_CARDS = [
     // Daily arrivals (today + recent days); unread backlog is reflected in the count value.
     sparkPredicate: null,
     useNewSpark: true,
-    hint: 'Received today, or not yet read',
+    hint: 'Received today only · resets tomorrow',
   },
 ]
 

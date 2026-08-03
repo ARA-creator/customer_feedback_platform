@@ -341,10 +341,10 @@ export default function Customer360({ onNavigate }) {
               </div>
 
               <div className="card p-5">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Identifiers</h2>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {safeArr(data.identifiers).length === 0 ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-300">No identifiers yet.</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">No customer identity yet.</p>
                   ) : (
                     safeArr(data.identifiers).slice(0, 14).map((ident) => (
                       <button

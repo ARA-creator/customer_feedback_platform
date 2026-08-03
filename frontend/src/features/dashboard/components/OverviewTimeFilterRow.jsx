@@ -1,4 +1,4 @@
-import { FiCalendar, FiClock, FiDownload } from 'react-icons/fi'
+import { FiCalendar, FiClock } from 'react-icons/fi'
 import { SENTIMENT_COLORS } from '../constants/palette'
 
 const TIME_FILTERS = [
@@ -41,16 +41,16 @@ export default function OverviewTimeFilterRow({
   onChange,
   sentimentValue = 'all',
   onSentimentChange,
-  onExportCsv,
-  exportDisabled = false,
   isAdminUser = false,
   dashboardAutoRefresh = false,
   onToggleAutoRefresh,
   showActions = true,
 }) {
+  const showAdminRefresh = showActions && isAdminUser
+
   return (
     <div className="mb-5 rounded-2xl border border-gray-200/80 bg-white px-3 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-gray-800 dark:bg-gray-950 sm:px-4">
-      <div className={`flex flex-col gap-2.5 ${showActions ? 'lg:flex-row lg:items-center lg:justify-between lg:gap-4' : ''}`}>
+      <div className={`flex flex-col gap-2.5 ${showAdminRefresh ? 'lg:flex-row lg:items-center lg:justify-between lg:gap-4' : ''}`}>
         <div className="flex min-w-0 flex-1 flex-col gap-2.5">
           <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
             <span className="w-20 shrink-0 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500 dark:text-gray-400">Period</span>
@@ -94,28 +94,17 @@ export default function OverviewTimeFilterRow({
           </div>
         </div>
 
-        {showActions ? (
+        {showAdminRefresh ? (
           <div className="flex shrink-0 items-center justify-end gap-2">
-            {isAdminUser && (
-              <label className="inline-flex items-center gap-2 min-h-[40px] cursor-pointer select-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                <input
-                  type="checkbox"
-                  className="rounded border-gray-300 text-[#009750] focus:ring-[#009750]"
-                  checked={dashboardAutoRefresh}
-                  onChange={(e) => onToggleAutoRefresh?.(e.target.checked)}
-                />
-                <span className="whitespace-nowrap">Auto-refresh</span>
-              </label>
-            )}
-            <button
-              type="button"
-              onClick={onExportCsv}
-              disabled={exportDisabled}
-              className="inline-flex items-center justify-center min-h-[40px] rounded-xl bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#007a42] disabled:opacity-60 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
-            >
-              <FiDownload className="h-4 w-4 mr-1.5 shrink-0" aria-hidden />
-              Export CSV
-            </button>
+            <label className="inline-flex items-center gap-2 min-h-[40px] cursor-pointer select-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-[#009750] focus:ring-[#009750]"
+                checked={dashboardAutoRefresh}
+                onChange={(e) => onToggleAutoRefresh?.(e.target.checked)}
+              />
+              <span className="whitespace-nowrap">Auto-refresh</span>
+            </label>
           </div>
         ) : null}
       </div>

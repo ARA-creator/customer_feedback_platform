@@ -1,3 +1,5 @@
+import { channelMessageTitle } from './channelMessagePresentation'
+
 /** Client-side inbox analytics derived from the loaded feed. */
 
 const THEME_DISPLAY_LABELS = {
@@ -44,21 +46,8 @@ function isUnreadId(readIds, id) {
   return !readIds?.has?.(n)
 }
 
-/**
- * "New feedback" = arrived today, or still unread.
- * Today's items stay "new" even after a quick open; unread covers the backlog.
- */
-export function isNewFeedback(item, readIds, now = new Date()) {
-  if (isCreatedToday(item, now)) return true
-  return isUnreadId(readIds, item?.id)
-}
-
 export function extractFeedbackTitle(item) {
-  const msg = String(item?.message || item?.message_preview || '').trim()
-  if (!msg) return 'Feedback'
-  const line = msg.split('\n').find((l) => l.trim()) || msg
-  const t = line.trim()
-  return t.length > 72 ? `${t.slice(0, 72)}…` : t
+  return channelMessageTitle(item)
 }
 
 export function getPriorityBadge(item) {
@@ -80,6 +69,14 @@ export function needsResponse(item) {
 }
 
 /**
+ * "New feedback" = arrived on the user's local calendar day only.
+ * Resets each day (yesterday's items are no longer "new").
+ */
+export function isNewFeedback(item, _readIds, now = new Date()) {
+  return isCreatedToday(item, now)
+}
+
+/**
  * Stable unread count for the current inbox filter.
  * Uses server total when available; unloaded rows count as unread until marked read.
  */
@@ -87,7 +84,6 @@ export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItem
   const totalN = Number(total)
   const scoped = scopedIds?.size ? scopedIds : null
   if (Number.isFinite(totalN) && totalN >= 0 && scoped) {
-    // Full feed loaded for current filters — exact unread from scoped ids.
     if (scoped.size >= totalN) {
       let unread = 0
       for (const id of scoped) {
@@ -111,22 +107,18 @@ export function computeStableUnreadCount({ total, scopedIds, readIds, loadedItem
 }
 
 /**
- * New feedback count: all unread, plus today's items already marked read
- * (so "arrived today" still counts after opening).
+ * Count of feedback received today (local calendar day).
  */
-export function computeNewFeedbackCount({ unreadCount, loadedItems, readIds, now = new Date() }) {
-  const unread = Math.max(0, Number(unreadCount) || 0)
+export function computeNewFeedbackCount({ loadedItems, now = new Date() } = {}) {
   const arr = Array.isArray(loadedItems) ? loadedItems : []
-  let todayRead = 0
+  let n = 0
   for (const it of arr) {
-    if (!isCreatedToday(it, now)) continue
-    if (isUnreadId(readIds, it?.id)) continue
-    todayRead += 1
+    if (isCreatedToday(it, now)) n += 1
   }
-  return unread + todayRead
+  return n
 }
 
-export function computeInboxStats(items, { readIds, folder, unreadCount } = {}) {
+export function computeInboxStats(items, { readIds, folder } = {}) {
   const arr = Array.isArray(items) ? items : []
   const inboxItems = folder === 'archive' ? arr : arr
   let high = 0
@@ -137,12 +129,7 @@ export function computeInboxStats(items, { readIds, folder, unreadCount } = {}) 
   }
   const total = inboxItems.length
   const negativePct = total > 0 ? Math.round((negative / total) * 100) : 0
-  const loadedUnread = inboxItems.filter((it) => isUnreadId(readIds, it?.id)).length
-  const newCount = computeNewFeedbackCount({
-    unreadCount: unreadCount != null ? unreadCount : loadedUnread,
-    loadedItems: inboxItems,
-    readIds,
-  })
+  const newCount = computeNewFeedbackCount({ loadedItems: inboxItems })
 
   return {
     newCount,

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
 
 export function useDashboardSse({
   getBackendOrigin,
@@ -39,8 +40,8 @@ export function useDashboardSse({
               getRecentFeedback(100, recentQuery).catch(() => ({ feedback: [] })),
               getPriorityQueue(50).catch(() => ({ feedback: [] })),
             ])
-            setRecentFeedback(recentData.feedback || [])
-            setPriorityQueue(priorityData.feedback || [])
+            setRecentFeedback((prev) => mergeFeedbackItems(prev, recentData.feedback || [], { max: 100 }))
+            setPriorityQueue((prev) => mergeFeedbackItems(prev, priorityData.feedback || [], { max: 50 }))
 
             if (data.priority >= 100 || data.sentiment_label === 'negative') {
               pushToast(
@@ -92,4 +93,3 @@ export function useDashboardSse({
     setUnreadRecentIds,
   ])
 }
-

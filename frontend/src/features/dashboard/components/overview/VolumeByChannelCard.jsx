@@ -1,6 +1,5 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import DashboardChartCard from './DashboardChartCard'
-import ChartFilterSelect from './ChartFilterSelect'
 import { CHART_TOOLTIP } from './chartUi'
 
 function ChartSkeleton({ className = 'h-72' }) {
@@ -11,24 +10,9 @@ export default function VolumeByChannelCard({
   ready,
   channelRows = [],
   channelTotal = 0,
-  channelFilter,
-  onChannelFilterChange,
-  channelFilterOptions = [],
 }) {
   return (
-    <DashboardChartCard
-      title="Volume by Channel"
-      action={
-        channelFilterOptions.length > 0 ? (
-          <ChartFilterSelect
-            value={channelFilter}
-            onChange={onChannelFilterChange}
-            options={channelFilterOptions}
-            ariaLabel="Filter by channel"
-          />
-        ) : null
-      }
-    >
+    <DashboardChartCard title="Volume by Channel">
       {!ready ? (
         <ChartSkeleton className="h-72" />
       ) : channelRows.length === 0 ? (

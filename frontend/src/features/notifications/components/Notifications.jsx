@@ -103,7 +103,15 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type === 'notification.created' && evt.notification) {
         setItems((prev) => [evt.notification, ...prev])
-        if (Number.isFinite(Number(evt.unread))) setUnread(Number(evt.unread))
+        if (Number.isFinite(Number(evt.unread))) {
+          const n = Number(evt.unread)
+          setUnread(n)
+          publishUnreadCount(n)
+        }
+      } else if (evt?.type === 'notification.unread_count' && Number.isFinite(Number(evt.unread))) {
+        const n = Number(evt.unread)
+        setUnread(n)
+        publishUnreadCount(n)
       }
     })
     return cleanup

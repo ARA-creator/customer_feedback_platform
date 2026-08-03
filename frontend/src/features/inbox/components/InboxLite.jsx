@@ -7,10 +7,13 @@ import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbac
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
+import { getBackendOrigin } from '../../../shared/lib/apiClient'
+import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
 import InboxFilterToolbar from './InboxFilterToolbar'
 import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
+import ChannelMessageView from './ChannelMessageView'
 import {
   computeInboxStats,
   computeNewFeedbackCount,
@@ -437,6 +440,9 @@ export default function InboxLite({ onNavigate }) {
   const dateParams = useMemo(() => {
     const todayUtc = startOfUtcDay(new Date())
     if (dateRange === 'all') return { date_from: undefined, date_to: undefined }
+    if (dateRange === 'today') {
+      return { date_from: fmtDateOnly(todayUtc), date_to: fmtDateOnly(addUtcDays(todayUtc, 1)) }
+    }
     if (dateRange === 'yesterday') {
       const y = addUtcDays(todayUtc, -1)
       const from = fmtDateOnly(y)
@@ -494,6 +500,7 @@ export default function InboxLite({ onNavigate }) {
   const dateRangeOptions = useMemo(
     () => [
       { value: 'all', label: 'All time' },
+      { value: 'today', label: 'Today' },
       { value: 'yesterday', label: 'Yesterday' },
       { value: '7d', label: 'Last 7 days' },
       { value: '14d', label: 'Last 2 weeks' },
@@ -515,10 +522,12 @@ export default function InboxLite({ onNavigate }) {
   }, [])
 
   const load = useCallback(
-    async ({ append = false } = {}) => {
-      const seq = ++loadSeq.current
+    async ({ append = false, soft = false } = {}) => {
+      // Soft refresh must not cancel (or be cancelled by) hard loads via seq bumping.
+      const seq = soft ? loadSeq.current : ++loadSeq.current
+      const hardReplace = !append && !soft
       if (append) setLoadingMore(true)
-      else {
+      else if (hardReplace) {
         setLoading(true)
         // Counts are filter-dependent; clear immediately to avoid showing stale totals
         // if the background counts request times out.
@@ -575,13 +584,25 @@ export default function InboxLite({ onNavigate }) {
             for (const id of inboxIds) next.add(id)
             return next
           })
+        } else if (soft) {
+          setItems((prev) => mergeFeedbackItems(prev, newItems))
+          setScopedInboxIds((prev) => {
+            const next = new Set(prev)
+            for (const id of inboxIds) next.add(id)
+            return next
+          })
         } else {
           setItems(newItems)
           setScopedInboxIds(new Set(inboxIds))
         }
         mergeFromFeedItems(newItems)
-        feedCursorRef.current = feed?.next_cursor ?? null
-        setFeedHasMore(Boolean(feed?.has_more))
+        if (!soft) {
+          feedCursorRef.current = feed?.next_cursor ?? null
+          setFeedHasMore(Boolean(feed?.has_more))
+        } else if (!feedCursorRef.current) {
+          feedCursorRef.current = feed?.next_cursor ?? null
+          setFeedHasMore(Boolean(feed?.has_more))
+        }
         if (feed?.inbox_tab_counts && typeof feed.inbox_tab_counts === 'object') {
           setInboxTabCounts({
             all: Number(feed.inbox_tab_counts.all) || 0,
@@ -610,7 +631,7 @@ export default function InboxLite({ onNavigate }) {
         }
       } catch (e) {
         if (seq !== loadSeq.current) return
-        if (!append) {
+        if (hardReplace) {
           const raw = e?.response?.data?.error || e?.message || 'Failed to load inbox'
           const msg =
             String(raw).toLowerCase().includes('timeout')
@@ -627,7 +648,7 @@ export default function InboxLite({ onNavigate }) {
       } finally {
         if (seq !== loadSeq.current) return
         if (append) setLoadingMore(false)
-        else setLoading(false)
+        else if (hardReplace) setLoading(false)
       }
     },
     [
@@ -649,6 +670,37 @@ export default function InboxLite({ onNavigate }) {
 
   useEffect(() => {
     load({ append: false })
+  }, [load])
+
+  // Live feedback: soft-merge new rows without wiping the loaded list.
+  useEffect(() => {
+    let es
+    let debounceTimer
+    try {
+      es = new EventSource(`${getBackendOrigin()}/api/events`, { withCredentials: false })
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data?.type !== 'feedback_created') return
+          if (debounceTimer) window.clearTimeout(debounceTimer)
+          debounceTimer = window.setTimeout(() => {
+            load({ soft: true })
+          }, 400)
+        } catch {
+          // ignore malformed events
+        }
+      }
+    } catch {
+      return undefined
+    }
+    return () => {
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      try {
+        es?.close()
+      } catch {
+        // ignore
+      }
+    }
   }, [load])
 
   useEffect(() => {
@@ -708,7 +760,7 @@ export default function InboxLite({ onNavigate }) {
       })
     }
     if (activeQuickFilter === 'new') {
-      arr = arr.filter((it) => isNewFeedback(it, readIds))
+      arr = arr.filter((it) => isNewFeedback(it))
     }
     return sortInboxItems(arr, sortBy, pinnedIds)
   }, [visibleItems, activeQuickFilter, readIds, sortBy, pinnedIds])
@@ -807,19 +859,16 @@ export default function InboxLite({ onNavigate }) {
       computeInboxStats(inboxItemsForStats, {
         readIds,
         folder: 'inbox',
-        unreadCount: unreadInboxCount,
       }),
-    [inboxItemsForStats, readIds, unreadInboxCount],
+    [inboxItemsForStats, readIds],
   )
 
   const newFeedbackCount = useMemo(
     () =>
       computeNewFeedbackCount({
-        unreadCount: unreadInboxCount,
         loadedItems: inboxItemsForStats,
-        readIds,
       }),
-    [unreadInboxCount, inboxItemsForStats, readIds],
+    [inboxItemsForStats],
   )
 
   const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 0), [inboxItemsForStats])
@@ -913,7 +962,10 @@ export default function InboxLite({ onNavigate }) {
     }
     setActiveQuickFilter(id)
     if (id === 'unread') setListTab('unread')
-    if (id === 'new') setListTab('all')
+    if (id === 'new') {
+      setListTab('all')
+      setDateRange('today')
+    }
   }, [])
 
   const openFeedback = useCallback(
@@ -1051,7 +1103,7 @@ export default function InboxLite({ onNavigate }) {
         }}
         inboxCount={Math.max(inboxCount, totalInboxCount - repliedCount)}
         archiveCount={archiveCount}
-        onRefresh={load}
+        onRefresh={() => load({ soft: true })}
         loading={loading}
       />
 
@@ -1286,7 +1338,7 @@ export default function InboxLite({ onNavigate }) {
                         onNavigate('customer')
                       }}
                       aria-label="View customer"
-                      title={canViewCustomer ? 'View customer' : 'No customer identifier found for this feedback yet'}
+                      title={canViewCustomer ? 'View customer' : 'No customer identity found for this feedback yet'}
                       className="inline-flex min-h-[44px] min-w-[44px] sm:min-h-[40px] sm:min-w-[40px] items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-2 text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/50"
                     >
                       <FiEye className="h-5 w-5" aria-hidden />
@@ -1515,77 +1567,8 @@ export default function InboxLite({ onNavigate }) {
                 </div>
               </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-              {(() => {
-                const meta = openItem.channel_metadata || {}
-                const source = String(openItem.source || openItem.source_group || '').toLowerCase()
-                const isEmail = source === 'email'
-                const subject = String(meta.email_subject || '').trim()
-                const fromName = String(meta.sender_name || meta.author_handle || '').trim()
-                const fromEmail = String(meta.sender_email || '').trim()
-                const when = meta.email_date || openItem.created_at
-                if (!isEmail && !subject && !fromEmail && !fromName) return null
-                return (
-                  <div className="border-b border-gray-100 bg-gradient-to-br from-[#eaf7f0]/80 via-white to-white px-4 py-3 dark:border-gray-800 dark:from-emerald-950/25 dark:via-gray-950 dark:to-gray-950">
-                    {subject ? (
-                      <p className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-                        {subject}
-                      </p>
-                    ) : (
-                      <p className="text-[15px] font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-                        Incoming message
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-300">
-                      {(fromName || fromEmail) && (
-                        <span>
-                          <span className="font-semibold text-gray-500 dark:text-gray-400">From </span>
-                          {fromName ? <span className="font-medium text-gray-900 dark:text-gray-100">{fromName}</span> : null}
-                          {fromEmail ? (
-                            <a
-                              href={`mailto:${fromEmail}`}
-                              className="ml-1 font-medium text-[#009750] hover:underline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {fromName ? `<${fromEmail}>` : fromEmail}
-                            </a>
-                          ) : null}
-                        </span>
-                      )}
-                      {when ? (
-                        <span className="text-gray-500 dark:text-gray-400">
-                          {typeof when === 'string' && when.includes(',')
-                            ? when
-                            : new Date(when).toLocaleString()}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                )
-              })()}
-              <div className="px-4 py-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
-                <div className="whitespace-pre-wrap break-words">
-                  {renderLinkedText(openItem.message || openItem.message_preview || 'No message')}
-                </div>
-              </div>
-              <div className="border-t border-gray-100 px-4 py-3 dark:border-gray-800">
-                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                  Customer Pulse · Enterprise Life
-                  {openItem.channel_metadata?.sender_email ? (
-                    <>
-                      {' '}
-                      · Reply in your mail client to{' '}
-                      <a
-                        href={`mailto:${openItem.channel_metadata.sender_email}`}
-                        className="font-semibold text-[#009750] hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {openItem.channel_metadata.sender_email}
-                      </a>
-                    </>
-                  ) : null}
-                </p>
-              </div>
+            <div className="mt-4">
+              <ChannelMessageView item={openItem} renderLinkedText={renderLinkedText} />
             </div>
 
             {Array.isArray(openItem?.channel_metadata?.media) && openItem.channel_metadata.media.length > 0 && (

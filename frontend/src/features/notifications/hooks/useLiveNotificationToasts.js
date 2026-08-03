@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { getNotifications, getUnreadCount } from '../services/notifications.api'
+import { getNotifications, getUnreadCount, publishUnreadCount } from '../services/notifications.api'
 import { shouldShowLiveToast } from '../utils/toastPolicy'
 import { isQuietHoursActive, loadNotificationUiPrefs } from '../../../shared/lib/notificationUiPreferences'
 
@@ -38,6 +38,8 @@ export function useLiveNotificationToasts({
       if (!Number.isFinite(unread)) return
       const prev = lastUnreadRef.current
       lastUnreadRef.current = unread
+      // Keep the sidebar badge in sync as soon as unread changes (not only after open/read).
+      if (prev !== unread) publishUnreadCount(unread)
       if (prev === null || unread <= prev) return
       const list = await getNotifications({ limit: 1, unreadOnly: true })
       const latest = Array.isArray(list?.items) ? list.items[0] : null
@@ -54,7 +56,10 @@ export function useLiveNotificationToasts({
       try {
         const res = await getUnreadCount()
         const unread = Number(res?.unread)
-        if (Number.isFinite(unread)) lastUnreadRef.current = unread
+        if (Number.isFinite(unread)) {
+          lastUnreadRef.current = unread
+          publishUnreadCount(unread)
+        }
       } catch {
         lastUnreadRef.current = 0
       }
@@ -73,9 +78,15 @@ export function useLiveNotificationToasts({
 
   const handleStreamEvent = useCallback(
     (evt) => {
+      if (evt?.type === 'notification.unread_count' && Number.isFinite(Number(evt.unread))) {
+        lastUnreadRef.current = Number(evt.unread)
+        publishUnreadCount(Number(evt.unread))
+        return
+      }
       if (evt?.type !== 'notification.created' || !evt?.notification) return
       if (Number.isFinite(Number(evt.unread))) {
         lastUnreadRef.current = Number(evt.unread)
+        publishUnreadCount(Number(evt.unread))
       }
       maybeToast(evt.notification, evt.unread)
     },

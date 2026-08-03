@@ -17,11 +17,11 @@ from ...database import SessionLocal
 from ...models import Feedback, FeedbackPolicyMatch, FeedbackSearchDocument
 from ...security import decrypt_text
 from ...services.analytics_time_window import parse_overview_time_window
-from ...services.inbox_state import apply_inbox_tab_filter
+from ...services.inbox_state import apply_inbox_tab_filter, count_inbox_tabs
 from ...services.metadata_normalization import normalize_channel_metadata, safe_json_loads
 from ...services.policy_detection import is_policy_number_match, is_product_name_match
 from . import api_bp
-from ._helpers import _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
+from ._helpers import _current_user, _normalize_source_group, _require_user, _scope_feedback_query, _user_permission_keys
 
 logger = logging.getLogger(__name__)
 
@@ -319,6 +319,22 @@ def get_analytics():
             or 0
         )
 
+        read_count = 0
+        replied_count = 0
+        metrics_user = _current_user(db)
+        if metrics_user is not None:
+            tab_base = _pf(
+                _apply_metrics_filters(
+                    db.query(Feedback).filter(Feedback.deleted_at.is_(None)).filter(~func.lower(Feedback.source).in_(["api", "web"]))
+                )
+            )
+            try:
+                tab_counts = count_inbox_tabs(db, int(metrics_user.id), tab_base)
+                read_count = int(tab_counts.get("read") or 0)
+                replied_count = int(tab_counts.get("replied") or 0)
+            except Exception:
+                logger.exception("Failed to compute read/replied metrics")
+
         score_rows = (
             _pf(
                 _apply_metrics_filters(
@@ -586,6 +602,8 @@ def get_analytics():
                     "negative_count": negative_count,
                     "neutral_count": neutral_count,
                     "high_priority_count": high_priority_count,
+                    "read_count": read_count,
+                    "replied_count": replied_count,
                 },
                 "trends": trends,
                 "response_metrics": response_metrics,

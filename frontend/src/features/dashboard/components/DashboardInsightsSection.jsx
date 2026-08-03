@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FiAlertTriangle, FiBarChart2, FiThumbsDown, FiThumbsUp } from 'react-icons/fi'
+import { FiAlertTriangle, FiBarChart2, FiCheck, FiSend } from 'react-icons/fi'
 import {
   ResponsiveContainer,
   LineChart,
@@ -44,13 +44,15 @@ function StatCard({ label, value, sub, accent = 'slate', trackPct = 100 }) {
     rose: 'metric-card--tint-negative',
     amber: 'metric-card--tint-priority',
     emerald: 'metric-card--tint-positive',
+    sky: 'metric-card--tint-positive',
   }
   const iconMap = {
     slate: FiBarChart2,
-    teal: FiThumbsUp,
-    rose: FiThumbsDown,
+    teal: FiCheck,
+    rose: FiSend,
     amber: FiAlertTriangle,
-    emerald: FiThumbsUp,
+    emerald: FiCheck,
+    sky: FiSend,
   }
   const tintClass = tintMap[accent] || tintMap.slate
   const Icon = iconMap[accent] || FiBarChart2
@@ -301,18 +303,18 @@ export default function DashboardInsightsSection({
           trackPct={100}
         />
         <StatCard
-          label="Positive share"
-          value={fmtPct((Number(metrics?.positive ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
-          sub={`${Number(metrics?.positive ?? 0) || 0} positive`}
+          label="Read share"
+          value={fmtPct((Number(metrics?.read ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
+          sub={`${Number(metrics?.read ?? 0) || 0} read`}
           accent="teal"
-          trackPct={((Number(metrics?.positive ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
+          trackPct={((Number(metrics?.read ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
         />
         <StatCard
-          label="Negative share"
-          value={fmtPct((Number(metrics?.negative ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
-          sub={`${Number(metrics?.negative ?? 0) || 0} negative`}
-          accent="rose"
-          trackPct={((Number(metrics?.negative ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
+          label="Replied share"
+          value={fmtPct((Number(metrics?.replied ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0))}
+          sub={`${Number(metrics?.replied ?? 0) || 0} replied`}
+          accent="sky"
+          trackPct={((Number(metrics?.replied ?? 0) || 0) / Math.max(1, Number(metrics?.totalFeedback ?? 0) || 0)) * 100}
         />
         <StatCard
           label="High priority"

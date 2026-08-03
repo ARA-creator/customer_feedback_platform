@@ -7,6 +7,10 @@ import {
 } from '../../../shared/lib/sentimentDisplay'
 import { getPolicySummary, policyHolderBadge } from '../../../shared/utils/policyMatch'
 import { extractFeedbackTitle, getPriorityBadge, isCreatedToday } from '../utils/inboxDerivedStats'
+import {
+  channelMessagePreview,
+  channelMessageSubtitle,
+} from '../utils/channelMessagePresentation'
 
 const PRIORITY_STYLES = {
   low: 'border-gray-200/80 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
@@ -67,13 +71,10 @@ export default function InboxFeedbackRow({
   const sentiment = sentimentLabelFromItem(item) || 'neutral'
   const SentimentIcon = getSentimentIcon(sentiment)
   const title = extractFeedbackTitle(item)
-  const preview = String(item?.message || item?.message_preview || '').trim()
-  const snippet =
-    preview.length > title.length + 10
-      ? preview.slice(title.length).trim().slice(0, 120) || preview.slice(0, 120)
-      : preview.slice(0, 120)
+  const fromLine = channelMessageSubtitle(item)
+  const snippet = channelMessagePreview(item, { maxLen: 120 })
   const priority = getPriorityBadge(item)
-  const showNewBadge = isUnread || isCreatedToday(item)
+  const showNewBadge = isCreatedToday(item)
   const rawTags = Array.isArray(item?.insurance_tags)
     ? item.insurance_tags
     : Array.isArray(item?.channel_metadata?.insurance_tags)
@@ -124,16 +125,21 @@ export default function InboxFeedbackRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <p
-            className={`min-w-0 flex-1 text-sm leading-snug line-clamp-1 pr-2 ${
-              isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-300'
-            }`}
-          >
-            {isPinned ? (
-              <FiBookmark className="mr-1 inline h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-label="Pinned" />
+          <div className="min-w-0 flex-1 pr-2">
+            <p
+              className={`text-sm leading-snug line-clamp-1 ${
+                isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              {isPinned ? (
+                <FiBookmark className="mr-1 inline h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-label="Pinned" />
+              ) : null}
+              {title}
+            </p>
+            {fromLine ? (
+              <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 line-clamp-1">{fromLine}</p>
             ) : null}
-            {title}
-          </p>
+          </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
             {isUnread ? (
               <span
@@ -145,7 +151,7 @@ export default function InboxFeedbackRow({
             {showNewBadge ? (
               <span
                 className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${NEW_BADGE_STYLE}`}
-                title={isCreatedToday(item) ? 'Received today' : 'Not yet read'}
+                title="Received today"
               >
                 New
               </span>

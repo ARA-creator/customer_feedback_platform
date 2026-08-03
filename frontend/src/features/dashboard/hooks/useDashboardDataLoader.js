@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
 import { CHART_PALETTE, SENTIMENT_COLORS } from '../constants/palette'
 import { formatCategoryChartLabel } from '../utils/dashboardFormatters'
 import { formatDashboardLoadError } from '../utils/dashboardLoadError'
@@ -83,6 +84,8 @@ export function useDashboardDataLoader({
             negative: analyticsData.metrics.negative_count || 0,
             neutral: analyticsData.metrics.neutral_count || 0,
             highPriority: analyticsData.metrics.high_priority_count || 0,
+            read: analyticsData.metrics.read_count || 0,
+            replied: analyticsData.metrics.replied_count || 0,
           })
         }
 
@@ -227,15 +230,27 @@ export function useDashboardDataLoader({
         if (mode === 'overview') {
           const priorityData = await getPriorityQueue(50).catch(() => ({ feedback: [] }))
           if (cancelled) return
-          setPriorityQueue(priorityData.feedback || [])
+          const nextPriority = priorityData.feedback || []
+          if (isSilent) {
+            setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+          } else {
+            setPriorityQueue(nextPriority)
+          }
         } else {
           const [recentData, priorityData] = await Promise.all([
             getRecentFeedback(100).catch(() => ({ feedback: [] })),
             getPriorityQueue(50).catch(() => ({ feedback: [] })),
           ])
           if (cancelled) return
-          setRecentFeedback(recentData.feedback || [])
-          setPriorityQueue(priorityData.feedback || [])
+          const nextRecent = recentData.feedback || []
+          const nextPriority = priorityData.feedback || []
+          if (isSilent) {
+            setRecentFeedback((prev) => mergeFeedbackItems(prev, nextRecent, { max: 100 }))
+            setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+          } else {
+            setRecentFeedback(nextRecent)
+            setPriorityQueue(nextPriority)
+          }
         }
 
         if (!isSilent) setInboxLoading(false)

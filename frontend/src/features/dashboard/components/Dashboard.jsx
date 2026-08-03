@@ -75,14 +75,12 @@ import { useDashboardSse } from '../hooks/useDashboardSse'
 import { useInboxFilteredLists } from '../hooks/useInboxFilteredLists'
 import { filterFeedbackItems } from '../utils/dashboardInboxFilters'
 import { useSourceTabCounts } from '../hooks/useSourceTabCounts'
-import { buildInboxFeedbackCsv, downloadTextFile } from '../utils/dashboardExport'
 import { getQuickFilterPatch } from '../utils/dashboardInboxQuickFilters'
 import { buildInboxActiveFilterLabels } from '../utils/dashboardInboxFilterLabels'
 import { SAVED_VIEWS } from '../utils/dashboardSavedViews'
 import { computePeakTimesTotals, pivotCategoryTrends, pivotProductPulseTrends } from '../utils/dashboardPivots'
 import { buildThemesBarChartData, sentimentChartHasRealData as sentimentChartHasRealDataFn, themesChartHasRealData } from '../utils/dashboardChartData'
 import { useDashboardActions } from '../hooks/useDashboardActions'
-import { useDashboardExports } from '../hooks/useDashboardExports'
 import { useDashboardAutoRefresh } from '../hooks/useDashboardAutoRefresh'
 import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
 import { useFeedbackDetailModal } from '../hooks/useFeedbackDetailModal'
@@ -113,6 +111,8 @@ function Dashboard({
     negative: 0,
     neutral: 0,
     highPriority: 0,
+    read: 0,
+    replied: 0,
   })
   const [sentimentData, setSentimentData] = useState([])
   const [categoryData, setCategoryData] = useState([])
@@ -506,23 +506,6 @@ function Dashboard({
     setAnalyzerOpen(false)
   }
 
-  const exportParams = useMemo(() => {
-    const params = { time_window: overviewTimeFilter }
-    if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
-      params.sentiment = overviewSentimentFilter
-    }
-    return params
-  }, [overviewSentimentFilter, overviewTimeFilter])
-
-  const { exportOverviewCsv: handleExportCsv, exportInboxCsv: handleExportCSV } = useDashboardExports({
-    exportParams,
-    recentFeedback,
-    priorityQueue,
-    buildInboxFeedbackCsv,
-    downloadTextFile,
-    pushToast,
-  })
-
   const [selectedSavedView, setSelectedSavedView] = useState('all')
   const { handleQuickFilter, inboxActiveFilterLabels, inboxHasActiveFilters, savedViews } = useInboxQuickFilters({
     mode,
@@ -616,8 +599,6 @@ function Dashboard({
             onChange={setOverviewTimeFilter}
             sentimentValue={overviewSentimentFilter}
             onSentimentChange={setOverviewSentimentFilter}
-            onExportCsv={handleExportCsv}
-            exportDisabled={loading || !analyticsDelayPassed}
             isAdminUser={isAdminUser}
             dashboardAutoRefresh={dashboardAutoRefresh}
             onToggleAutoRefresh={setDashboardAutoRefresh}

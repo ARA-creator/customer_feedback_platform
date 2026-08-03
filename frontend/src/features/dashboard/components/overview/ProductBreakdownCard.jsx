@@ -4,7 +4,6 @@ import { FiArrowRight, FiChevronRight, FiX } from 'react-icons/fi'
 import { SENTIMENT_COLORS } from '../../constants/palette'
 import { getProductDetail } from '../../services/dashboard.api'
 import DashboardChartCard from './DashboardChartCard'
-import ChartFilterSelect from './ChartFilterSelect'
 
 const PRODUCT_BAR = '#5ec962'
 
@@ -369,9 +368,6 @@ function ProductInsightModal({
 export default function ProductBreakdownCard({
   ready,
   rows = [],
-  productFilter,
-  onProductFilterChange,
-  productFilterOptions = [],
   onViewAllProducts,
   showAllProducts = false,
   totalProductCount = 0,
@@ -424,28 +420,9 @@ export default function ProductBreakdownCard({
     }
   }, [selected, timeWindow])
 
-  useEffect(() => {
-    if (!selected) return
-    if (productFilter !== 'all' && selected.key !== productFilter) {
-      setSelected(null)
-    }
-  }, [productFilter, selected])
-
   return (
     <>
-      <DashboardChartCard
-        title="Product Breakdown"
-        action={
-          productFilterOptions.length > 0 ? (
-            <ChartFilterSelect
-              value={productFilter}
-              onChange={onProductFilterChange}
-              options={productFilterOptions}
-              ariaLabel="Filter by product"
-            />
-          ) : null
-        }
-      >
+      <DashboardChartCard title="Product Breakdown">
         {!ready ? (
           <ChartSkeleton className="h-56" />
         ) : rows.length === 0 ? (
