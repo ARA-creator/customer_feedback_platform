@@ -1720,7 +1720,14 @@ export default function InboxLite({ onNavigate }) {
             )}
 
             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-              {openItem.customer_label || openItem.customer_id || 'Unknown customer'}
+              {(() => {
+                const label = String(openItem.customer_label || openItem.customer_id || '').trim()
+                const meta = openItem.channel_metadata && typeof openItem.channel_metadata === 'object' ? openItem.channel_metadata : {}
+                const phone = String(meta.phone || meta.from_number || '').trim()
+                if (phone && !phone.startsWith('*')) return phone
+                if (label && !label.startsWith('*')) return label
+                return 'Unknown customer'
+              })()}
             </p>
 
             {openReaders && (

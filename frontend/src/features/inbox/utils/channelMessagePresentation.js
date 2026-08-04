@@ -75,15 +75,12 @@ export function channelMessageSubtitle(item) {
     return name || email || ''
   }
   if (kind === 'whatsapp') {
-    return String(
-      meta.phone ||
-        meta.from_number ||
-        meta.customer_label ||
-        meta.author_handle ||
-        meta.masked_phone ||
-        meta.from_number_masked ||
-        '',
+    const phone = String(
+      meta.phone || meta.from_number || meta.customer_label || meta.author_handle || '',
     ).trim()
+    // Never show legacy masked stars (****2499) as the customer phone.
+    if (!phone || phone.startsWith('*')) return ''
+    return phone
   }
   if (kind === 'facebook' || kind === 'instagram' || kind === 'x' || kind === 'tiktok') {
     const handle = String(meta.author_handle || meta.customer_label || '').trim()

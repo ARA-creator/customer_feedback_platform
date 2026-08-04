@@ -119,6 +119,20 @@ def normalize_phone_identity(raw) -> Optional[str]:
     return f"+{digits}"
 
 
+def format_phone_display(raw) -> Optional[str]:
+    """
+    Officer-facing phone label. Prefer Ghana local form starting with 0
+    (e.g. 0547890122) when the number is a Ghana E.164 (+233…).
+    """
+    canon = normalize_phone_identity(raw)
+    if not canon:
+        return None
+    digits = "".join(ch for ch in canon if ch.isdigit())
+    if digits.startswith("233") and len(digits) == 12:
+        return f"0{digits[3:]}"
+    return canon
+
+
 def phone_identity_variants(phone_or_raw) -> List[str]:
     """
     All identifier_value forms that should count as the same phone person.
@@ -182,7 +196,7 @@ def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str
     # Prefer stable phone / WhatsApp ids over per-message SIDs.
     phone = normalize_phone_identity(meta.get("phone") or meta.get("from_number") or meta.get("wa_id"))
     if phone:
-        return f"phone:{phone}", phone
+        return f"phone:{phone}", format_phone_display(phone) or phone
 
     wa_id = str(meta.get("wa_id") or "").strip()
     if wa_id and not wa_id.startswith("*"):
@@ -259,8 +273,22 @@ def normalize_channel_metadata(source: Optional[str], raw_meta: Any) -> Dict[str
         if phone:
             out["phone"] = phone
             out["from_number"] = phone
-            out.setdefault("author_handle", phone)
-            out.setdefault("wa_id", "".join(ch for ch in phone if ch.isdigit()))
+            out["author_handle"] = phone
+            out["wa_id"] = "".join(ch for ch in phone if ch.isdigit())
+            out["thread_id"] = out["wa_id"]
+            display = format_phone_display(phone) or phone
+            out["customer_key"] = f"phone:{phone}"
+            out["customer_label"] = display
+        else:
+            # Legacy rows may only have stars+last4 — never treat that as identity.
+            for key in ("author_handle", "customer_label", "from_number", "phone", "wa_id"):
+                val = str(out.get(key) or "").strip()
+                if val.startswith("*"):
+                    out[key] = None
+            # Keep MessageSid out of thread identity when we have no phone.
+            thread = str(out.get("thread_id") or "").strip()
+            if thread.upper().startswith("SM") and len(thread) >= 32:
+                out["thread_id"] = out.get("message_id") or thread
         out.setdefault(
             "thread_id",
             out.get("wa_id") or out.get("phone") or out.get("message_id") or out.get("message_sid"),

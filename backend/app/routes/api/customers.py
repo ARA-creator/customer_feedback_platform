@@ -24,7 +24,12 @@ from ...models import (
     FeedbackPolicyMatch,
 )
 from ...security import decrypt_text, encrypt_text, hash_email
-from ...services.metadata_normalization import phone_identity_variants, safe_json_loads
+from ...services.metadata_normalization import (
+    format_phone_display,
+    normalize_phone_identity,
+    phone_identity_variants,
+    safe_json_loads,
+)
 from ...services.policy_detection import is_policy_number_match
 from ...services.prioritization import normalize_source_group
 from . import api_bp
@@ -320,6 +325,7 @@ def customer_profile(customer_key: str):
 
         identifiers_payload = []
         seen_display = set()
+        seen_phone_canons = set()
         for ident in identifiers:
             itype = str(ident.identifier_type or "").lower()
             # Policy numbers belong under Products & policies, not Customer Identity.
@@ -327,6 +333,7 @@ def customer_profile(customer_key: str):
                 continue
             label = ident.label
             display_type = itype.replace("_", " ")
+            stored_value = ident.identifier_value
             if itype in {"email_hash", "email"}:
                 display_type = "email"
                 if email_plain:
@@ -339,8 +346,15 @@ def customer_profile(customer_key: str):
                     phone_val = phone_val.split(":", 1)[1].strip()
                 if phone_val.startswith("*"):
                     continue
-                if phone_val:
-                    label = phone_val
+                canon = normalize_phone_identity(phone_val)
+                if not canon:
+                    continue
+                if canon in seen_phone_canons:
+                    continue
+                seen_phone_canons.add(canon)
+                # One chip only — prefer local 0… form for Ghana numbers.
+                label = format_phone_display(canon) or canon
+                stored_value = f"phone:{canon}"
             elif itype in {"msg", "message_sid", "thread"} and str(label or "").startswith("*"):
                 continue
             key = f"{display_type}:{(label or ident.identifier_value or '').strip().lower()}"
@@ -351,7 +365,7 @@ def customer_profile(customer_key: str):
                 {
                     "id": ident.id,
                     "identifier_type": display_type,
-                    "identifier_value": ident.identifier_value,
+                    "identifier_value": stored_value,
                     "label": label,
                     "source": ident.source,
                 }
@@ -373,11 +387,6 @@ def customer_profile(customer_key: str):
 
         # Surface phone numbers from channel metadata (even for older WhatsApp rows
         # that only stored a masked display value or used MessageSid as identity).
-        phones_seen = {
-            str(i.get("label") or "").strip()
-            for i in identifiers_payload
-            if str(i.get("identifier_type") or "").lower() == "phone"
-        }
         for row in rows:
             meta = _normalize_metadata(row)
             for key in ("phone", "from_number", "wa_id", "author_handle"):
@@ -389,23 +398,21 @@ def customer_profile(customer_key: str):
                 # Skip masked placeholders and non-phone handles.
                 if cand.startswith("*") or "@" in cand:
                     continue
-                digits = "".join(ch for ch in cand if ch.isdigit())
-                if len(digits) < 7:
+                canon = normalize_phone_identity(cand)
+                if not canon or canon in seen_phone_canons:
                     continue
-                if not cand.startswith("+") and cand.isdigit():
-                    cand = f"+{cand}"
-                if cand in phones_seen:
-                    continue
-                phones_seen.add(cand)
+                seen_phone_canons.add(canon)
+                display = format_phone_display(canon) or canon
                 identifiers_payload.append(
                     {
                         "id": None,
                         "identifier_type": "phone",
-                        "identifier_value": f"phone:{cand}",
-                        "label": cand,
+                        "identifier_value": f"phone:{canon}",
+                        "label": display,
                         "source": getattr(row, "source", None) or "feedback",
                     }
                 )
+                break
 
         return jsonify(
             {
