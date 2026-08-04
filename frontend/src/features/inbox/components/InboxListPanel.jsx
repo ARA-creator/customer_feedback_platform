@@ -235,7 +235,7 @@ export default function InboxListPanel({
       </div>
 
       {showPagination ? (
-        <div className="relative mt-4 border-t border-gray-100 pb-14 pt-3 dark:border-gray-800">
+        <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Showing{' '}
@@ -288,18 +288,11 @@ export default function InboxListPanel({
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
 
-          {/* Floating scroll-to-top — centered under the pagination bar */}
-          <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 -translate-x-1/2">
-            <div className="pointer-events-auto">
-              <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
-            </div>
-          </div>
-        </div>
-      ) : showListControls ? (
-        <div className="relative mt-4 flex justify-center pt-1">
-          <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
-        </div>
+      {showListControls || showPagination ? (
+        <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
       ) : null}
     </div>
   )

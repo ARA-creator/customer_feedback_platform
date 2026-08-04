@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FiAlertCircle, FiBell, FiCheck, FiRefreshCw } from 'react-icons/fi'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { FiAlertCircle, FiBell, FiCheck, FiChevronLeft, FiChevronRight, FiRefreshCw } from 'react-icons/fi'
 import {
   connectNotificationsStream,
   getNotifications,
@@ -14,6 +14,7 @@ import { EmptyState, LastUpdated, NotificationListSkeleton } from '../../../shar
 import NotificationMetaBadges from './NotificationMetaBadges'
 
 const ADMIN_NOTIFICATION_TYPES = new Set(['admin_user_event'])
+const PAGE_SIZE = 25
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -32,7 +33,9 @@ function fmtRelative(iso) {
 
 export default function Notifications({ isAdminUI = false, onNavigate }) {
   const [items, setItems] = useState([])
-  const [nextCursor, setNextCursor] = useState(null)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const pageCursorsRef = useRef([undefined])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -40,12 +43,44 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
-  const [deliveryPrefs, setDeliveryPrefs] = useState(null)
+
+  const loadPage = async (pageNum, { resetCursors = false } = {}) => {
+    setLoading(true)
+    setError(null)
+    try {
+      if (resetCursors || pageNum === 1) {
+        pageCursorsRef.current = [undefined]
+        pageNum = 1
+      }
+      const cursor = pageCursorsRef.current[pageNum - 1]
+      const [list, c] = await Promise.all([
+        getNotifications({ cursor, limit: PAGE_SIZE }),
+        getUnreadCount(),
+      ])
+      const nextItems = Array.isArray(list?.items) ? list.items : []
+      setItems(nextItems)
+      const nextCursor = list?.next_cursor || null
+      setHasMore(Boolean(nextCursor || list?.has_more))
+      const cursors = pageCursorsRef.current.slice(0, pageNum)
+      if (nextCursor) cursors[pageNum] = nextCursor
+      pageCursorsRef.current = cursors
+      setPage(pageNum)
+      const unreadN = Number(c?.unread ?? 0) || 0
+      setUnread(unreadN)
+      setLastLoadedAt(new Date())
+      publishUnreadCount(unreadN)
+      setSelectedIds(new Set())
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to load notifications')
+      setLastLoadedAt(null)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
     const apply = (prefs) => {
-      setDeliveryPrefs(prefs || {})
       setRealtimeEnabled(Boolean(prefs?.realtime))
     }
     ;(async () => {
@@ -58,7 +93,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     })()
     const onPrefsChanged = (e) => {
       apply(e?.detail?.prefs)
-      load({ reset: true })
+      loadPage(1, { resetCursors: true })
     }
     window.addEventListener('cfp-notification-prefs-changed', onPrefsChanged)
     return () => {
@@ -68,34 +103,8 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const load = async ({ reset } = {}) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const [list, c] = await Promise.all([
-        getNotifications({ cursor: reset ? undefined : nextCursor, limit: reset ? 30 : 20 }),
-        getUnreadCount(),
-      ])
-      if (reset) {
-        setItems(Array.isArray(list?.items) ? list.items : [])
-      } else {
-        setItems((prev) => [...prev, ...(Array.isArray(list?.items) ? list.items : [])])
-      }
-      setNextCursor(list?.next_cursor || null)
-      const unreadN = Number(c?.unread ?? 0) || 0
-      setUnread(unreadN)
-      setLastLoadedAt(new Date())
-      publishUnreadCount(unreadN)
-    } catch (e) {
-      setError(e?.response?.data?.error || e?.message || 'Failed to load notifications')
-      setLastLoadedAt(null)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    load({ reset: true })
+    loadPage(1, { resetCursors: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -103,7 +112,10 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     if (!realtimeEnabled) return
     const cleanup = connectNotificationsStream((evt) => {
       if (evt?.type === 'notification.created' && evt.notification) {
-        setItems((prev) => [evt.notification, ...prev])
+        setItems((prev) => {
+          if (page !== 1) return prev
+          return [evt.notification, ...prev].slice(0, PAGE_SIZE)
+        })
         if (Number.isFinite(Number(evt.unread))) {
           const n = Number(evt.unread)
           setUnread(n)
@@ -116,7 +128,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       }
     })
     return cleanup
-  }, [realtimeEnabled])
+  }, [realtimeEnabled, page])
 
   const visibleItems = useMemo(
     () =>
@@ -302,6 +314,10 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
     }
   }
 
+  const pageStart = items.length ? (page - 1) * PAGE_SIZE + 1 : 0
+  const pageEnd = items.length ? (page - 1) * PAGE_SIZE + items.length : 0
+  const showPagination = !loading && !error && items.length > 0
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 mx-auto max-w-7xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -322,7 +338,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
           <div className="flex flex-wrap gap-2 justify-end">
           <button
             type="button"
-            onClick={() => load({ reset: true })}
+            onClick={() => loadPage(1, { resetCursors: true })}
             className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
             aria-label="Refresh notifications"
             title="Refresh"
@@ -391,7 +407,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
               </div>
               <button
                 type="button"
-                onClick={() => load({ reset: true })}
+                onClick={() => loadPage(1, { resetCursors: true })}
                 className="inline-flex shrink-0 min-h-[44px] items-center justify-center gap-2 rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950"
               >
                 <FiRefreshCw className="h-4 w-4" aria-hidden />
@@ -572,18 +588,46 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                 </div>
               )
             })}
-          {!loading && !error && nextCursor && (
-            <button
-              type="button"
-              onClick={() => load({ reset: false })}
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
-            >
-              Load more
-            </button>
+          {showPagination && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Showing{' '}
+                <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                  {pageStart}–{pageEnd}
+                </span>
+                <span className="text-gray-400 dark:text-gray-500"> · </span>
+                <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{PAGE_SIZE}</span>
+                {' '}/ page
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => loadPage(page - 1)}
+                  disabled={page <= 1 || loading}
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  aria-label="Previous page"
+                >
+                  <FiChevronLeft className="h-4 w-4" aria-hidden />
+                  Prev
+                </button>
+                <span className="min-w-[4.5rem] text-center text-xs font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                  Page {page}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => loadPage(page + 1)}
+                  disabled={!hasMore || loading}
+                  className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  aria-label="Next page"
+                >
+                  Next
+                  <FiChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
     </div>
   )
 }
-
