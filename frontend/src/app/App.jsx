@@ -103,6 +103,7 @@ function AppChrome({
 }) {
   const { resolvedTheme, toggleTheme } = useDisplayPreferences()
   const location = useLocation()
+  const navigateToView = useAppNavigate()
   const currentView = viewFromPathname(location.pathname)
   const headerTitle = HEADER_TITLES[currentView] || 'Feedback Dashboard'
 
@@ -143,6 +144,7 @@ function AppChrome({
           user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
           onSignOut={signOut}
           hideAgentLinks={isAdminUI}
+          onBack={currentView === 'customer' ? () => navigateToView('inbox') : null}
         />
         <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
           <Outlet />

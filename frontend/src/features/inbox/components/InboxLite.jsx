@@ -240,6 +240,15 @@ export default function InboxLite({ onNavigate }) {
   const [error, setError] = useState(null)
 
   const [source, setSource] = useState('all')
+  const setChannelSource = useCallback((next) => {
+    const v = String(next || 'all').toLowerCase().trim()
+    // Legacy lumped "email" → All channels (mailboxes are HNW email / CX).
+    if (v === 'email' || v === 'e-mail') {
+      setSource('all')
+      return
+    }
+    setSource(v || 'all')
+  }, [])
   const [sentiment, setSentiment] = useState('all')
   const [q, setQ] = useState('')
   const [qDraft, setQDraft] = useState('')
@@ -415,7 +424,7 @@ export default function InboxLite({ onNavigate }) {
       const preset = JSON.parse(raw)
       if (!preset || typeof preset !== 'object') return
       if (typeof preset.source === 'string' && preset.source.trim()) {
-        setSource(preset.source.trim().toLowerCase())
+        setChannelSource(preset.source.trim().toLowerCase())
       }
       if (typeof preset.sentiment === 'string' && preset.sentiment) {
         setSentiment(preset.sentiment)
@@ -479,14 +488,27 @@ export default function InboxLite({ onNavigate }) {
   const sourceTabs = useMemo(() => {
     const c = counts || {}
     const keys = new Set([...Object.keys(c || {}), ...SOURCE_ORDER])
+    // Never show a lumped "Email" tab — mailboxes are HNW email + CX only.
+    keys.delete('email')
+    keys.add('hnw_email')
+    keys.add('cx')
     const rest = Array.from(keys)
       .filter((k) => k && k !== 'all')
       .sort((a, b) => formatSourceLabel(a).localeCompare(formatSourceLabel(b), undefined, { sensitivity: 'base' }))
-    return keys.has('all') ? ['all', ...rest] : rest
+    return ['all', ...rest]
   }, [counts])
 
   const selectedSourceLabel = useMemo(() => formatSourceLabel(source), [source])
   const selectedSourceCount = useMemo(() => {
+    if (source === 'all') {
+      const n = Number(counts?.all ?? 0)
+      return Number.isFinite(n) ? n : 0
+    }
+    if (source === 'email') {
+      // Legacy selection → combined mailbox counts
+      const n = Number(counts?.hnw_email || 0) + Number(counts?.cx || 0) + Number(counts?.email || 0)
+      return Number.isFinite(n) ? n : 0
+    }
     const n = Number(counts?.[source] ?? counts?.[String(source || '').toLowerCase()] ?? 0)
     return Number.isFinite(n) ? n : 0
   }, [counts, source])
@@ -619,10 +641,14 @@ export default function InboxLite({ onNavigate }) {
         try {
           const sc = await getSourceCounts(params)
           if (seq !== loadSeq.current) return
-          const grouped = sc?.grouped && typeof sc.grouped === 'object' ? sc.grouped : null
-          const raw = sc?.raw && typeof sc.raw === 'object' ? sc.raw : null
+          const grouped = sc?.grouped && typeof sc.grouped === 'object' ? { ...sc.grouped } : {}
+          const raw = sc?.raw && typeof sc.raw === 'object' ? { ...sc.raw } : {}
           const total = Number(sc?.total ?? 0)
-          const base = grouped || raw || {}
+          // Prefer grouped (includes HNW email / CX). Never keep a lumped "email" tab.
+          const base = Object.keys(grouped).length ? grouped : { ...raw }
+          delete base.email
+          if (base.hnw_email == null) base.hnw_email = 0
+          if (base.cx == null) base.cx = 0
           setCounts({ all: Number.isFinite(total) ? total : 0, ...base })
         } catch {
           // Keep feed visible; counts refresh on next load.
@@ -1121,7 +1147,7 @@ export default function InboxLite({ onNavigate }) {
         onSentimentChange={setSentiment}
         sentimentOptions={sentimentOptions}
         source={source}
-        onSourceChange={setSource}
+        onSourceChange={setChannelSource}
         sourceTabs={sourceTabs}
         counts={counts}
         selectedSourceLabel={selectedSourceLabel}

@@ -235,62 +235,71 @@ export default function InboxListPanel({
       </div>
 
       {showPagination ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Showing{' '}
-            <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
-              {pageStart}–{pageEnd}
-            </span>{' '}
-            of{' '}
-            <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
-              {paginationTotal}
-            </span>
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-              <span className="sr-only">Rows per page</span>
-              <select
-                value={pageSize}
-                onChange={(e) => onPageSizeChange?.(Number(e.target.value) || 50)}
-                className="min-h-[36px] rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                aria-label="Rows per page"
+        <div className="relative mt-4 border-t border-gray-100 pb-14 pt-3 dark:border-gray-800">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Showing{' '}
+              <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                {pageStart}–{pageEnd}
+              </span>{' '}
+              of{' '}
+              <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                {paginationTotal}
+              </span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <span className="sr-only">Rows per page</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange?.(Number(e.target.value) || 50)}
+                  className="min-h-[36px] rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  aria-label="Rows per page"
+                >
+                  {(pageSizeOptions || [50]).map((n) => (
+                    <option key={n} value={n}>
+                      {n} / page
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page - 1)}
+                disabled={page <= 1 || pageLoading}
+                className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                aria-label="Previous page"
               >
-                {(pageSizeOptions || [50]).map((n) => (
-                  <option key={n} value={n}>
-                    {n} / page
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => onPageChange?.(page - 1)}
-              disabled={page <= 1 || pageLoading}
-              className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              aria-label="Previous page"
-            >
-              <FiChevronLeft className="h-4 w-4" aria-hidden />
-              Prev
-            </button>
-            <span className="min-w-[5.5rem] text-center text-xs font-semibold tabular-nums text-gray-700 dark:text-gray-200">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => onPageChange?.(page + 1)}
-              disabled={(!hasNextPage && page >= totalPages) || pageLoading}
-              className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              aria-label="Next page"
-            >
-              Next
-              <FiChevronRight className="h-4 w-4" aria-hidden />
-            </button>
+                <FiChevronLeft className="h-4 w-4" aria-hidden />
+                Prev
+              </button>
+              <span className="min-w-[5.5rem] text-center text-xs font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => onPageChange?.(page + 1)}
+                disabled={(!hasNextPage && page >= totalPages) || pageLoading}
+                className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                aria-label="Next page"
+              >
+                Next
+                <FiChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          </div>
+
+          {/* Floating scroll-to-top — centered under the pagination bar */}
+          <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 -translate-x-1/2">
+            <div className="pointer-events-auto">
+              <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
+            </div>
           </div>
         </div>
-      ) : null}
-
-      {showListControls || showPagination ? (
-        <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
+      ) : showListControls ? (
+        <div className="relative mt-4 flex justify-center pt-1">
+          <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
+        </div>
       ) : null}
     </div>
   )

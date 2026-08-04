@@ -1,4 +1,4 @@
-import { FiMenu, FiMoon, FiRefreshCw, FiSun } from 'react-icons/fi'
+import { FiArrowLeft, FiMenu, FiMoon, FiRefreshCw, FiSun } from 'react-icons/fi'
 import UserProfileMenu from './UserProfileMenu'
 
 function Header({
@@ -12,6 +12,7 @@ function Header({
   user,
   onSignOut,
   hideAgentLinks = false,
+  onBack = null,
 }) {
   return (
     <header className="bg-white/95 border-b border-emerald-100/50 px-4 sm:px-6 py-3 sm:py-4 shadow-sm dark:bg-gray-950/90 dark:border-gray-800">
@@ -56,6 +57,20 @@ function Header({
           <UserProfileMenu user={user} onSignOut={onSignOut} hideAgentLinks={hideAgentLinks} />
         </div>
       </div>
+
+      {typeof onBack === 'function' ? (
+        <div className="mt-2 md:mt-2.5">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            aria-label="Back to inbox"
+            title="Back to inbox"
+          >
+            <FiArrowLeft className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
     </header>
   )
 }
