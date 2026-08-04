@@ -58,3 +58,11 @@ def test_summarize_policy_matches_verified_vs_estimated():
     )
     assert estimated["policy_holder_status"] == "estimated"
     assert estimated["has_policy_number"] is False
+
+
+def test_short_and_standard_policy_digits_dedupe():
+    short, _ = detect_policies("Please update EB2V000024 today")
+    full, _ = detect_policies("Please update EB2V0000024 today")
+    assert short and full
+    assert short[0].policy_number == full[0].policy_number == "EB2V0000024"
+    assert short[0].policy_hash == full[0].policy_hash

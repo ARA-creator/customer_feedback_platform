@@ -219,15 +219,45 @@ def _normalize_for_scan(text: str) -> str:
     return t
 
 
+def canonicalize_policy_digits(digits: str) -> str:
+    """
+    Normalize policy digit runs to the standard 7-digit form when possible.
+
+    Shorter 6-digit captures (e.g. EB2V000024) are treated as the same policy as
+    the zero-padded 7-digit form (EB2V0000024).
+    """
+    d = "".join(ch for ch in str(digits or "") if ch.isdigit())
+    if len(d) == 6:
+        return d.zfill(7)
+    return d
+
+
+def canonicalize_policy_number(policy_or_prefix: str, digits: Optional[str] = None) -> Optional[str]:
+    """Return PREFIX+7digits (or longer exceptional form) uppercased, or None."""
+    if digits is None:
+        s = re.sub(r"[\s\-_\/]+", "", str(policy_or_prefix or "")).upper()
+        m = re.match(r"^([A-Z0-9]{4})(\d{6,8})$", s)
+        if not m:
+            # Historically masked: PREFIX•••••XXX — cannot canonicalize digits.
+            return None
+        prefix, digs = m.group(1), m.group(2)
+    else:
+        prefix = str(policy_or_prefix or "").upper().strip()
+        digs = str(digits or "")
+    if not prefix or not digs:
+        return None
+    return f"{prefix}{canonicalize_policy_digits(digs)}".upper()
+
+
 def _mask_policy(prefix: str, digits: str) -> str:
-    """Display form for officers — full policy number (internal tool)."""
-    return f"{prefix}{digits}".upper()
+    """Display form for officers — full canonical policy number (internal tool)."""
+    return f"{prefix}{canonicalize_policy_digits(digits)}".upper()
 
 
 def _hash_policy(prefix: str, digits: str) -> str:
     cfg = get_config()
     salt = str(getattr(cfg, "HASH_SALT", "") or "")
-    normalized = f"{prefix}{digits}".upper()
+    normalized = f"{prefix}{canonicalize_policy_digits(digits)}".upper()
     digest = hashlib.sha256(f"{salt}:policy:{normalized}".encode("utf-8")).hexdigest()
     return digest
 
@@ -258,6 +288,29 @@ def is_policy_number_match(masked: Optional[str]) -> bool:
 def is_product_name_match(masked: Optional[str]) -> bool:
     """True when the match was inferred from a product/plan name only."""
     return "(name match)" in (masked or "")
+
+
+def policy_dedupe_key(match: Any) -> Optional[str]:
+    """Stable key for collapsing equivalent policy chips (6-digit ≈ 7-digit)."""
+    if match is None:
+        return None
+    if isinstance(match, dict):
+        number = match.get("policy_number") or match.get("policy_masked") or ""
+        prefix = match.get("product_prefix") or ""
+        phash = match.get("policy_hash") or ""
+    else:
+        number = getattr(match, "policy_number", None) or getattr(match, "policy_masked", None) or ""
+        prefix = getattr(match, "product_prefix", None) or ""
+        phash = getattr(match, "policy_hash", None) or ""
+    number = str(number or "").strip()
+    if "(name match)" in number:
+        return f"name:{(prefix or number).upper()}"
+    canon = canonicalize_policy_number(number)
+    if canon:
+        return f"num:{canon}"
+    if phash:
+        return f"hash:{phash}"
+    return None
 
 
 def build_policy_scan_text(message: str, policy_number_hints: Optional[Sequence[str]] = None) -> str:
@@ -372,6 +425,7 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
         # Clamp
         score = max(0.0, min(0.99, score))
 
+        digits = canonicalize_policy_digits(digits)
         pol_hash = _hash_policy(prefix, digits)
         policy_number = f"{prefix}{digits}".upper()
         masked = _mask_policy(prefix, digits)

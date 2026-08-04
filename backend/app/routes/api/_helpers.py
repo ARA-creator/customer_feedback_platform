@@ -41,6 +41,7 @@ from ...security import decrypt_text, hash_email
 from ...services.metadata_normalization import (
     build_search_text,
     customer_identity_from,
+    format_phone_display,
     normalize_channel_metadata,
     normalize_phone_identity,
     normalized_media,
@@ -552,10 +553,9 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
 
     phone = normalize_phone_identity(meta.get("phone") or meta.get("from_number") or meta.get("wa_id"))
     if phone:
-        # Canonical phone key + legacy variants so older rows still merge.
-        for variant in _phone_identity_variants(phone):
-            itype = "phone" if variant.startswith("phone:") else "wa"
-            add(itype, variant, phone)
+        # Store one canonical phone key. Equivalent Ghana forms (+233/233/0…) are
+        # expanded only during lookup/merge, not as separate Customer Identity chips.
+        add("phone", f"phone:{phone}", format_phone_display(phone) or phone)
 
     wa_id = str(meta.get("wa_id") or "").strip()
     if wa_id and not wa_id.startswith("*") and not normalize_phone_identity(wa_id):

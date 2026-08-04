@@ -38,6 +38,64 @@ function safeArr(x) {
   return Array.isArray(x) ? x : []
 }
 
+/** Ghana +233 / 233 / 0… / bare national → canonical +233… */
+function canonicalizeGhanaPhone(raw) {
+  let s = String(raw || '').trim()
+  if (!s || s.startsWith('*')) return null
+  const lower = s.toLowerCase()
+  for (const prefix of ['whatsapp:', 'phone:', 'wa:']) {
+    if (lower.startsWith(prefix)) {
+      s = s.slice(prefix.length).trim()
+      break
+    }
+  }
+  const digits = s.replace(/\D/g, '')
+  if (digits.length < 7) return null
+  if (digits.startsWith('233') && digits.length === 12) return `+${digits}`
+  if (digits.startsWith('0') && digits.length === 10) return `+233${digits.slice(1)}`
+  if (digits.length === 9 && '234567'.includes(digits[0])) return `+233${digits}`
+  return `+${digits}`
+}
+
+/** Prefer local 0XXXXXXXXX for Ghana numbers in Customer Identity. */
+function formatGhanaPhoneDisplay(raw) {
+  const canon = canonicalizeGhanaPhone(raw)
+  if (!canon) return null
+  const digits = canon.replace(/\D/g, '')
+  if (digits.startsWith('233') && digits.length === 12) return `0${digits.slice(3)}`
+  return canon
+}
+
+/** One chip per distinct phone (0… form) + non-phone identities. */
+function dedupeIdentityChips(idents) {
+  const out = []
+  const seenPhones = new Set()
+  const seenOther = new Set()
+  for (const ident of safeArr(idents)) {
+    const t = String(ident?.identifier_type || '').toLowerCase()
+    if (t === 'policy' || t === 'policy_hash' || String(ident?.identifier_value || '').startsWith('policy_hash:')) {
+      continue
+    }
+    if (t === 'phone' || t === 'wa') {
+      const canon = canonicalizeGhanaPhone(ident?.label || ident?.identifier_value)
+      if (!canon || seenPhones.has(canon)) continue
+      seenPhones.add(canon)
+      out.push({
+        ...ident,
+        identifier_type: 'phone',
+        label: formatGhanaPhoneDisplay(canon) || canon,
+      })
+      continue
+    }
+    const label = String(ident?.label || ident?.identifier_value || '').trim()
+    const key = `${t}:${label.toLowerCase()}`
+    if (!label || seenOther.has(key)) continue
+    seenOther.add(key)
+    out.push(ident)
+  }
+  return out
+}
+
 function extractUrls(text) {
   const s = String(text || '')
   const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
@@ -109,15 +167,45 @@ export default function Customer360({ onNavigate }) {
 
   const policySummary = useMemo(() => {
     const map = new Map()
+    const normalizePolicyKey = (m) => {
+      const number = String(m?.policy_number || m?.policy_masked || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s\-_\/]+/g, '')
+      if (!number) return m?.policy_hash || ''
+      if (number.includes('(NAME MATCH)')) {
+        return `name:${String(m?.product_prefix || number).toUpperCase()}`
+      }
+      // PREFIX + 6 digits → treat as zero-padded 7-digit policy (EB2V000024 == EB2V0000024)
+      const match = number.match(/^([A-Z0-9]{4})(\d{6,8})$/)
+      if (match) {
+        const prefix = match[1]
+        let digits = match[2]
+        if (digits.length === 6) digits = digits.padStart(7, '0')
+        return `num:${prefix}${digits}`
+      }
+      return m?.policy_hash || number
+    }
     for (const it of safeArr(history)) {
       for (const m of safeArr(it?.policy_matches)) {
         if (!m || !m.policy_hash) continue
-        const key = m.policy_hash
+        const key = normalizePolicyKey(m)
+        if (!key) continue
         if (!map.has(key)) {
+          const number = String(m.policy_number || m.policy_masked || '').trim()
+          const padded = (() => {
+            const n = number.toUpperCase().replace(/[\s\-_\/]+/g, '')
+            const mm = n.match(/^([A-Z0-9]{4})(\d{6,8})$/)
+            if (!mm) return m.policy_number || m.policy_masked || null
+            const prefix = mm[1]
+            let digits = mm[2]
+            if (digits.length === 6) digits = digits.padStart(7, '0')
+            return `${prefix}${digits}`
+          })()
           map.set(key, {
             policy_hash: m.policy_hash,
-            policy_masked: m.policy_masked,
-            policy_number: m.policy_number || null,
+            policy_masked: padded || m.policy_masked,
+            policy_number: padded || m.policy_number || null,
             product_prefix: m.product_prefix,
             product_group: m.product_group,
             needs_review: !!m.needs_review,
@@ -129,8 +217,19 @@ export default function Customer360({ onNavigate }) {
         row.needs_review = row.needs_review || !!m.needs_review
         row.product_group = row.product_group || m.product_group
         row.product_prefix = row.product_prefix || m.product_prefix
-        row.policy_masked = row.policy_masked || m.policy_masked
-        row.policy_number = row.policy_number || m.policy_number || null
+        // Prefer longer/canonical number when merging duplicates.
+        const cand = m.policy_number || m.policy_masked
+        if (cand && String(cand).replace(/\D/g, '').length >= String(row.policy_number || '').replace(/\D/g, '').length) {
+          const n = String(cand).toUpperCase().replace(/[\s\-_\/]+/g, '')
+          const mm = n.match(/^([A-Z0-9]{4})(\d{6,8})$/)
+          if (mm) {
+            const prefix = mm[1]
+            let digits = mm[2]
+            if (digits.length === 6) digits = digits.padStart(7, '0')
+            row.policy_number = `${prefix}${digits}`
+            row.policy_masked = row.policy_number
+          }
+        }
       }
     }
     return Array.from(map.values()).sort((a, b) => (b.total_mentions || 0) - (a.total_mentions || 0))
@@ -343,10 +442,7 @@ export default function Customer360({ onNavigate }) {
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(() => {
-                    const idents = safeArr(data.identifiers).filter((ident) => {
-                      const t = String(ident?.identifier_type || '').toLowerCase()
-                      return t !== 'policy' && t !== 'policy_hash' && !String(ident?.identifier_value || '').startsWith('policy_hash:')
-                    })
+                    const idents = dedupeIdentityChips(data.identifiers)
                     if (idents.length === 0) {
                       return <p className="text-sm text-gray-600 dark:text-gray-300">No customer identity yet.</p>
                     }
