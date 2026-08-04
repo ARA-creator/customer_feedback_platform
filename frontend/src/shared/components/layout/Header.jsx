@@ -63,7 +63,7 @@ function Header({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#009750]/40 bg-[#009750]/15 text-[#007a42] hover:bg-[#009750]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
             aria-label="Back to inbox"
             title="Back to inbox"
           >
