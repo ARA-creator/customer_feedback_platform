@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
+import { mergeFeedbackItems, maxFeedbackId } from '../../../shared/utils/mergeFeedbackItems'
 
 export function useDashboardSse({
   getBackendOrigin,
@@ -12,6 +12,8 @@ export function useDashboardSse({
   getPriorityQueue,
   setRecentFeedback,
   setPriorityQueue,
+  recentFeedbackRef,
+  priorityQueueRef,
   pushToast,
   setUnreadPriorityIds,
   setUnreadRecentIds,
@@ -36,12 +38,25 @@ export function useDashboardSse({
         ;(async () => {
           try {
             const recentQuery = getRecentFeedbackParamsRef?.current || {}
+            const afterRecent = maxFeedbackId(recentFeedbackRef?.current)
+            const afterPriority = maxFeedbackId(priorityQueueRef?.current)
             const [recentData, priorityData] = await Promise.all([
-              getRecentFeedback(100, recentQuery).catch(() => ({ feedback: [] })),
-              getPriorityQueue(50).catch(() => ({ feedback: [] })),
+              getRecentFeedback(100, {
+                ...recentQuery,
+                ...(afterRecent ? { after_id: afterRecent } : {}),
+              }).catch(() => ({ feedback: [] })),
+              getPriorityQueue(50, afterPriority ? { after_id: afterPriority } : {}).catch(() => ({
+                feedback: [],
+              })),
             ])
-            setRecentFeedback((prev) => mergeFeedbackItems(prev, recentData.feedback || [], { max: 100 }))
-            setPriorityQueue((prev) => mergeFeedbackItems(prev, priorityData.feedback || [], { max: 50 }))
+            const nextRecent = recentData.feedback || []
+            const nextPriority = priorityData.feedback || []
+            if (nextRecent.length) {
+              setRecentFeedback((prev) => mergeFeedbackItems(prev, nextRecent, { max: 100 }))
+            }
+            if (nextPriority.length) {
+              setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+            }
 
             if (data.priority >= 100 || data.sentiment_label === 'negative') {
               pushToast(
@@ -88,6 +103,8 @@ export function useDashboardSse({
     getPriorityQueue,
     setRecentFeedback,
     setPriorityQueue,
+    recentFeedbackRef,
+    priorityQueueRef,
     pushToast,
     setUnreadPriorityIds,
     setUnreadRecentIds,

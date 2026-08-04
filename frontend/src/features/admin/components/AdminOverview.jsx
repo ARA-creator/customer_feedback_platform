@@ -55,16 +55,6 @@ export default function AdminOverview({ auth, onNavigate }) {
           <div>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Admin overview</h1>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-            >
-              <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
         </div>
 
         {error && (

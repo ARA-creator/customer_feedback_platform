@@ -45,12 +45,10 @@ export default function DashboardInboxSection({
   FiArchive,
   FiInbox,
   FiUploadCloud,
-  FiRefreshCw,
   FiThumbsUp,
   FiThumbsDown,
   FiFlag,
   isAdminUser,
-  reloadDashboardRef,
   unreadRecentIds,
   visibleRecentFeedback,
 }) {
@@ -696,15 +694,15 @@ export default function DashboardInboxSection({
                 ? 'Once your email, WhatsApp, and social channels are connected, new customer messages will stream into this inbox.'
                 : 'New customer messages will show here as your team receives them. A user with integration access can configure ingest under Admin → Channels.'
             }
-            primaryLabel={isAdminUser ? 'Connect email or WhatsApp' : 'Refresh'}
-            primaryOnClick={() => {
-              if (isAdminUser) {
-                console.log('Connect email/WhatsApp clicked')
-                return
-              }
-              reloadDashboardRef.current?.()
-            }}
-            primaryIcon={isAdminUser ? FiUploadCloud : FiRefreshCw}
+            primaryLabel={isAdminUser ? 'Connect email or WhatsApp' : undefined}
+            primaryOnClick={
+              isAdminUser
+                ? () => {
+                    console.log('Connect email/WhatsApp clicked')
+                  }
+                : undefined
+            }
+            primaryIcon={isAdminUser ? FiUploadCloud : undefined}
             secondaryLabel={isAdminUser ? 'Import historical feedback' : undefined}
             secondaryOnClick={
               isAdminUser

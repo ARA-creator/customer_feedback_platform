@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { FiArchive, FiCalendar, FiChevronDown, FiInbox, FiLayers, FiRefreshCw, FiSearch } from 'react-icons/fi'
+import { FiArchive, FiCalendar, FiChevronDown, FiInbox, FiLayers, FiSearch } from 'react-icons/fi'
 import { useCloseOnOutsidePointer } from '../../../shared/hooks/useCloseOnOutsidePointer'
 
 const TOOLBAR_CONTROL =
@@ -153,8 +153,6 @@ export default function InboxFilterToolbar({
   onFolderChange,
   inboxCount,
   archiveCount,
-  onRefresh,
-  loading = false,
 }) {
   return (
     <div className="rounded-2xl border border-gray-200/90 bg-white px-3 py-2.5 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:px-4">
@@ -244,17 +242,6 @@ export default function InboxFilterToolbar({
               )
             })}
           </div>
-
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={loading}
-            aria-label="Refresh inbox"
-            title="Refresh"
-            className="inline-flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#009750]/30 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            <FiRefreshCw className={`h-4 w-4 shrink-0 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-          </button>
         </div>
       </div>
     </div>

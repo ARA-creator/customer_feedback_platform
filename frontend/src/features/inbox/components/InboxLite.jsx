@@ -8,7 +8,7 @@ import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
 import { getBackendOrigin } from '../../../shared/lib/apiClient'
-import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
+import { mergeFeedbackItems, maxFeedbackId } from '../../../shared/utils/mergeFeedbackItems'
 import InboxFilterToolbar from './InboxFilterToolbar'
 import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
@@ -580,12 +580,14 @@ export default function InboxLite({ onNavigate }) {
         const loc = typeof locationFilter === 'string' ? locationFilter.trim() : ''
         const isPriority = sortBy === 'priority'
         const offset = Math.max(0, (page - 1) * pageSize)
+        const afterId =
+          soft && page === 1 && hasExisting ? maxFeedbackId(itemsRef.current) : undefined
         const params = {
           source: source === 'all' ? 'all' : source,
           sentiment,
           q: q || undefined,
           limit: pageSize,
-          offset,
+          offset: afterId ? 0 : offset,
           sort: isPriority ? 'impact' : 'chronological',
           insurance_tag: insuranceTagFilter !== 'all' ? insuranceTagFilter : undefined,
           location: loc || undefined,
@@ -597,6 +599,7 @@ export default function InboxLite({ onNavigate }) {
           dow: peakDow ?? undefined,
           hour: peakHour ?? undefined,
           range_days: peakRangeDays ?? undefined,
+          ...(afterId ? { after_id: afterId } : {}),
         }
         const feed = await getFeedbackFeed(params)
         if (seq !== loadSeq.current) return
@@ -606,18 +609,24 @@ export default function InboxLite({ onNavigate }) {
           .map((it) => normFeedbackId(it.id))
           .filter(Boolean)
         if (soft) {
-          setItems((prev) => mergeFeedbackItems(prev, newItems, { max: pageSize }))
-          setScopedInboxIds((prev) => {
-            const next = new Set(prev)
-            for (const id of inboxIds) next.add(id)
-            return next
-          })
+          // Append/update only — never wipe already-loaded rows or truncate the page.
+          if (newItems.length) {
+            setItems((prev) => mergeFeedbackItems(prev, newItems))
+            setScopedInboxIds((prev) => {
+              const next = new Set(prev)
+              for (const id of inboxIds) next.add(id)
+              return next
+            })
+          }
         } else {
           setItems(newItems)
           setScopedInboxIds(new Set(inboxIds))
         }
         mergeFromFeedItems(newItems)
-        setFeedHasMore(Boolean(feed?.has_more))
+        // Incremental after_id responses are not page windows — don't overwrite pagination.
+        if (!afterId) {
+          setFeedHasMore(Boolean(feed?.has_more))
+        }
         const totalFromFeed = Number(feed?.total)
         if (Number.isFinite(totalFromFeed) && totalFromFeed >= 0) {
           setFeedTotal(totalFromFeed)
@@ -659,7 +668,7 @@ export default function InboxLite({ onNavigate }) {
           const raw = e?.response?.data?.error || e?.message || 'Failed to load inbox'
           const msg =
             String(raw).toLowerCase().includes('timeout')
-              ? 'The server is taking longer than usual (often Neon cold start). Try Refresh, or check that the backend can reach the database.'
+              ? 'The server is taking longer than usual (often Neon cold start). Try again in a moment, or check that the backend can reach the database.'
               : raw
           setError(msg)
           setItems([])
@@ -1167,8 +1176,6 @@ export default function InboxLite({ onNavigate }) {
         }}
         inboxCount={Math.max(inboxCount, totalInboxCount - repliedCount)}
         archiveCount={archiveCount}
-        onRefresh={() => load({ soft: true })}
-        loading={loading}
       />
 
       <div className="space-y-3">
@@ -1630,20 +1637,6 @@ export default function InboxLite({ onNavigate }) {
                     title="Add a policy number to this feedback (policy will be hashed + masked)"
                   >
                     Add
-                  </button>
-                  <button
-                    type="button"
-                    disabled={policyBusy}
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      const fid = openItem.id
-                      const items = await withPolicyBusy(() => refreshOpenPolicyMatches(fid))
-                      if (items) applyPolicyMatchesToState(fid, items)
-                    }}
-                    className="inline-flex min-h-[40px] items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900"
-                    title="Refresh policies"
-                  >
-                    Refresh
                   </button>
                 </div>
               </div>

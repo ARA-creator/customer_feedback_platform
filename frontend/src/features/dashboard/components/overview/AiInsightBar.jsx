@@ -1,4 +1,4 @@
-import { FiArrowRight, FiRefreshCw, FiZap } from 'react-icons/fi'
+import { FiArrowRight, FiZap } from 'react-icons/fi'
 
 function pickInsightText(result, error) {
   if (error) return error
@@ -18,9 +18,7 @@ export default function AiInsightBar({
   error,
   result,
   timeFilterLabel,
-  onRefresh,
   onViewDetails,
-  refreshDisabled,
 }) {
   const aiGenerated = !!result?.ai_generated
   const text = loading ? 'Analyzing feedback for this period…' : pickInsightText(result, error)
@@ -45,15 +43,6 @@ export default function AiInsightBar({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={refreshDisabled || loading}
-            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-          >
-            <FiRefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-            Refresh
-          </button>
           <button
             type="button"
             onClick={onViewDetails}

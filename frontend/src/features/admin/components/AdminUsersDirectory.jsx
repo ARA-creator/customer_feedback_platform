@@ -7,7 +7,6 @@ import {
   FiEye,
   FiFilter,
   FiMoreVertical,
-  FiRefreshCw,
   FiSearch,
 } from 'react-icons/fi'
 import { adminListUsersDirectory } from '../services/admin.api'
@@ -143,15 +142,6 @@ export default function AdminUsersDirectory({
         >
           <FiFilter className="h-3.5 w-3.5" />
           More filters
-        </button>
-        <button
-          type="button"
-          onClick={load}
-          className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg border border-sky-100 bg-white/90 text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900"
-          aria-label="Refresh users"
-          title="Refresh"
-        >
-          <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 

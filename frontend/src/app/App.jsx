@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from '../shared/components/layout/Sidebar'
 import Header from '../shared/components/layout/Header'
@@ -98,8 +98,6 @@ function AppChrome({
   sidebarOpen,
   setSidebarOpen,
   signOut,
-  showDashboardRefresh,
-  onDashboardRefresh,
 }) {
   const { resolvedTheme, toggleTheme } = useDisplayPreferences()
   const location = useLocation()
@@ -139,8 +137,6 @@ function AppChrome({
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           theme={resolvedTheme}
           onToggleTheme={toggleTheme}
-          showRefresh={showDashboardRefresh}
-          onRefresh={onDashboardRefresh}
           user={auth ? { id: auth.id, email: auth.email, role: auth.role } : null}
           onSignOut={signOut}
           hideAgentLinks={isAdminUI}
@@ -162,7 +158,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     return window.matchMedia?.('(min-width: 768px)')?.matches ?? true
   })
   const [liveToasts, setLiveToasts] = useState([])
-  const dashboardRefreshRef = useRef(null)
   const navigateToView = useAppNavigate()
 
   const permissions = useMemo(() => (Array.isArray(auth?.permissions) ? auth.permissions : []), [auth])
@@ -174,18 +169,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     [canManageIntegrations, isSuperAdmin],
   )
   const canViewReports = useMemo(() => userCanViewReports(auth), [auth])
-  const currentView = viewFromPathname(location.pathname)
-  const showDashboardRefresh =
-    !isAdminUI && (currentView === 'overview' || currentView === 'reports')
-
-  const registerDashboardRefresh = useCallback((fn) => {
-    dashboardRefreshRef.current = typeof fn === 'function' ? fn : null
-  }, [])
-
-  const handleDashboardRefresh = useCallback(() => {
-    dashboardRefreshRef.current?.()
-  }, [])
-
   const signOut = useCallback(() => {
     ;(async () => {
       const onAdmin = isAdminPath(location.pathname)
@@ -325,8 +308,6 @@ function AuthenticatedApp({ auth, setAuth }) {
     sidebarOpen,
     setSidebarOpen,
     signOut,
-    showDashboardRefresh,
-    onDashboardRefresh: handleDashboardRefresh,
   }
 
   return (
@@ -340,7 +321,6 @@ function AuthenticatedApp({ auth, setAuth }) {
                 userRole={auth?.role}
                 onNavigateToInsights={() => navigate('/reports?tab=insights')}
                 onNavigateToInbox={navigateToInboxWithPreset}
-                registerRefresh={registerDashboardRefresh}
               />
             }
           />
@@ -367,7 +347,6 @@ function AuthenticatedApp({ auth, setAuth }) {
                 <ReportsPage
                   userRole={auth?.role}
                   onNavigateToInbox={navigateToInboxWithPreset}
-                  registerRefresh={registerDashboardRefresh}
                 />
               ) : (
                 <Navigate to={isAdminUI ? '/admin' : '/'} replace />

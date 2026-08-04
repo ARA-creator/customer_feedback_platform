@@ -45,8 +45,9 @@ export function buildOverviewRecentFeedbackParams({ sentiment, timeWindow, statu
   return params
 }
 
-export const getPriorityQueue = async (limit = 20) => {
-  const response = await api.get(`/feedback/priority?limit=${limit}`)
+export const getPriorityQueue = async (limit = 20, params = {}) => {
+  const query = { limit, ...params }
+  const response = await api.get('/feedback/priority', withParamsConfig(query) || {})
   return response.data
 }
 

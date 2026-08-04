@@ -10,7 +10,7 @@ import {
   publishUnreadCount,
 } from '../services/notifications.api'
 import { ADMIN_NOTIFICATION_HREFS } from '../../../app/routes'
-import { EmptyState, LastUpdated, NotificationListSkeleton } from '../../../shared/components/ui'
+import { EmptyState, NotificationListSkeleton } from '../../../shared/components/ui'
 import NotificationMetaBadges from './NotificationMetaBadges'
 
 const ADMIN_NOTIFICATION_TYPES = new Set(['admin_user_event'])
@@ -39,7 +39,6 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [lastLoadedAt, setLastLoadedAt] = useState(null)
   const [selectedIds, setSelectedIds] = useState(() => new Set())
 
   const [realtimeEnabled, setRealtimeEnabled] = useState(false)
@@ -67,12 +66,10 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
       setPage(pageNum)
       const unreadN = Number(c?.unread ?? 0) || 0
       setUnread(unreadN)
-      setLastLoadedAt(new Date())
       publishUnreadCount(unreadN)
       setSelectedIds(new Set())
     } catch (e) {
       setError(e?.response?.data?.error || e?.message || 'Failed to load notifications')
-      setLastLoadedAt(null)
     } finally {
       setLoading(false)
     }
@@ -334,17 +331,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
             </p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex flex-wrap gap-2 justify-end">
-          <button
-            type="button"
-            onClick={() => loadPage(1, { resetCursors: true })}
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-gray-200 bg-white/90 px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#009750]/30 dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
-            aria-label="Refresh notifications"
-            title="Refresh"
-          >
-            <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-          </button>
+        <div className="flex flex-wrap gap-2 justify-end">
           {unread > 0 && (
             <button
               type="button"
@@ -385,8 +372,6 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
               Clear ({selectedCount})
             </button>
           )}
-          </div>
-          {!loading && lastLoadedAt ? <LastUpdated at={lastLoadedAt} /> : null}
         </div>
       </div>
 
@@ -419,7 +404,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
             <EmptyState
               icon={FiBell}
               title="You’re all caught up"
-              description="We’ll list new feedback, assignments, and system alerts here as they happen. Use Refresh if you expect something new."
+              description="New feedback, assignments, and system alerts appear here as they happen."
             />
           )}
           {!loading && !error && items.length > 0 && (

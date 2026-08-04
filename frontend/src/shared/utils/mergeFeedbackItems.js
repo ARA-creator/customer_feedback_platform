@@ -33,3 +33,13 @@ export function mergeFeedbackItems(prev, incoming, options = {}) {
   if (Number.isFinite(max) && max > 0) return merged.slice(0, max)
   return merged
 }
+
+/** Highest numeric feedback id in a list (for incremental after_id refresh). */
+export function maxFeedbackId(items) {
+  let max = 0
+  for (const it of items || []) {
+    const id = Number(it?.id)
+    if (Number.isFinite(id) && id > max) max = id
+  }
+  return max > 0 ? max : undefined
+}

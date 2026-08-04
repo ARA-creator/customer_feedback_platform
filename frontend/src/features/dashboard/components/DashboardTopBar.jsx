@@ -1,5 +1,3 @@
-import { FiRefreshCw } from 'react-icons/fi'
-
 export default function DashboardTopBar({
   mode,
   loading,
@@ -9,8 +7,6 @@ export default function DashboardTopBar({
   formatRelativeTime,
   isAdminUser,
   dashboardAutoRefresh,
-  onToggleAutoRefresh,
-  onRefresh,
 }) {
   if (mode === 'overview' || mode === 'insights') {
     return null
@@ -48,34 +44,6 @@ export default function DashboardTopBar({
           </>
         )}
       </div>
-
-      {(mode === 'overview' || mode === 'insights') && !loading && (
-        <div className="flex flex-wrap items-center gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onRefresh}
-            aria-label="Refresh dashboard"
-            title="Refresh"
-            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-[#009750]/30"
-          >
-            <FiRefreshCw className="h-4 w-4" aria-hidden />
-          </button>
-
-          {isAdminUser && (
-            <label className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer select-none rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 focus-within:ring-2 focus-within:ring-[#009750]/30">
-              <input
-                type="checkbox"
-                className="rounded border-gray-300 text-[#009750] focus:ring-[#009750]"
-                checked={dashboardAutoRefresh}
-                onChange={(e) => onToggleAutoRefresh?.(e.target.checked)}
-              />
-              <span>Auto-refresh (30s + live)</span>
-            </label>
-          )}
-
-        </div>
-      )}
     </div>
   )
 }
-

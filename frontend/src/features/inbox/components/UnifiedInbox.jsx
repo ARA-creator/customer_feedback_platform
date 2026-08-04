@@ -11,7 +11,6 @@ import {
   FiLoader,
   FiMessageSquare,
   FiMic,
-  FiRefreshCw,
   FiSliders,
   FiUser,
   FiVideo,
@@ -356,7 +355,7 @@ function DetailDrawer({
                     onClick={() => onOpenCustomer(item)}
                     className="inline-flex min-h-[36px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
-                    Refresh
+                    View profile
                   </button>
                 )}
               </div>
@@ -1169,14 +1168,6 @@ export default function UnifiedInbox({ permissions = [] }) {
             <option value="topic">Group by topic</option>
             <option value="campaign">Group by campaign</option>
           </select>
-          <button
-            type="button"
-            onClick={() => loadFeed({ reset: true })}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            <FiRefreshCw className="h-4 w-4" />
-            Refresh
-          </button>
         </div>
       </div>
 

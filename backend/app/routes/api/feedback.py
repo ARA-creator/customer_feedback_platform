@@ -175,6 +175,9 @@ def get_recent_feedback():
         sentiment = (request.args.get("sentiment") or "all").strip().lower()
         time_window = (request.args.get("time_window") or "all").strip().lower()
         inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
+        after_id = request.args.get("after_id", type=int)
+        if after_id is not None and after_id <= 0:
+            after_id = None
         if inbox_tab not in ("all", "read", "unread", "replied"):
             inbox_tab = "all"
 
@@ -197,9 +200,12 @@ def get_recent_feedback():
             user = _require_user(db)
             q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
+        if after_id is not None:
+            q = q.filter(Feedback.id > after_id)
+
         recent = q.order_by(desc(Feedback.created_at)).limit(limit).all()
         feedback_list = [_serialize_feedback(f) for f in recent]
-        return jsonify({"feedback": feedback_list, "count": len(feedback_list)})
+        return jsonify({"feedback": feedback_list, "count": len(feedback_list), "after_id": after_id})
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
     except Exception:
@@ -215,15 +221,20 @@ def get_priority_queue():
     try:
         limit = request.args.get("limit", type=int) or 20
         limit = min(limit, 300)
+        after_id = request.args.get("after_id", type=int)
+        if after_id is not None and after_id <= 0:
+            after_id = None
 
-        priority_queue = (
+        priority_q = (
             db.query(Feedback)
             .filter(Feedback.deleted_at.is_(None))
             .filter(~func.lower(Feedback.source).in_(["api", "web"]))
             .filter(Feedback.priority.isnot(None))
-            .order_by(desc(Feedback.priority), desc(Feedback.created_at))
-            .limit(limit)
-            .all()
+        )
+        if after_id is not None:
+            priority_q = priority_q.filter(Feedback.id > after_id)
+        priority_queue = (
+            priority_q.order_by(desc(Feedback.priority), desc(Feedback.created_at)).limit(limit).all()
         )
 
         priority_list = sorted(
@@ -685,10 +696,16 @@ def feedback_feed():
         inbox_tab = (request.args.get("inbox_tab") or "all").strip().lower()
         cursor_created_at = _parse_dt(request.args.get("cursor_created_at"))
         cursor_id = request.args.get("cursor_id", type=int)
+        after_id = request.args.get("after_id", type=int)
+        if after_id is not None and after_id <= 0:
+            after_id = None
         offset = request.args.get("offset", type=int) or 0
         offset = max(0, min(offset, 50_000))
         if inbox_tab not in ("all", "read", "unread", "replied"):
             inbox_tab = "all"
+        # Incremental refresh: only rows newer than the client's newest id (skip offset).
+        if after_id is not None:
+            offset = 0
 
         ids_filter: list[int] = []
         ids_raw = (request.args.get("ids") or "").strip()
@@ -789,9 +806,12 @@ def feedback_feed():
             if not ids_filter:
                 q = apply_inbox_tab_filter(q, db, int(user.id), inbox_tab)
 
+        # Apply after_id only for the page query so tab totals stay correct.
+        q_page_base = q.filter(Feedback.id > after_id) if after_id is not None else q
+
         if sort == "impact":
             fetch_n = min(max(offset + limit + 1, limit + 1), 1000)
-            rows = q.limit(fetch_n).all()
+            rows = q_page_base.limit(fetch_n).all()
             rows = sorted(
                 rows,
                 key=lambda f: (
@@ -805,8 +825,8 @@ def feedback_feed():
             next_cursor = None
             has_more = len(rows) > offset + limit
         else:
-            q_page = q
-            if offset <= 0 and cursor_created_at and cursor_id:
+            q_page = q_page_base
+            if after_id is None and offset <= 0 and cursor_created_at and cursor_id:
                 q_page = q_page.filter(
                     or_(
                         Feedback.created_at < cursor_created_at,
@@ -818,7 +838,7 @@ def feedback_feed():
             has_more = len(page) > limit
             page = page[:limit]
             next_cursor = None
-            if offset <= 0 and has_more and page:
+            if after_id is None and offset <= 0 and has_more and page:
                 last = page[-1]
                 next_cursor = {
                     "cursor_created_at": last.created_at.isoformat() if last.created_at else None,
@@ -881,6 +901,7 @@ def feedback_feed():
                 "offset": offset,
                 "limit": limit,
                 "total": int(tab_total) if tab_total is not None else None,
+                "after_id": after_id,
             }
         )
     except Exception:

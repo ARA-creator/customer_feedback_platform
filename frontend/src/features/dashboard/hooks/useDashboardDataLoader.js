@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { mergeFeedbackItems } from '../../../shared/utils/mergeFeedbackItems'
+import { mergeFeedbackItems, maxFeedbackId } from '../../../shared/utils/mergeFeedbackItems'
 import { CHART_PALETTE, SENTIMENT_COLORS } from '../constants/palette'
 import { formatCategoryChartLabel } from '../utils/dashboardFormatters'
 import { formatDashboardLoadError } from '../utils/dashboardLoadError'
@@ -45,6 +45,10 @@ export function useDashboardDataLoader({
   setProductPulseTrends,
   setRecentFeedback,
   setPriorityQueue,
+
+  // refs for incremental append (optional)
+  recentFeedbackRef,
+  priorityQueueRef,
 
   // refs to expose actions
   analyticsDataRef,
@@ -228,25 +232,41 @@ export function useDashboardDataLoader({
         if (!isSilent) setAnalyticsLoading(false)
 
         if (mode === 'overview') {
-          const priorityData = await getPriorityQueue(50).catch(() => ({ feedback: [] }))
+          const afterPriority = isSilent ? maxFeedbackId(priorityQueueRef?.current) : undefined
+          const priorityData = await getPriorityQueue(
+            50,
+            afterPriority ? { after_id: afterPriority } : {},
+          ).catch(() => ({ feedback: [] }))
           if (cancelled) return
           const nextPriority = priorityData.feedback || []
           if (isSilent) {
-            setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+            if (nextPriority.length) {
+              setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+            }
           } else {
             setPriorityQueue(nextPriority)
           }
         } else {
+          const afterRecent = isSilent ? maxFeedbackId(recentFeedbackRef?.current) : undefined
+          const afterPriority = isSilent ? maxFeedbackId(priorityQueueRef?.current) : undefined
           const [recentData, priorityData] = await Promise.all([
-            getRecentFeedback(100).catch(() => ({ feedback: [] })),
-            getPriorityQueue(50).catch(() => ({ feedback: [] })),
+            getRecentFeedback(100, afterRecent ? { after_id: afterRecent } : {}).catch(() => ({
+              feedback: [],
+            })),
+            getPriorityQueue(50, afterPriority ? { after_id: afterPriority } : {}).catch(() => ({
+              feedback: [],
+            })),
           ])
           if (cancelled) return
           const nextRecent = recentData.feedback || []
           const nextPriority = priorityData.feedback || []
           if (isSilent) {
-            setRecentFeedback((prev) => mergeFeedbackItems(prev, nextRecent, { max: 100 }))
-            setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+            if (nextRecent.length) {
+              setRecentFeedback((prev) => mergeFeedbackItems(prev, nextRecent, { max: 100 }))
+            }
+            if (nextPriority.length) {
+              setPriorityQueue((prev) => mergeFeedbackItems(prev, nextPriority, { max: 50 }))
+            }
           } else {
             setRecentFeedback(nextRecent)
             setPriorityQueue(nextPriority)

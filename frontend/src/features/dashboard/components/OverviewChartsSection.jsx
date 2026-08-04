@@ -40,9 +40,7 @@ export default function OverviewChartsSection({
   analyzerResult,
   overviewTimeFilterLabel,
   overviewTimeFilter = 'all',
-  onAnalyzerRefresh,
   onAnalyzerDetails,
-  analyzerRefreshDisabled,
 }) {
   const trendTitle = overviewTrendLabels?.title || 'Sentiment Trend'
   const channelRows = buildChannelDonutData(sourcePerformance)
@@ -94,9 +92,7 @@ export default function OverviewChartsSection({
         error={analyzerError}
         result={analyzerResult}
         timeFilterLabel={overviewTimeFilterLabel}
-        onRefresh={onAnalyzerRefresh}
         onViewDetails={onAnalyzerDetails}
-        refreshDisabled={analyzerRefreshDisabled}
       />
 
       <SentimentTrendCard

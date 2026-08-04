@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FiBarChart2, FiDownload } from 'react-icons/fi'
 import Dashboard from '../../features/dashboard/components/Dashboard'
@@ -12,7 +12,6 @@ const TABS = [
 export default function ReportsPage({
   userRole,
   onNavigateToInbox,
-  registerRefresh,
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = String(searchParams.get('tab') || 'insights').toLowerCase()
@@ -24,12 +23,6 @@ export default function ReportsPage({
     else next.set('tab', id)
     setSearchParams(next, { replace: true })
   }
-
-  useEffect(() => {
-    if (activeTab !== 'insights') {
-      registerRefresh?.(null)
-    }
-  }, [activeTab, registerRefresh])
 
   const subtitle = useMemo(() => {
     if (activeTab === 'insights') {
@@ -79,7 +72,6 @@ export default function ReportsPage({
           isAdminUser={false}
           userRole={userRole}
           onNavigateToInbox={onNavigateToInbox}
-          registerRefresh={registerRefresh}
         />
       )}
     </div>

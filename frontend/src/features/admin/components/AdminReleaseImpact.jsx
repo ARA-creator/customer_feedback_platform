@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiActivity, FiPlus, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
+import { FiActivity, FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   adminCreateReleaseEvent,
   adminDeleteReleaseEvent,
@@ -130,14 +130,6 @@ export default function AdminReleaseImpact() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-        >
-          <FiRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
-          Refresh
-        </button>
       </div>
 
       {error && <div className="card p-4 text-sm text-rose-700">{error}</div>}

@@ -100,7 +100,6 @@ function Dashboard({
   onNavigateBack,
   onNavigateScheduleReport,
   onNavigateCustomReport,
-  registerRefresh,
 }) {
   const isDarkMode =
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -183,6 +182,16 @@ function Dashboard({
   })
   const [overviewSentimentFilter, setOverviewSentimentFilter] = useState('all')
   const overviewRecentFeedbackParamsRef = useRef({})
+  const recentFeedbackRef = useRef([])
+  const priorityQueueRef = useRef([])
+
+  useEffect(() => {
+    recentFeedbackRef.current = recentFeedback
+  }, [recentFeedback])
+
+  useEffect(() => {
+    priorityQueueRef.current = priorityQueue
+  }, [priorityQueue])
 
   useEffect(() => {
     overviewRecentFeedbackParamsRef.current = buildOverviewRecentFeedbackParams({
@@ -295,14 +304,6 @@ function Dashboard({
   }, [])
 
   useEffect(() => {
-    if (!registerRefresh) return undefined
-    registerRefresh(() => {
-      reloadDashboardRef.current?.()
-    })
-    return () => registerRefresh(null)
-  }, [registerRefresh])
-
-  useEffect(() => {
     if (mode !== 'inbox') return
     const defaults = getDefaultInboxPreset()
     const s = inboxPreset?.sentiment ?? defaults.sentiment ?? 'all'
@@ -377,6 +378,8 @@ function Dashboard({
     setProductPulseTrends,
     setRecentFeedback,
     setPriorityQueue,
+    recentFeedbackRef,
+    priorityQueueRef,
     analyticsDataRef,
     reloadDashboardRef,
     refreshDashboardSilentRef,
@@ -393,6 +396,8 @@ function Dashboard({
     getPriorityQueue,
     setRecentFeedback,
     setPriorityQueue,
+    recentFeedbackRef,
+    priorityQueueRef,
     pushToast,
     setUnreadPriorityIds,
     setUnreadRecentIds,
@@ -569,10 +574,6 @@ function Dashboard({
         formatRelativeTime={formatRelativeTime}
         isAdminUser={isAdminUser}
         dashboardAutoRefresh={dashboardAutoRefresh}
-        onToggleAutoRefresh={(on) => {
-                    setDashboardAutoRefresh(on)
-        }}
-        onRefresh={() => reloadDashboardRef.current?.()}
       />
 
       {error && (
@@ -652,9 +653,7 @@ function Dashboard({
               analyzerResult={analyzerResult}
               overviewTimeFilterLabel={overviewTimeFilterLabel}
               overviewTimeFilter={overviewTimeFilter}
-              onAnalyzerRefresh={() => loadAnalyzerInsight({ openModal: false })}
               onAnalyzerDetails={handleOpenAnalyzer}
-              analyzerRefreshDisabled={loading || !analyticsDelayPassed}
             />
           )}
 
@@ -742,12 +741,10 @@ function Dashboard({
           FiArchive={FiArchive}
           FiInbox={FiInbox}
           FiUploadCloud={FiUploadCloud}
-          FiRefreshCw={FiRefreshCw}
           FiThumbsUp={FiThumbsUp}
           FiThumbsDown={FiThumbsDown}
           FiFlag={FiFlag}
           isAdminUser={isAdminUser}
-          reloadDashboardRef={reloadDashboardRef}
           unreadRecentIds={unreadRecentIds}
           visibleRecentFeedback={visibleRecentFeedback}
         />
