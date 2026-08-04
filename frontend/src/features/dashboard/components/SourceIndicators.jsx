@@ -58,12 +58,13 @@ export function SourceAxisTick({ x, y, payload }) {
   )
 }
 
-export function SourcePill({ source }) {
-  if (!source) return null
+export function SourcePill({ source, label }) {
+  if (!source && !label) return null
+  const display = String(label || source || '').replace(/_/g, ' ')
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
-      <SourceLogo source={source} />
-      <span className="capitalize">{String(source).replace(/_/g, ' ')}</span>
+      <SourceLogo source={source || 'email'} />
+      <span className={label ? '' : 'capitalize'}>{display}</span>
     </span>
   )
 }

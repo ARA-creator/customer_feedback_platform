@@ -22,14 +22,15 @@ function SentimentPill({ label }) {
 /** Channel + sentiment pills for new_feedback notifications. */
 export default function NotificationMetaBadges({ meta, body, className = '' }) {
   const source = String(meta?.source || '').trim()
+  const channelLabel = String(meta?.channel_label || meta?.mailbox_label || '').trim()
   const sentiment = String(meta?.sentiment_label || meta?.sentiment || '').trim()
-  if (!source && !sentiment) {
+  if (!source && !channelLabel && !sentiment) {
     if (!body) return null
     return <p className={`text-xs text-gray-600 dark:text-gray-300 ${className}`.trim()}>{body}</p>
   }
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`.trim()}>
-      {source ? <SourcePill source={source} /> : null}
+      {source || channelLabel ? <SourcePill source={source || 'email'} label={channelLabel || undefined} /> : null}
       {sentiment ? <SentimentPill label={sentiment} /> : null}
     </div>
   )

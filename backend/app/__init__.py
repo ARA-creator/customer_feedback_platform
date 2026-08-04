@@ -385,6 +385,7 @@ def create_app() -> Flask:
                             password=acct["password"],
                             folder=acct.get("folder") or "INBOX",
                             hours_back=hours_back,
+                            mailbox_label=acct.get("label"),
                         )
                         if result.get("processed", 0) or result.get("emails_found", 0):
                             logger.info("Email auto-poller [%s]: %s", acct["username"], result)

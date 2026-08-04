@@ -109,9 +109,34 @@ function extractUrls(text) {
   return out
 }
 
-function renderLinkedText(text) {
+/** PREFIX + 6–8 digits → canonical PREFIX+7digits when short. */
+function canonicalizePolicyNumber(raw) {
+  const n = String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s\-_\/]+/g, '')
+  const m = n.match(/^([A-Z0-9]{4})(\d{6,8})$/)
+  if (!m) return null
+  const prefix = m[1]
+  let digits = m[2]
+  if (digits.length === 6) digits = digits.padStart(7, '0')
+  return `${prefix}${digits}`
+}
+
+function findPolicyHashForNumber(rawNumber, matches) {
+  const canon = canonicalizePolicyNumber(rawNumber)
+  if (!canon) return null
+  for (const m of safeArr(matches)) {
+    const n = canonicalizePolicyNumber(m?.policy_number || m?.policy_masked)
+    if (n && n === canon && m.policy_hash) return m.policy_hash
+  }
+  return null
+}
+
+function renderLinkedText(text, { onPolicyClick, policyMatches } = {}) {
   const s = String(text || '')
-  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
+  // URLs or policy numbers like BA2V0007327 / EB2V0000024
+  const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+|\b[A-Za-z0-9]{4}\d{6,8}\b)/gi
   const parts = []
   let last = 0
   let m
@@ -121,20 +146,44 @@ function renderLinkedText(text) {
     let raw = m[0]
     const trailing = raw.match(/[.,;:]+$/)?.[0] || ''
     if (trailing) raw = raw.slice(0, -trailing.length)
-    const url = raw.startsWith('http') ? raw : `https://${raw}`
     if (start > last) parts.push(s.slice(last, start))
-    parts.push(
-      <a
-        key={`link-${linkIdx}-${start}`}
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="font-medium text-[#009750] hover:underline break-words"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {raw}
-      </a>,
-    )
+
+    const isUrl = /^https?:\/\//i.test(raw) || /^www\./i.test(raw)
+    if (isUrl) {
+      const url = raw.startsWith('http') ? raw : `https://${raw}`
+      parts.push(
+        <a
+          key={`link-${linkIdx}-${start}`}
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-[#009750] hover:underline break-words"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {raw}
+        </a>,
+      )
+    } else {
+      const policyHash = findPolicyHashForNumber(raw, policyMatches)
+      if (policyHash && typeof onPolicyClick === 'function') {
+        parts.push(
+          <button
+            key={`pol-${linkIdx}-${start}`}
+            type="button"
+            className="font-semibold text-[#009750] underline decoration-[#009750]/40 underline-offset-2 hover:decoration-[#009750] break-words"
+            title="Filter history to this policy"
+            onClick={(e) => {
+              e.stopPropagation()
+              onPolicyClick(policyHash)
+            }}
+          >
+            {canonicalizePolicyNumber(raw) || raw.toUpperCase()}
+          </button>,
+        )
+      } else {
+        parts.push(raw)
+      }
+    }
     linkIdx += 1
     last = start + m[0].length - trailing.length
   }
@@ -272,7 +321,19 @@ export default function Customer360({ onNavigate }) {
           </div>
           <div className="min-w-0">
             <PageIntro
-              title={data?.customer?.label || 'Customer 360'}
+              title={(() => {
+                const label = data?.customer?.label || 'Customer 360'
+                const phoneDisplay = formatGhanaPhoneDisplay(label)
+                const canon = canonicalizeGhanaPhone(label)
+                if (phoneDisplay && canon) {
+                  return (
+                    <a href={`tel:${canon}`} className="hover:text-[#009750] hover:underline">
+                      {phoneDisplay}
+                    </a>
+                  )
+                }
+                return label
+              })()}
               subtitle={
                 customerKey
                   ? 'One view of every touchpoint we can link to this customer—including products inferred from their messages.'
@@ -280,10 +341,17 @@ export default function Customer360({ onNavigate }) {
               }
             />
             {data?.customer?.policy_holder_status === 'verified' ? (
-              <p className="mt-2 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+              <button
+                type="button"
+                className="mt-2 text-left text-xs font-semibold text-emerald-800 underline decoration-emerald-700/30 underline-offset-2 hover:decoration-emerald-800 dark:text-emerald-200 dark:decoration-emerald-200/40"
+                title="View linked policies"
+                onClick={() => {
+                  document.getElementById('cfp-customer-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }}
+              >
                 Policyholder · {data.customer.verified_policy_count || data.customer.linked_policy_count || 1} linked{' '}
                 {data.customer.verified_policy_count === 1 ? 'policy' : 'policies'} detected from policy numbers
-              </p>
+              </button>
             ) : data?.customer?.policy_holder_status === 'estimated' ? (
               <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
                 Possible policyholder · product inferred from feedback (no policy number confirmed yet)
@@ -317,7 +385,12 @@ export default function Customer360({ onNavigate }) {
       {data?.customer?.email ? (
         <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email </span>
-          {data.customer.email}
+          <a
+            href={`mailto:${data.customer.email}`}
+            className="font-medium text-[#009750] hover:underline break-all"
+          >
+            {data.customer.email}
+          </a>
         </p>
       ) : customerKey ? (
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 break-all">{customerKey.replace(/^email_hash:/, 'Customer key: ')}</p>
@@ -382,23 +455,47 @@ export default function Customer360({ onNavigate }) {
               ) : (
                 <div className="mt-3 space-y-2">
                   {visibleHistory.map((it) => (
-                    <button
+                    <div
                       key={it.id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setOpenItem(it)}
-                      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setOpenItem(it)
+                        }
+                      }}
+                      className="w-full cursor-pointer rounded-xl border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/40 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <SentimentPill label={it.sentiment_label} />
-                          <SourcePill source={it.source_group || it.source} />
+                          <SourcePill
+                            source={it.source_group || it.source}
+                            label={
+                              it.channel_label ||
+                              it.channel_metadata?.channel_label ||
+                              it.channel_metadata?.mailbox_label ||
+                              undefined
+                            }
+                          />
                         </div>
                         <span className="text-xs text-gray-500 dark:text-gray-400">{fmtRelative(it.created_at)}</span>
                       </div>
                       <p className="mt-2 text-sm text-gray-800 dark:text-gray-200 line-clamp-2 whitespace-pre-wrap">
-                        {it.message_preview || it.message || ''}
+                        {renderLinkedText(it.message_preview || it.message || '', {
+                          policyMatches: [...safeArr(it.policy_matches), ...policySummary],
+                          onPolicyClick: (hash) => {
+                            setPolicyFilterHash(hash)
+                            document.getElementById('cfp-customer-products')?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'nearest',
+                            })
+                          },
+                        })}
                       </p>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -459,10 +556,10 @@ export default function Customer360({ onNavigate }) {
                 </div>
               </div>
 
-              <div className="card p-5">
+              <div id="cfp-customer-products" className="card p-5 scroll-mt-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Products & policies</h2>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Policy</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-md">
                       Click a chip to filter history. “Review” means the match needs staff confirmation.
                     </p>
@@ -481,7 +578,7 @@ export default function Customer360({ onNavigate }) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {policySummary.length === 0 ? (
                     <p className="text-sm text-gray-600 dark:text-gray-300">
-                      No linked products yet—when feedback mentions a plan name or policy reference, chips appear here.
+                      No linked policies yet—when feedback mentions a plan name or policy reference, chips appear here.
                     </p>
                   ) : (
                     policySummary.slice(0, 18).map((p) => {
@@ -583,14 +680,34 @@ export default function Customer360({ onNavigate }) {
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <SentimentPill label={openItem.sentiment_label} />
-              <SourcePill source={openItem.source_group || openItem.source} />
+              <SourcePill
+                source={openItem.source_group || openItem.source}
+                label={
+                  openItem.channel_label ||
+                  openItem.channel_metadata?.channel_label ||
+                  openItem.channel_metadata?.mailbox_label ||
+                  undefined
+                }
+              />
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 ID #{openItem.id}
               </span>
             </div>
 
             <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100">
-              <div className="whitespace-pre-wrap break-words">{renderLinkedText(openItem.message || openItem.message_preview || '')}</div>
+              <div className="whitespace-pre-wrap break-words">
+                {renderLinkedText(openItem.message || openItem.message_preview || '', {
+                  policyMatches: [...safeArr(openItem.policy_matches), ...policySummary],
+                  onPolicyClick: (hash) => {
+                    setOpenItem(null)
+                    setPolicyFilterHash(hash)
+                    document.getElementById('cfp-customer-products')?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'nearest',
+                    })
+                  },
+                })}
+              </div>
             </div>
 
             {safeArr(openItem?.channel_metadata?.media).length > 0 && (

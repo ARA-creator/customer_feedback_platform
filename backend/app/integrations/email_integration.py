@@ -361,11 +361,18 @@ def fetch_sent_emails(
                 pass
 
 
-def process_email_to_feedback(email_data: Dict) -> Dict:
+def process_email_to_feedback(
+    email_data: Dict,
+    *,
+    mailbox_username: str = None,
+    mailbox_label: str = None,
+) -> Dict:
     """
     Convert parsed email data into feedback payload format.
 
-    Returns dict ready to POST to /api/feedback
+    Returns dict ready to POST to /api/feedback.
+    mailbox_username / mailbox_label tag which inbox received the message
+    (e.g. HNW email vs CX) so officers can tell channels apart in the UI.
     """
     message_text = email_data.get("subject", "")
     body_text = email_data.get("body", "")
@@ -374,27 +381,45 @@ def process_email_to_feedback(email_data: Dict) -> Dict:
     else:
         full_message = message_text or body_text
 
+    mailbox = (mailbox_username or "").strip()
+    label = (mailbox_label or "").strip()
+    if not label and mailbox:
+        low = mailbox.lower()
+        if low == "lexietate10@gmail.com":
+            label = "HNW email"
+        elif low == "mysmartelecthub@gmail.com":
+            label = "CX"
+        else:
+            label = "Email"
+
+    meta = {
+        "provider": "email",
+        "sender_name": email_data.get("sender_name"),
+        "sender_email": email_data.get("sender_email"),
+        "email_subject": email_data.get("subject"),
+        "message_id": email_data.get("message_id"),
+        "in_reply_to": email_data.get("in_reply_to"),
+        "references": email_data.get("references") or [],
+        "email_date": email_data.get("date"),
+        "thread_id": email_data.get("message_id"),
+        "author_handle": email_data.get("sender_name"),
+        "campaign": None,
+        "location": None,
+        "language": "en",
+        "customer_tier": None,
+        "engagement": None,
+        "media": [],
+    }
+    if mailbox:
+        meta["mailbox"] = mailbox
+    if label:
+        meta["channel_label"] = label
+        meta["mailbox_label"] = label
+
     return {
         "message": full_message,
         "source": "email",
         "email": email_data.get("sender_email"),
         "category": None,
-        "channel_metadata": {
-            "provider": "email",
-            "sender_name": email_data.get("sender_name"),
-            "sender_email": email_data.get("sender_email"),
-            "email_subject": email_data.get("subject"),
-            "message_id": email_data.get("message_id"),
-            "in_reply_to": email_data.get("in_reply_to"),
-            "references": email_data.get("references") or [],
-            "email_date": email_data.get("date"),
-            "thread_id": email_data.get("message_id"),
-            "author_handle": email_data.get("sender_name"),
-            "campaign": None,
-            "location": None,
-            "language": "en",
-            "customer_tier": None,
-            "engagement": None,
-            "media": [],
-        },
+        "channel_metadata": meta,
     }

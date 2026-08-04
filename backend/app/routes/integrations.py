@@ -396,10 +396,23 @@ def _submit_to_feedback_api(payload: dict) -> dict:
                     ):
                         continue
                     title = "New feedback received"
-                    body = f"{(feedback.source or 'source').upper()} · {feedback.sentiment_label or 'unknown'}"
+                    channel_meta = {}
+                    try:
+                        channel_meta = json.loads(feedback.channel_metadata) if feedback.channel_metadata else {}
+                    except Exception:
+                        channel_meta = {}
+                    channel_label = (
+                        (channel_meta.get("channel_label") or channel_meta.get("mailbox_label") or "")
+                        if isinstance(channel_meta, dict)
+                        else ""
+                    )
+                    channel_label = str(channel_label).strip()
+                    source_display = channel_label or (feedback.source or "source")
+                    body = f"{source_display} · {feedback.sentiment_label or 'unknown'}"
                     meta = {
                         "feedback_id": feedback.id,
                         "source": feedback.source,
+                        "channel_label": channel_label or None,
                         "sentiment_label": feedback.sentiment_label,
                         "priority": feedback.priority,
                         "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
@@ -458,6 +471,7 @@ def poll_email_and_ingest(
     password: str,
     folder: str = "INBOX",
     hours_back: int = 24,
+    mailbox_label: str = None,
 ) -> dict:
     """
     Poll an IMAP inbox and ingest messages as feedback records.
@@ -512,7 +526,11 @@ def poll_email_and_ingest(
                 db.add(ExternalIngestedItem(source="email", url=key, url_hash=h))
                 db.commit()
 
-                feedback_payload = process_email_to_feedback(email_data)
+                feedback_payload = process_email_to_feedback(
+                    email_data,
+                    mailbox_username=username,
+                    mailbox_label=mailbox_label,
+                )
                 result = _submit_to_feedback_api(feedback_payload)
                 if result:
                     processed_count += 1
@@ -895,6 +913,7 @@ def email_poll():
                 password=acct["password"],
                 folder=acct.get("folder") or folder,
                 hours_back=hours_back,
+                mailbox_label=acct.get("label"),
             )
             row = {
                 "username": acct["username"],

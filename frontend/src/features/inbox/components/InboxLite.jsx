@@ -1437,7 +1437,14 @@ export default function InboxLite({ onNavigate }) {
             <div className="flex flex-wrap items-center gap-2">
               <SentimentPill label={openItem.sentiment_label} />
               <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                {(openItem.source_group || openItem.source || 'source').replace(/_/g, ' ')}
+                {String(
+                  openItem.channel_label ||
+                    openItem.channel_metadata?.channel_label ||
+                    openItem.channel_metadata?.mailbox_label ||
+                    openItem.source_group ||
+                    openItem.source ||
+                    'source',
+                ).replace(/_/g, ' ')}
               </span>
               <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                 ID #{openItem.id}

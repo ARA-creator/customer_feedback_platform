@@ -32,6 +32,14 @@ function formatSourceLabel(source) {
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function channelLabelForItem(item) {
+  const meta = item?.channel_metadata && typeof item.channel_metadata === 'object' ? item.channel_metadata : {}
+  return (
+    String(item?.channel_label || meta.channel_label || meta.mailbox_label || '').trim() ||
+    formatSourceLabel(item?.source_group || item?.source)
+  )
+}
+
 function formatThemeLabel(tag) {
   return String(tag || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
@@ -232,7 +240,7 @@ export default function InboxFeedbackRow({
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
             {SourceIcon ? <SourceIcon source={item.source_group || item.source} /> : null}
-            {formatSourceLabel(item.source_group || item.source)}
+            {channelLabelForItem(item)}
           </span>
           {tags.map((t) => {
             const isMatch = activeThemeKey && activeThemeKey !== 'all' && String(t).toLowerCase() === activeThemeKey

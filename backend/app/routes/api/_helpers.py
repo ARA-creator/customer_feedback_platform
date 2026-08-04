@@ -1042,11 +1042,21 @@ def _serialize_feedback_batch(
         from ...services.policy_detection import summarize_policy_matches
 
         policy_summary = summarize_policy_matches(policy_matches)
+        channel_label = None
+        if isinstance(meta, dict):
+            channel_label = (
+                meta.get("channel_label")
+                or meta.get("mailbox_label")
+                or None
+            )
+            if channel_label:
+                channel_label = str(channel_label).strip() or None
         out.append(
             {
                 "id": feedback.id,
                 "source": feedback.source,
                 "source_group": _normalize_source_group(feedback.source),
+                "channel_label": channel_label,
                 "customer_id": feedback.customer_id,
                 "customer_key": customer_key,
                 "customer_label": customer_label,
@@ -1124,10 +1134,16 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
     from ...services.policy_detection import summarize_policy_matches
 
     policy_summary = summarize_policy_matches(policy_matches)
+    channel_label = None
+    if isinstance(meta, dict):
+        channel_label = (meta.get("channel_label") or meta.get("mailbox_label") or None)
+        if channel_label:
+            channel_label = str(channel_label).strip() or None
     return {
         "id": feedback.id,
         "source": feedback.source,
         "source_group": _normalize_source_group(feedback.source),
+        "channel_label": channel_label,
         "customer_id": feedback.customer_id,
         "customer_key": customer_key,
         "customer_label": customer_label,
