@@ -37,7 +37,10 @@ export function SourceLogo({ source }) {
   if (s.includes('tiktok')) return <FaTiktok className={className} style={{ color: brand.tiktok }} aria-label="TikTok" />
   if (s.includes('jotform')) return <JotformIcon className={className} />
   if (s.includes('google')) return <FaGoogle className={className} style={{ color: brand.google_forms }} aria-label="Google Forms" />
-  if (s === 'email' || s.includes('mail')) return <FaEnvelope className={className} style={{ color: brand.email }} aria-label="Email" />
+  if (s === 'hnw_email' || s.includes('hnw') || s === 'cx' || s === 'email' || s.includes('mail')) {
+    const label = s === 'cx' ? 'CX' : s.includes('hnw') ? 'HNW email' : 'Email'
+    return <FaEnvelope className={className} style={{ color: brand.email }} aria-label={label} />
+  }
   if (s === 'web' || s.includes('web')) return <FaGlobe className={className} style={{ color: brand.web }} aria-label="Web" />
   if (s === 'x' || s.includes('x_') || s.includes('x-') || s.includes('x ')) return <FaXTwitter className={className} style={{ color: brand.x }} aria-label="X" />
   if (s.includes('twitter')) return <FaTwitter className={className} style={{ color: brand.twitter }} aria-label="Twitter" />
@@ -58,13 +61,24 @@ export function SourceAxisTick({ x, y, payload }) {
   )
 }
 
+const SOURCE_DISPLAY = {
+  hnw_email: 'HNW email',
+  cx: 'CX',
+  email: 'Email',
+  whatsapp: 'WhatsApp',
+  jotform: 'Jotform',
+  google_forms: 'Google Forms',
+}
+
 export function SourcePill({ source, label }) {
   if (!source && !label) return null
-  const display = String(label || source || '').replace(/_/g, ' ')
+  const key = String(source || '').toLowerCase()
+  const display = String(label || SOURCE_DISPLAY[key] || source || '').replace(/_/g, ' ')
+  const useCapitalize = !label && !SOURCE_DISPLAY[key]
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
       <SourceLogo source={source || 'email'} />
-      <span className={label ? '' : 'capitalize'}>{display}</span>
+      <span className={useCapitalize ? 'capitalize' : ''}>{display}</span>
     </span>
   )
 }

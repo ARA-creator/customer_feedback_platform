@@ -28,6 +28,9 @@ const SENTIMENT_STYLES = {
 }
 
 function formatSourceLabel(source) {
+  const key = String(source || '').toLowerCase().trim()
+  if (key === 'hnw_email' || key === 'hnw') return 'HNW email'
+  if (key === 'cx' || key === 'cx_email') return 'CX'
   const s = String(source || 'source').replace(/_/g, ' ')
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
 }

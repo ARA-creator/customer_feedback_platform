@@ -24,7 +24,7 @@ import {
   sortInboxItems,
 } from '../utils/inboxDerivedStats'
 
-const SOURCE_ORDER = ['all', 'email', 'web', 'jotform', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
+const SOURCE_ORDER = ['all', 'hnw_email', 'cx', 'web', 'jotform', 'whatsapp', 'instagram', 'facebook', 'tiktok', 'x']
 
 const SENTIMENT_FILTER_OPTIONS = ['negative', 'neutral', 'positive']
 
@@ -56,11 +56,13 @@ const SENTIMENT_COLORS = {
 }
 
 function normalizeSourceGroup(value) {
-  const s = String(value || '').toLowerCase()
+  const s = String(value || '').toLowerCase().trim()
   if (!s) return ''
-  if (s === 'email' || s.includes('mail')) return 'email'
-  if (s === 'web' || s.startsWith('web_') || s.startsWith('web-') || s.includes('webform')) return 'web'
+  if (s === 'hnw_email' || s === 'hnw' || s.includes('hnw')) return 'hnw_email'
+  if (s === 'cx' || s === 'cx_email' || s === 'cx email') return 'cx'
   if (s.includes('whatsapp')) return 'whatsapp'
+  if (s === 'email' || s === 'e-mail' || s.startsWith('email') || (s.includes('mail') && !s.includes('voice'))) return 'email'
+  if (s === 'web' || s.startsWith('web_') || s.startsWith('web-') || s.includes('webform')) return 'web'
   if (s === 'x' || s.includes('x_') || s.includes('x-') || s.includes('x ') || s.includes('twitter')) return 'x'
   if (s.includes('tiktok')) return 'tiktok'
   if (s.includes('instagram')) return 'instagram'
@@ -79,7 +81,7 @@ function SourceIcon({ source }) {
   if (s === 'tiktok') return <FaTiktok className={className} style={{ color: '#00F2EA' }} aria-label="TikTok" />
   if (s === 'jotform') return <JotformIcon className={className} />
   if (s === 'google_forms') return <FaGoogle className={className} style={{ color: '#4285F4' }} aria-label="Google Forms" />
-  if (s === 'email') return <FaEnvelope className={className} style={{ color: '#6B7280' }} aria-label="Email" />
+  if (s === 'email' || s === 'hnw_email' || s === 'cx') return <FaEnvelope className={className} style={{ color: '#6B7280' }} aria-label={s === 'cx' ? 'CX' : s === 'hnw_email' ? 'HNW email' : 'Email'} />
   if (s === 'x') return <FaXTwitter className={className} style={{ color: '#111827' }} aria-label="X" />
   if (s === 'all') return <FiLayers className={className} aria-label="All channels" />
   if (s === 'web') return <FiGlobe className={className} aria-label="Web" />
@@ -206,7 +208,11 @@ function SentimentPill({ label }) {
 }
 
 function formatSourceLabel(k) {
-  const s = k === 'all' ? 'All channels' : normalizeSourceGroup(k).replace(/_/g, ' ')
+  const key = String(k || '').toLowerCase()
+  if (key === 'all') return 'All channels'
+  if (key === 'hnw_email' || key === 'hnw') return 'HNW email'
+  if (key === 'cx' || key === 'cx_email') return 'CX'
+  const s = normalizeSourceGroup(k).replace(/_/g, ' ')
   return s.replace(/\b\w/g, (c) => c.toUpperCase())
 }
 

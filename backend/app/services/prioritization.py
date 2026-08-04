@@ -59,6 +59,11 @@ def normalize_source_group(value: Optional[str]) -> Optional[str]:
     # WhatsApp before broad "mail" heuristics so mixed strings stay WhatsApp.
     if "whatsapp" in s:
         return "whatsapp"
+    # Mailbox subtypes before generic email / "mail" substring matching.
+    if s in {"hnw_email", "hnw"} or "hnw" in s:
+        return "hnw_email"
+    if s in {"cx", "cx_email"} or s == "cx email":
+        return "cx"
     # Avoid classifying "voicemail" as email: substring "mail" appears inside it.
     if s == "email" or s in ("e-mail", "imap") or s.startswith("email"):
         return "email"

@@ -361,6 +361,52 @@ def fetch_sent_emails(
                 pass
 
 
+
+
+def resolve_email_channel_label(
+    *,
+    mailbox_username: str = None,
+    mailbox_label: str = None,
+    recipient_email: str = None,
+    to_emails: Sequence[str] = None,
+    text_blob: str = None,
+) -> Optional[str]:
+    """
+    Map an inbound email to a channel label.
+
+    lexietate10@gmail.com  → HNW email
+    mysmartelecthub@gmail.com → CX
+    """
+    label = (mailbox_label or "").strip()
+    if label:
+        return label
+
+    candidates = []
+    for raw in (
+        mailbox_username,
+        recipient_email,
+        *list(to_emails or []),
+    ):
+        v = (raw or "").strip().lower()
+        if v and "@" in v:
+            candidates.append(v)
+
+    blob = (text_blob or "").lower()
+    for needle, mapped in (
+        ("mysmartelecthub@gmail.com", "CX"),
+        ("lexietate10@gmail.com", "HNW email"),
+    ):
+        if needle in candidates or needle in blob:
+            return mapped
+
+    for v in candidates:
+        if "mysmartelecthub" in v:
+            return "CX"
+        if "lexietate10" in v:
+            return "HNW email"
+    return None
+
+
 def process_email_to_feedback(
     email_data: Dict,
     *,
@@ -382,15 +428,13 @@ def process_email_to_feedback(
         full_message = message_text or body_text
 
     mailbox = (mailbox_username or "").strip()
-    label = (mailbox_label or "").strip()
-    if not label and mailbox:
-        low = mailbox.lower()
-        if low == "lexietate10@gmail.com":
-            label = "HNW email"
-        elif low == "mysmartelecthub@gmail.com":
-            label = "CX"
-        else:
-            label = "Email"
+    label = resolve_email_channel_label(
+        mailbox_username=mailbox,
+        mailbox_label=mailbox_label,
+        recipient_email=email_data.get("recipient_email"),
+        to_emails=email_data.get("to_emails") if isinstance(email_data.get("to_emails"), list) else None,
+        text_blob=f"{email_data.get('subject') or ''} {email_data.get('body') or ''} {email_data.get('to') or ''}",
+    ) or (mailbox_label or "").strip() or "Email"
 
     meta = {
         "provider": "email",
@@ -410,6 +454,14 @@ def process_email_to_feedback(
         "engagement": None,
         "media": [],
     }
+    recipient = (email_data.get("recipient_email") or "").strip()
+    to_emails = email_data.get("to_emails") if isinstance(email_data.get("to_emails"), list) else []
+    if recipient:
+        meta["recipient_email"] = recipient
+    if to_emails:
+        meta["to_emails"] = [str(x).strip().lower() for x in to_emails if x]
+    if email_data.get("to"):
+        meta["to"] = email_data.get("to")
     if mailbox:
         meta["mailbox"] = mailbox
     if label:

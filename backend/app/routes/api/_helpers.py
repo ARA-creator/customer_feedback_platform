@@ -1051,11 +1051,18 @@ def _serialize_feedback_batch(
             )
             if channel_label:
                 channel_label = str(channel_label).strip() or None
+        source_group = _normalize_source_group(feedback.source)
+        if source_group == "email" and channel_label:
+            cl = channel_label.lower()
+            if cl == "cx":
+                source_group = "cx"
+            elif "hnw" in cl:
+                source_group = "hnw_email"
         out.append(
             {
                 "id": feedback.id,
                 "source": feedback.source,
-                "source_group": _normalize_source_group(feedback.source),
+                "source_group": source_group,
                 "channel_label": channel_label,
                 "customer_id": feedback.customer_id,
                 "customer_key": customer_key,
@@ -1139,10 +1146,17 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         channel_label = (meta.get("channel_label") or meta.get("mailbox_label") or None)
         if channel_label:
             channel_label = str(channel_label).strip() or None
+    source_group = _normalize_source_group(feedback.source)
+    if source_group == "email" and channel_label:
+        cl = channel_label.lower()
+        if cl == "cx":
+            source_group = "cx"
+        elif "hnw" in cl:
+            source_group = "hnw_email"
     return {
         "id": feedback.id,
         "source": feedback.source,
-        "source_group": _normalize_source_group(feedback.source),
+        "source_group": source_group,
         "channel_label": channel_label,
         "customer_id": feedback.customer_id,
         "customer_key": customer_key,

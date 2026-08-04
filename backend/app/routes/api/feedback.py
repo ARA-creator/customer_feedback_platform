@@ -272,7 +272,7 @@ def feedback_source_counts():
     try:
         user = _current_user(db)
         perms = _user_permission_keys(db, getattr(user, "id", None))
-        q = db.query(Feedback.source, func.count(Feedback.id)).filter(Feedback.deleted_at.is_(None))
+        q = db.query(Feedback.source, Feedback.channel_metadata).filter(Feedback.deleted_at.is_(None))
         q = _exclude_removed_sources(q)
         if user and perms:
             q = _scope_feedback_query(db, q, user=user, perms=perms)
@@ -329,21 +329,29 @@ def feedback_source_counts():
                 q = q.filter(clause)
         q = _apply_insurance_tag_metadata_filters(q, Feedback.channel_metadata, insurance_tag, insurance_tags_any)
 
-        rows = q.group_by(Feedback.source).all()
-
         raw = {}
         grouped = {}
         total = 0
-        for src, count in rows:
+        for src, meta_raw in q.all():
             key = (src or "").strip().lower()
             if not key:
                 continue
-            c = int(count or 0)
-            raw[key] = raw.get(key, 0) + c
-            total += c
-            g = _normalize_source_group(key)
-            if g:
-                grouped[g] = grouped.get(g, 0) + c
+            raw[key] = raw.get(key, 0) + 1
+            total += 1
+            g = _normalize_source_group(key) or key
+            if g == "email":
+                try:
+                    meta = json.loads(meta_raw) if meta_raw else {}
+                except Exception:
+                    meta = {}
+                label = str(
+                    (meta or {}).get("channel_label") or (meta or {}).get("mailbox_label") or ""
+                ).strip().lower()
+                if label == "cx":
+                    g = "cx"
+                elif "hnw" in label:
+                    g = "hnw_email"
+            grouped[g] = grouped.get(g, 0) + 1
 
         return jsonify({"total": total, "raw": raw, "grouped": grouped})
     finally:
@@ -720,8 +728,27 @@ def feedback_feed():
         if category and category.lower() != "all":
             q = q.filter(func.lower(Feedback.category) == category.lower())
         if source and source != "all":
-            raw_source = source.lower()
-            q = q.filter(func.lower(Feedback.source).like(f"%{raw_source}%"))
+            raw_source = source.lower().strip()
+            if raw_source in {"hnw_email", "hnw"}:
+                q = q.filter(func.lower(Feedback.source).like("%email%")).filter(
+                    or_(
+                        Feedback.channel_metadata.ilike('%"channel_label": "HNW email"%'),
+                        Feedback.channel_metadata.ilike('%"channel_label":"HNW email"%'),
+                        Feedback.channel_metadata.ilike('%"mailbox_label": "HNW email"%'),
+                        Feedback.channel_metadata.ilike('%"mailbox": "lexietate10@gmail.com"%'),
+                    )
+                )
+            elif raw_source in {"cx", "cx_email"}:
+                q = q.filter(func.lower(Feedback.source).like("%email%")).filter(
+                    or_(
+                        Feedback.channel_metadata.ilike('%"channel_label": "CX"%'),
+                        Feedback.channel_metadata.ilike('%"channel_label":"CX"%'),
+                        Feedback.channel_metadata.ilike('%"mailbox_label": "CX"%'),
+                        Feedback.channel_metadata.ilike('%"mailbox": "mysmartelecthub@gmail.com"%'),
+                    )
+                )
+            else:
+                q = q.filter(func.lower(Feedback.source).like(f"%{raw_source}%"))
         if priority == "high":
             q = q.filter(Feedback.priority.isnot(None)).filter(Feedback.priority >= 80)
         if range_days in (7, 30, 90):

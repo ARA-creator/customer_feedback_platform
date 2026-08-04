@@ -1,4 +1,6 @@
 export const CANONICAL_SOURCES = [
+  'hnw_email',
+  'cx',
   'email',
   'web',
   'jotform',
@@ -13,6 +15,8 @@ export const CANONICAL_SOURCES = [
 export function normalizeSourceGroup(value) {
   const s = String(value || '').toLowerCase()
   if (!s) return ''
+  if (s === 'hnw_email' || s === 'hnw' || s.includes('hnw')) return 'hnw_email'
+  if (s === 'cx' || s === 'cx_email' || s === 'cx email') return 'cx'
   if (s === 'email' || s.includes('mail')) return 'email'
   if (
     s === 'web' ||

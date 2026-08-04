@@ -285,9 +285,12 @@ export default function InboxListPanel({
               Next
               <FiChevronRight className="h-4 w-4" aria-hidden />
             </button>
-            <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
           </div>
         </div>
+      ) : null}
+
+      {showListControls || showPagination ? (
+        <InboxScrollToTopButton onScrollToTop={onScrollToTop} />
       ) : null}
     </div>
   )
