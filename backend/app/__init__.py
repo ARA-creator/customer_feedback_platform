@@ -335,12 +335,10 @@ def create_app() -> Flask:
 
         if _is_serverless_runtime():
             return False
-        # Enable if explicitly requested, or implicitly for local dev when credentials exist
-        creds_present = bool(
-            getattr(config, "EMAIL_IMAP_SERVER", None)
-            and getattr(config, "EMAIL_USERNAME", None)
-            and getattr(config, "EMAIL_PASSWORD", None)
-        )
+        from .core.config import get_email_imap_accounts  # noqa: WPS433
+
+        accounts = get_email_imap_accounts(config)
+        creds_present = bool(accounts)
         app_env = os.getenv("APP_ENV", getattr(config, "ENV", "development") or "development").lower()
         enabled = bool(
             getattr(config, "EMAIL_POLL_ENABLED", False)
@@ -358,40 +356,40 @@ def create_app() -> Flask:
 
         interval = int(getattr(config, "EMAIL_POLL_INTERVAL_SECONDS", 60))
         hours_back = int(getattr(config, "EMAIL_POLL_HOURS_BACK", 24))
-        folder = getattr(config, "EMAIL_POLL_FOLDER", "INBOX")
-        server = getattr(config, "EMAIL_IMAP_SERVER", None)
-        port = int(getattr(config, "EMAIL_IMAP_PORT", 993))
-        username = getattr(config, "EMAIL_USERNAME", None)
-        password = getattr(config, "EMAIL_PASSWORD", None)
-
+        from .core.config import get_email_imap_accounts  # noqa: WPS433
         from .routes.integrations import poll_email_and_ingest  # noqa: WPS433
+
+        accounts = get_email_imap_accounts(config)
+        if not accounts:
+            return
 
         logger = logging.getLogger(__name__)
 
         def loop() -> None:
+            labels = ", ".join(a["username"] for a in accounts)
             logger.info(
-                "Email auto-poller started (interval=%ss, hours_back=%s, folder=%s, username=%s)",
+                "Email auto-poller started (interval=%ss, hours_back=%s, accounts=%s)",
                 interval,
                 hours_back,
-                folder,
-                username,
+                labels,
             )
             # Small delay so the app is fully up before first poll
             time.sleep(1.0)
             while True:
-                try:
-                    result = poll_email_and_ingest(
-                        imap_server=server,
-                        imap_port=port,
-                        username=username,
-                        password=password,
-                        folder=folder,
-                        hours_back=hours_back,
-                    )
-                    if result.get("processed", 0) or result.get("emails_found", 0):
-                        logger.info("Email auto-poller: %s", result)
-                except Exception:
-                    logger.exception("Email auto-poller: failed poll cycle")
+                for acct in accounts:
+                    try:
+                        result = poll_email_and_ingest(
+                            imap_server=acct["imap_server"],
+                            imap_port=acct["imap_port"],
+                            username=acct["username"],
+                            password=acct["password"],
+                            folder=acct.get("folder") or "INBOX",
+                            hours_back=hours_back,
+                        )
+                        if result.get("processed", 0) or result.get("emails_found", 0):
+                            logger.info("Email auto-poller [%s]: %s", acct["username"], result)
+                    except Exception:
+                        logger.exception("Email auto-poller: failed poll cycle for %s", acct.get("username"))
                 time.sleep(max(10, interval))
 
         t = threading.Thread(target=loop, name="email-auto-poller", daemon=True)

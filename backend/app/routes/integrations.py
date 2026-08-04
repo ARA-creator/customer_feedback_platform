@@ -841,26 +841,82 @@ def email_poll():
     config = get_config()
     data = payload
 
-    imap_server = data.get("imap_server") or getattr(config, "EMAIL_IMAP_SERVER", None)
-    imap_port = data.get("imap_port", 993)
-    username = data.get("username") or getattr(config, "EMAIL_USERNAME", None)
-    password = data.get("password") or getattr(config, "EMAIL_PASSWORD", None)
-    folder = data.get("folder", "INBOX")
+    folder = data.get("folder") or getattr(config, "EMAIL_POLL_FOLDER", None) or "INBOX"
     hours_back = data.get("hours_back", 24)
+    try:
+        hours_back = int(hours_back)
+    except (TypeError, ValueError):
+        hours_back = 24
 
-    if not all([imap_server, username, password]):
+    # Explicit single-mailbox override (body/query) still supported.
+    override_user = (data.get("username") or "").strip()
+    override_pass = (data.get("password") or "").strip()
+    if override_user and override_pass:
+        imap_server = data.get("imap_server") or getattr(config, "EMAIL_IMAP_SERVER", None) or "imap.gmail.com"
+        imap_port = data.get("imap_port", getattr(config, "EMAIL_IMAP_PORT", 993))
+        try:
+            imap_port = int(imap_port)
+        except (TypeError, ValueError):
+            imap_port = 993
+        accounts = [
+            {
+                "imap_server": imap_server,
+                "imap_port": imap_port,
+                "username": override_user,
+                "password": override_pass,
+                "folder": folder,
+            }
+        ]
+    else:
+        from ..core.config import get_email_imap_accounts
+
+        accounts = get_email_imap_accounts(config)
+        # Allow folder override for all configured accounts.
+        if data.get("folder"):
+            for a in accounts:
+                a["folder"] = folder
+
+    if not accounts:
         return jsonify({"error": "Missing email configuration"}), 400
 
     try:
-        result = poll_email_and_ingest(
-            imap_server=imap_server,
-            imap_port=imap_port,
-            username=username,
-            password=password,
-            folder=folder,
-            hours_back=hours_back,
+        per_account = []
+        totals = {
+            "emails_found": 0,
+            "processed": 0,
+            "replied_marked": 0,
+            "accounts": [],
+        }
+        for acct in accounts:
+            result = poll_email_and_ingest(
+                imap_server=acct["imap_server"],
+                imap_port=acct["imap_port"],
+                username=acct["username"],
+                password=acct["password"],
+                folder=acct.get("folder") or folder,
+                hours_back=hours_back,
+            )
+            row = {
+                "username": acct["username"],
+                **(result or {}),
+            }
+            per_account.append(row)
+            totals["emails_found"] += int(result.get("emails_found") or 0)
+            totals["processed"] += int(result.get("processed") or 0)
+            totals["replied_marked"] += int(result.get("replied_marked") or 0)
+            totals["accounts"].append(acct["username"])
+
+        message = f"Processed {totals['processed']} emails across {len(per_account)} mailbox(es)"
+        return jsonify(
+            {
+                "message": message,
+                "emails_found": totals["emails_found"],
+                "processed": totals["processed"],
+                "replied_marked": totals["replied_marked"],
+                "accounts": totals["accounts"],
+                "per_account": per_account,
+            }
         )
-        return jsonify(result)
 
     except Exception as e:
         logger.exception("Error polling email")

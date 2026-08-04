@@ -57,11 +57,16 @@ class BaseConfig:
     # Environment name
     ENV = os.getenv("FLASK_ENV", "development")
 
-    # Email integration (IMAP)
+    # Email integration (IMAP) — primary mailbox
     EMAIL_IMAP_SERVER = os.getenv("EMAIL_IMAP_SERVER", None)
     EMAIL_IMAP_PORT = int(os.getenv("EMAIL_IMAP_PORT", "993"))
     EMAIL_USERNAME = os.getenv("EMAIL_USERNAME", None)
     EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", None)
+    # Optional extra mailboxes: EMAIL_USERNAME_2 / EMAIL_PASSWORD_2 (same IMAP host/port by default)
+    # or EMAIL_ACCOUNTS JSON: [{"username":"...","password":"...","imap_server":"...","imap_port":993}, ...]
+    EMAIL_USERNAME_2 = os.getenv("EMAIL_USERNAME_2", None)
+    EMAIL_PASSWORD_2 = os.getenv("EMAIL_PASSWORD_2", None)
+    EMAIL_ACCOUNTS_JSON = os.getenv("EMAIL_ACCOUNTS", "").strip() or None
 
     # Outbound email (SMTP) for auth + notifications
     SMTP_HOST = os.getenv("SMTP_HOST", "").strip() or None
@@ -201,3 +206,83 @@ def get_config():
     if env == "production":
         return ProductionConfig()
     return DevelopmentConfig()
+
+
+def get_email_imap_accounts(cfg=None) -> list:
+    """
+    Return IMAP mailboxes to poll.
+
+    Sources (merged, de-duped by username):
+      1. Primary EMAIL_USERNAME / EMAIL_PASSWORD (+ EMAIL_IMAP_*)
+      2. Secondary EMAIL_USERNAME_2 / EMAIL_PASSWORD_2
+      3. EMAIL_ACCOUNTS JSON array of {username, password, imap_server?, imap_port?, folder?}
+    """
+    import json
+
+    cfg = cfg or get_config()
+    default_server = getattr(cfg, "EMAIL_IMAP_SERVER", None) or "imap.gmail.com"
+    try:
+        default_port = int(getattr(cfg, "EMAIL_IMAP_PORT", 993) or 993)
+    except (TypeError, ValueError):
+        default_port = 993
+    default_folder = getattr(cfg, "EMAIL_POLL_FOLDER", None) or "INBOX"
+
+    accounts = []
+    seen = set()
+
+    def _add(*, username, password, imap_server=None, imap_port=None, folder=None):
+        user = (username or "").strip()
+        pwd = (password or "").strip()
+        if not user or not pwd:
+            return
+        key = user.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        try:
+            port = int(imap_port if imap_port is not None else default_port)
+        except (TypeError, ValueError):
+            port = default_port
+        accounts.append(
+            {
+                "imap_server": (imap_server or default_server or "").strip() or default_server,
+                "imap_port": port,
+                "username": user,
+                "password": pwd,
+                "folder": (folder or default_folder or "INBOX").strip() or "INBOX",
+            }
+        )
+
+    _add(
+        username=getattr(cfg, "EMAIL_USERNAME", None),
+        password=getattr(cfg, "EMAIL_PASSWORD", None),
+        imap_server=getattr(cfg, "EMAIL_IMAP_SERVER", None),
+        imap_port=getattr(cfg, "EMAIL_IMAP_PORT", None),
+    )
+    _add(
+        username=getattr(cfg, "EMAIL_USERNAME_2", None),
+        password=getattr(cfg, "EMAIL_PASSWORD_2", None),
+        imap_server=getattr(cfg, "EMAIL_IMAP_SERVER", None),
+        imap_port=getattr(cfg, "EMAIL_IMAP_PORT", None),
+    )
+
+    raw = getattr(cfg, "EMAIL_ACCOUNTS_JSON", None) or ""
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if not isinstance(item, dict):
+                        continue
+                    _add(
+                        username=item.get("username") or item.get("email"),
+                        password=item.get("password"),
+                        imap_server=item.get("imap_server") or item.get("server"),
+                        imap_port=item.get("imap_port") or item.get("port"),
+                        folder=item.get("folder"),
+                    )
+        except Exception:
+            pass
+
+    return accounts
+

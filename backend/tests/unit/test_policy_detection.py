@@ -27,7 +27,16 @@ def test_policy_number_still_detected_in_plain_text():
     msg = "Please update policy GH9V1234567 for my claim."
     policies, debug = detect_policies(msg)
     assert debug.get("policy_number_candidates", 0) >= 1
-    assert any("•••••" in (p.masked or "") for p in policies)
+    assert any(p.product_prefix == "GH9V" for p in policies)
+
+
+def test_ba2v_maps_to_boafo_pa_funeral():
+    msg = "BA2V0007327. I have been wrongfully deducted this policy from my last money in the account"
+    policies, debug = detect_policies(msg)
+    assert debug.get("policy_number_candidates", 0) >= 1
+    hit = next(p for p in policies if p.product_prefix == "BA2V")
+    assert hit.policy_number == "BA2V0007327"
+    assert hit.product_group == "BOAFO-PA FUNERAL POLICIES"
 
 
 def test_policy_number_hint_field_detected_without_being_in_message():
