@@ -384,11 +384,6 @@ export default function Customer360({ onNavigate }) {
                 }
                 return label
               })()}
-              subtitle={
-                customerKey
-                  ? 'One view of every touchpoint we can link to this customer—including products inferred from their messages.'
-                  : 'Search or open a profile from the inbox to load a customer.'
-              }
             />
             {data?.customer?.policy_holder_status === 'verified' || distinctPolicyCount > 0 ? (
               <button
