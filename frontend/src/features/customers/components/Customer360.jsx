@@ -138,38 +138,6 @@ function dedupeIdentityChips(idents) {
   return out
 }
 
-/** mailto: / tel: / social profile URL for an identity chip, if actionable. */
-function identityChipHref(ident) {
-  const t = String(ident?.identifier_type || '').toLowerCase()
-  const label = String(ident?.label || '').trim().replace(/^"|"$/g, '')
-  const raw = String(ident?.identifier_value || '').trim()
-
-  if (t === 'email' || t === 'email_hash' || label.includes('@')) {
-    const email = label.includes('@')
-      ? label
-      : raw.includes('@')
-        ? raw
-        : ''
-    if (email && email.includes('@')) return `mailto:${email}`
-  }
-
-  if (t === 'phone' || t === 'wa') {
-    const canon = canonicalizeGhanaPhone(label || raw)
-    if (canon) return `tel:${canon}`
-  }
-
-  const handle = label.replace(/^@/, '').trim()
-  if (!handle || handle.includes(' ')) return null
-  if (t === 'instagram') return `https://instagram.com/${encodeURIComponent(handle)}`
-  if (t === 'facebook') return `https://facebook.com/${encodeURIComponent(handle)}`
-  if (t === 'tiktok') return `https://www.tiktok.com/@${encodeURIComponent(handle)}`
-  if (t === 'x' || t === 'twitter') return `https://x.com/${encodeURIComponent(handle)}`
-  if ((t === 'handle' || t === 'author') && label.startsWith('@')) {
-    return `https://x.com/${encodeURIComponent(handle)}`
-  }
-  return null
-}
-
 function extractUrls(text) {
   const s = String(text || '')
   const re = /(https?:\/\/[^\s<>)"']+|www\.[^\s<>)"']+)/gi
@@ -366,8 +334,6 @@ export default function Customer360({ onNavigate }) {
       return n && !n.includes('(NAME MATCH)')
     }).length
   }, [policySummary])
-
-  const openTickets = useMemo(() => safeArr(data?.tickets).filter((t) => String(t?.status || '').toLowerCase() !== 'closed'), [data])
 
   const load = async () => {
     const key = String(customerKey || '').trim()
@@ -590,14 +556,10 @@ export default function Customer360({ onNavigate }) {
             <>
               <div className="card p-5">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Overview</h2>
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="mt-3">
                   <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Total feedback</p>
                     <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{data.customer.total_feedback ?? history.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Open issues</p>
-                    <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{openTickets.length}</p>
                   </div>
                 </div>
               </div>
@@ -619,9 +581,6 @@ export default function Customer360({ onNavigate }) {
 
               <div className="card p-5">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Click email or phone to contact the customer.
-                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(() => {
                     const idents = dedupeIdentityChips(data.identifiers)
@@ -631,27 +590,10 @@ export default function Customer360({ onNavigate }) {
                     return idents.slice(0, 24).map((ident, idx) => {
                       const typeLabel = (ident.identifier_type || 'id').toString().replace(/_/g, ' ')
                       const value = ident.label || ident.identifier_value
-                      const href = identityChipHref(ident)
-                      const baseClass =
-                        'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors'
-                      if (href) {
-                        const external = href.startsWith('http')
-                        return (
-                          <a
-                            key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
-                            href={href}
-                            {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
-                            className={`${baseClass} border-[#009750]/30 bg-[#009750]/5 text-[#007a42] hover:border-[#009750] hover:bg-[#009750]/10 hover:underline dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200`}
-                            title={href.startsWith('mailto:') ? `Email ${value}` : href.startsWith('tel:') ? `Call ${value}` : `Open ${value}`}
-                          >
-                            {typeLabel}: {value}
-                          </a>
-                        )
-                      }
                       return (
                         <span
                           key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
-                          className={`${baseClass} border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200`}
+                          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
                           title={value}
                         >
                           {typeLabel}: {value}
@@ -721,28 +663,6 @@ export default function Customer360({ onNavigate }) {
                     Showing {visibleHistory.length} feedback item(s) that mention the selected policy.
                   </p>
                 ) : null}
-              </div>
-
-              <div className="card p-5">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Open issues</h2>
-                <div className="mt-3 space-y-2">
-                  {openTickets.length === 0 ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-300">No open tickets found.</p>
-                  ) : (
-                    openTickets.slice(0, 8).map((t) => (
-                      <div
-                        key={t.id}
-                        className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-950"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">{t.subject || t.ticket_ref || 'Ticket'}</p>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">{String(t.status || 'open')}</span>
-                        </div>
-                        {t.summary && <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{t.summary}</p>}
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
             </>
           )}
