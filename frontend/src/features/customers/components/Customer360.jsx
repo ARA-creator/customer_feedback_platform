@@ -602,7 +602,7 @@ export default function Customer360({ onNavigate }) {
               <div id="cfp-customer-products" className="card p-5 scroll-mt-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Policy</h2>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">My Policies</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-md">
                       Click a chip to filter history. “Review” means the match needs staff confirmation.
                     </p>
@@ -635,13 +635,13 @@ export default function Customer360({ onNavigate }) {
                           onClick={() => setPolicyFilterHash((prev) => (prev === p.policy_hash ? '' : p.policy_hash))}
                           className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
                             isActive
-                              ? 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-200'
-                              : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900'
+                              ? 'border-[#009750] bg-[#009750]/20 text-[#007a42] dark:border-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-100'
+                              : 'border-[#009750]/30 bg-[#009750]/10 text-[#007a42] hover:bg-[#009750]/15 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 dark:hover:bg-emerald-950/60'
                           }`}
                           title={p.policy_hash}
                         >
                           <span>{labelLeft}</span>
-                          <span className="text-gray-500 dark:text-gray-400">·</span>
+                          <span className="text-[#007a42]/70 dark:text-emerald-300/70">·</span>
                           <span>{labelRight}</span>
                           {p.needs_review ? (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-900/30 dark:text-amber-100">
