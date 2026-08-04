@@ -80,6 +80,19 @@ def normalized_media(meta: Dict[str, Any]) -> list[Dict[str, Any]]:
     return media
 
 
+def normalize_phone_identity(raw) -> Optional[str]:
+    """Canonical E.164-ish phone key (+digits only) for customer matching."""
+    phone = str(raw or "").strip()
+    if not phone or phone.startswith("*"):
+        return None
+    if phone.lower().startswith("whatsapp:"):
+        phone = phone.split(":", 1)[1].strip()
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if len(digits) < 7:
+        return None
+    return f"+{digits}"
+
+
 def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
     if getattr(feedback, "customer_id", None):
         value = str(feedback.customer_id).strip()
@@ -99,16 +112,15 @@ def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str
             return f"email_hash:{value}", str(label)
 
     # Prefer stable phone / WhatsApp ids over per-message SIDs.
-    phone = str(meta.get("phone") or meta.get("from_number") or "").strip()
-    if phone.lower().startswith("whatsapp:"):
-        phone = phone.split(":", 1)[1].strip()
+    phone = normalize_phone_identity(meta.get("phone") or meta.get("from_number") or meta.get("wa_id"))
     if phone:
         return f"phone:{phone}", phone
 
     wa_id = str(meta.get("wa_id") or "").strip()
-    if wa_id:
-        label = phone or meta.get("author_handle") or wa_id
-        return f"wa:{wa_id}", str(label)
+    if wa_id and not wa_id.startswith("*"):
+        # Keep wa: as secondary only when it is not phone-shaped.
+        if not normalize_phone_identity(wa_id):
+            return f"wa:{wa_id}", str(meta.get("author_handle") or wa_id)
 
     for key, prefix, label_key in [
         ("author_id", "author", "author_username"),
@@ -127,10 +139,11 @@ def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str
         value = str(meta.get(key) or "").strip()
         if value:
             # Skip masked phone placeholders like ****1234 as identity.
-            if value.startswith("*") and value.rstrip("*").isdigit() is False and set(value[:-4]) <= {"*"}:
-                continue
             if value.startswith("*"):
                 continue
+            if normalize_phone_identity(value):
+                phone = normalize_phone_identity(value)
+                return f"phone:{phone}", phone
             return f"handle:{value}", value
     return None, None
 
@@ -174,13 +187,12 @@ def normalize_channel_metadata(source: Optional[str], raw_meta: Any) -> Dict[str
         out.setdefault("thread_id", out.get("message_id"))
     elif src == "whatsapp":
         out.setdefault("provider", out.get("provider") or "whatsapp")
-        phone = str(out.get("phone") or out.get("from_number") or "").strip()
-        if phone.lower().startswith("whatsapp:"):
-            phone = phone.split(":", 1)[1].strip()
+        phone = normalize_phone_identity(out.get("phone") or out.get("from_number") or out.get("wa_id"))
         if phone:
             out["phone"] = phone
             out["from_number"] = phone
             out.setdefault("author_handle", phone)
+            out.setdefault("wa_id", "".join(ch for ch in phone if ch.isdigit()))
         out.setdefault(
             "thread_id",
             out.get("wa_id") or out.get("phone") or out.get("message_id") or out.get("message_sid"),

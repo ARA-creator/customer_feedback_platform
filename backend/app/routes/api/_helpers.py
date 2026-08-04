@@ -42,6 +42,7 @@ from ...services.metadata_normalization import (
     build_search_text,
     customer_identity_from,
     normalize_channel_metadata,
+    normalize_phone_identity,
     normalized_media,
     safe_json_loads,
 )
@@ -488,15 +489,29 @@ def _merge_customer_profiles(db, *, keep: CustomerProfile, absorb: CustomerProfi
 
 
 def _normalize_phone_identity(raw: Optional[str]) -> Optional[str]:
-    phone = str(raw or "").strip()
-    if not phone or phone.startswith("*"):
-        return None
-    if phone.lower().startswith("whatsapp:"):
-        phone = phone.split(":", 1)[1].strip()
+    return normalize_phone_identity(raw)
+
+
+def _phone_identity_variants(phone_or_raw: Optional[str]) -> List[str]:
+    """All identifier_value forms that should count as the same phone person."""
+    phone = normalize_phone_identity(phone_or_raw)
+    if not phone:
+        return []
     digits = "".join(ch for ch in phone if ch.isdigit())
-    if len(digits) < 7:
-        return None
-    return f"+{digits}"
+    variants = [
+        f"phone:{phone}",
+        f"phone:{digits}",
+        f"wa:{digits}",
+        f"wa:{phone}",
+    ]
+    # De-dupe preserving order
+    out = []
+    seen = set()
+    for v in variants:
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
 
 
 def _is_unstable_message_key(value: str) -> bool:
@@ -551,15 +566,16 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
             meta.get("sender_email") or meta.get("customer_label") or "Email contact",
         )
 
-    phone = _normalize_phone_identity(meta.get("phone") or meta.get("from_number"))
-    if not phone:
-        phone = _normalize_phone_identity(meta.get("wa_id"))
+    phone = normalize_phone_identity(meta.get("phone") or meta.get("from_number") or meta.get("wa_id"))
     if phone:
-        add("phone", f"phone:{phone}", phone)
+        # Canonical phone key + legacy variants so older rows still merge.
+        for variant in _phone_identity_variants(phone):
+            itype = "phone" if variant.startswith("phone:") else "wa"
+            add(itype, variant, phone)
 
     wa_id = str(meta.get("wa_id") or "").strip()
-    if wa_id and not str(wa_id).startswith("*"):
-        add("wa", f"wa:{wa_id}", phone or wa_id)
+    if wa_id and not wa_id.startswith("*") and not normalize_phone_identity(wa_id):
+        add("wa", f"wa:{wa_id}", wa_id)
 
     for key, prefix, label_key in [
         ("author_id", "author", "author_username"),
@@ -573,26 +589,28 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
         if value:
             add(prefix, f"{prefix}:{value}", meta.get(label_key) or value)
 
-    # Stable conversation keys only (not per-message SIDs).
     thread = str(meta.get("thread_id") or "").strip()
     if thread and not _is_unstable_message_key(thread):
-        # Prefer phone-based threads already covered; still link social thread ids.
-        if not thread.upper().startswith("SM"):
+        # Phone-shaped threads are already covered by phone variants.
+        if not normalize_phone_identity(thread):
             add("thread", f"thread:{thread}", meta.get("author_handle") or thread)
 
     for key in ("author_handle", "author_username", "from_username"):
         value = str(meta.get(key) or "").strip()
         if not value or value.startswith("*"):
             continue
-        # Skip values that are just phones (already added as phone:).
-        if _normalize_phone_identity(value):
+        if normalize_phone_identity(value):
             continue
-        handle = value if value.startswith("@") else value
-        add("handle", f"handle:{handle.lstrip('@').lower()}", value)
+        handle = value.lstrip("@").lower()
+        add("handle", f"handle:{handle}", value)
 
-    # Primary customer_key from identity resolution.
+    # Primary customer_key — rewrite phone keys to canonical form first.
     customer_key = str(meta.get("customer_key") or "").strip()
-    if customer_key:
+    if customer_key.startswith("phone:") or customer_key.startswith("wa:"):
+        canon = normalize_phone_identity(customer_key.split(":", 1)[1])
+        if canon:
+            add("phone", f"phone:{canon}", canon)
+    elif customer_key:
         add(customer_key.split(":", 1)[0], customer_key, meta.get("customer_label"))
 
     return out
@@ -648,6 +666,12 @@ def _find_profile_for_identities(db, identities: List[Tuple[str, str, Optional[s
     if not identities:
         return None
     values = [ivalue for _, ivalue, _ in identities if ivalue]
+    # Expand phone lookups to every equivalent stored form.
+    expanded = list(values)
+    for _, ivalue, _ in identities:
+        if ivalue.startswith("phone:") or ivalue.startswith("wa:"):
+            expanded.extend(_phone_identity_variants(ivalue.split(":", 1)[1]))
+    values = list(dict.fromkeys(expanded))
     if not values:
         return None
     rows = (
@@ -657,7 +681,6 @@ def _find_profile_for_identities(db, identities: List[Tuple[str, str, Optional[s
     )
     if not rows:
         return None
-    # If multiple profiles match different keys, merge them onto the oldest.
     profile_ids = []
     seen_pids = set()
     for row in rows:

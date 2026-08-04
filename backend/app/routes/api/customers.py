@@ -125,6 +125,10 @@ def customer_profile(customer_key: str):
                         email_hashes.append(raw)
                     elif itype in {"phone", "wa", "handle", "author", "sender", "thread"}:
                         meta_needles.append(raw)
+                        # Digit-only phone match so +233… and 233… both hit channel_metadata.
+                        digits = "".join(ch for ch in raw if ch.isdigit())
+                        if itype in {"phone", "wa"} and len(digits) >= 7:
+                            meta_needles.append(digits)
 
                 base_q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
                 base_q = _scope_feedback_query(db, base_q, user=user, perms=perms)
