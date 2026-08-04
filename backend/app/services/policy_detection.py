@@ -469,9 +469,13 @@ def detect_policies(message_plaintext: str) -> Tuple[List[DetectedPolicy], Dict[
     detected = list(best_by_hash.values())
 
     # Choose primary by highest confidence.
-    # Tie-breaker: policy-number style candidates (masked with bullet middle) outrank name candidates.
+    # Tie-breaker: real policy numbers outrank product-name-only matches.
     def _is_policy_number_style(d: DetectedPolicy) -> int:
-        return 1 if "•••••" in (d.masked or "") else 0
+        if "(name match)" in (d.masked or ""):
+            return 0
+        if d.policy_number or is_policy_number_match(d.masked):
+            return 1
+        return 0
 
     detected.sort(key=lambda x: (x.confidence, _is_policy_number_style(x)), reverse=True)
     if detected:

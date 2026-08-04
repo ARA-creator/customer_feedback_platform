@@ -24,7 +24,7 @@ from ...models import (
     FeedbackPolicyMatch,
 )
 from ...security import decrypt_text, encrypt_text, hash_email
-from ...services.metadata_normalization import safe_json_loads
+from ...services.metadata_normalization import phone_identity_variants, safe_json_loads
 from ...services.policy_detection import is_policy_number_match
 from ...services.prioritization import normalize_source_group
 from . import api_bp
@@ -125,10 +125,14 @@ def customer_profile(customer_key: str):
                         email_hashes.append(raw)
                     elif itype in {"phone", "wa", "handle", "author", "sender", "thread"}:
                         meta_needles.append(raw)
-                        # Digit-only phone match so +233… and 233… both hit channel_metadata.
+                        # Digit-only + Ghana local/intl variants so +233 / 233 / 0… all hit metadata.
                         digits = "".join(ch for ch in raw if ch.isdigit())
                         if itype in {"phone", "wa"} and len(digits) >= 7:
                             meta_needles.append(digits)
+                            for variant in phone_identity_variants(raw):
+                                form = variant.split(":", 1)[1] if ":" in variant else variant
+                                if form:
+                                    meta_needles.append(form)
 
                 base_q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
                 base_q = _scope_feedback_query(db, base_q, user=user, perms=perms)
@@ -148,7 +152,7 @@ def customer_profile(customer_key: str):
                         .limit(100)
                         .all()
                     )
-                for needle in list(dict.fromkeys(meta_needles))[:12]:
+                for needle in list(dict.fromkeys(meta_needles))[:24]:
                     extras.extend(
                         base_q.filter(func.lower(Feedback.channel_metadata).like(f"%{needle.lower()}%"))
                         .order_by(desc(Feedback.created_at), desc(Feedback.id))
@@ -201,6 +205,18 @@ def customer_profile(customer_key: str):
             ticket_summary=ticket_summary,
             profile_id=getattr(profile, "id", None),
         )
+        # Persist policy self-heal (new prefix detections) before responding.
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            serialized = _serialize_feedback_batch(
+                db,
+                history_rows,
+                purchase_summary=purchase_summary,
+                ticket_summary=ticket_summary,
+                profile_id=getattr(profile, "id", None),
+            )
 
         identifiers = []
         purchases_payload = []

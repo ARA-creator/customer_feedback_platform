@@ -44,6 +44,7 @@ from ...services.metadata_normalization import (
     normalize_channel_metadata,
     normalize_phone_identity,
     normalized_media,
+    phone_identity_variants,
     safe_json_loads,
 )
 from ...services.prioritization import normalize_source_group, score_feedback
@@ -494,24 +495,7 @@ def _normalize_phone_identity(raw: Optional[str]) -> Optional[str]:
 
 def _phone_identity_variants(phone_or_raw: Optional[str]) -> List[str]:
     """All identifier_value forms that should count as the same phone person."""
-    phone = normalize_phone_identity(phone_or_raw)
-    if not phone:
-        return []
-    digits = "".join(ch for ch in phone if ch.isdigit())
-    variants = [
-        f"phone:{phone}",
-        f"phone:{digits}",
-        f"wa:{digits}",
-        f"wa:{phone}",
-    ]
-    # De-dupe preserving order
-    out = []
-    seen = set()
-    for v in variants:
-        if v not in seen:
-            seen.add(v)
-            out.append(v)
-    return out
+    return phone_identity_variants(phone_or_raw)
 
 
 def _is_unstable_message_key(value: str) -> bool:
@@ -913,6 +897,66 @@ def _upsert_search_document(db, *, feedback: Feedback, message_plaintext: str):
         db.add(FeedbackSearchDocument(**payload))
 
 
+def _ensure_policy_matches_for_feedback(db, feedback: Feedback, message_plaintext: Optional[str] = None) -> List[FeedbackPolicyMatch]:
+    """
+    Return stored policy matches for a feedback row, detecting + persisting if none exist yet.
+
+    Used to self-heal rows ingested before a product prefix (e.g. BA2V) was added to the catalog.
+    """
+    if not feedback or not getattr(feedback, "id", None):
+        return []
+    existing = (
+        db.query(FeedbackPolicyMatch)
+        .filter(FeedbackPolicyMatch.feedback_id == feedback.id)
+        .order_by(desc(FeedbackPolicyMatch.is_primary), desc(FeedbackPolicyMatch.confidence), desc(FeedbackPolicyMatch.id))
+        .all()
+    )
+    if existing:
+        return existing
+
+    try:
+        from ...services.html_text import normalize_message_text
+        from ...services.policy_detection import detect_policies
+
+        msg = message_plaintext
+        if msg is None:
+            msg = decrypt_text(feedback.message_encrypted)
+        msg = normalize_message_text(msg or "")
+        if not msg:
+            return []
+        detected, _dbg = detect_policies(msg)
+        if not detected:
+            return []
+        for d in detected:
+            db.add(
+                FeedbackPolicyMatch(
+                    feedback_id=feedback.id,
+                    policy_hash=d.policy_hash,
+                    policy_masked=d.masked,
+                    product_prefix=d.product_prefix,
+                    product_group=d.product_group,
+                    product_description=d.product_description,
+                    confidence=float(d.confidence or 0.0),
+                    is_primary=bool(d.is_primary),
+                    needs_review=bool(d.needs_review),
+                )
+            )
+        db.flush()
+        try:
+            _upsert_customer_entities(db, feedback=feedback, message_plaintext=msg)
+        except Exception:
+            logger.exception("Policy self-heal: customer link failed for feedback_id=%s", feedback.id)
+        return (
+            db.query(FeedbackPolicyMatch)
+            .filter(FeedbackPolicyMatch.feedback_id == feedback.id)
+            .order_by(desc(FeedbackPolicyMatch.is_primary), desc(FeedbackPolicyMatch.confidence), desc(FeedbackPolicyMatch.id))
+            .all()
+        )
+    except Exception:
+        logger.exception("Policy self-heal failed for feedback_id=%s", getattr(feedback, "id", None))
+        return []
+
+
 def _serialize_feedback_batch(
     db,
     rows: List[Feedback],
@@ -928,6 +972,13 @@ def _serialize_feedback_batch(
     purchase_summary = purchase_summary or {}
     ticket_summary = ticket_summary or {}
     ids = [int(r.id) for r in rows if getattr(r, "id", None)]
+    # Self-heal: detect policies for rows that never got matches (e.g. new prefixes).
+    for feedback in rows:
+        if not getattr(feedback, "id", None):
+            continue
+        if db.query(FeedbackPolicyMatch.id).filter(FeedbackPolicyMatch.feedback_id == feedback.id).first():
+            continue
+        _ensure_policy_matches_for_feedback(db, feedback)
     pol_by_fid: Dict[int, List[FeedbackPolicyMatch]] = {i: [] for i in ids}
     search_by_fid: Dict[int, str] = {}
     if ids:

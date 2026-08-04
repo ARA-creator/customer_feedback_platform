@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def safe_json_loads(value: Any) -> Dict[str, Any]:
@@ -81,16 +81,84 @@ def normalized_media(meta: Dict[str, Any]) -> list[Dict[str, Any]]:
 
 
 def normalize_phone_identity(raw) -> Optional[str]:
-    """Canonical E.164-ish phone key (+digits only) for customer matching."""
+    """
+    Canonical E.164 phone key for customer matching.
+
+    Ghana local forms are treated as synonymous:
+      +233547890122  ==  233547890122  ==  0547890122  ==  547890122
+    All normalize to +233547890122.
+    """
     phone = str(raw or "").strip()
     if not phone or phone.startswith("*"):
         return None
-    if phone.lower().startswith("whatsapp:"):
+    lower = phone.lower()
+    if lower.startswith("whatsapp:"):
         phone = phone.split(":", 1)[1].strip()
+    if lower.startswith("phone:"):
+        phone = phone.split(":", 1)[1].strip()
+    if lower.startswith("wa:"):
+        phone = phone.split(":", 1)[1].strip()
+
     digits = "".join(ch for ch in phone if ch.isdigit())
     if len(digits) < 7:
         return None
+
+    # Ghana: +233 / 233 / leading-0 local / bare 9-digit national number.
+    if digits.startswith("233") and len(digits) == 12:
+        return f"+{digits}"
+    if digits.startswith("0") and len(digits) == 10:
+        return f"+233{digits[1:]}"
+    if len(digits) == 9 and digits[0] in "234567":
+        # National number without trunk 0 (common in pasted WhatsApp / SMS text).
+        return f"+233{digits}"
+    # Legacy buggy form: +0547… stored as +0547… → digits still 0XXXXXXXXX
+    if digits.startswith("2330") and len(digits) == 13:
+        # +2330XXXXXXXXX → drop the extra trunk 0
+        return f"+233{digits[4:]}"
+
     return f"+{digits}"
+
+
+def phone_identity_variants(phone_or_raw) -> List[str]:
+    """
+    All identifier_value forms that should count as the same phone person.
+
+    Includes Ghana +233 / 233 / 0… / bare national variants so older stored
+    identifiers still merge with new canonical keys.
+    """
+    phone = normalize_phone_identity(phone_or_raw)
+    if not phone:
+        return []
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    forms = [phone, digits]
+
+    # Ghana expansions: +233XXXXXXXXX ↔ 0XXXXXXXXX ↔ XXXXXXXXX
+    if digits.startswith("233") and len(digits) == 12:
+        national = digits[3:]  # 9 digits
+        local = f"0{national}"
+        forms.extend(
+            [
+                local,
+                f"+{local}",  # legacy buggy canonical (+0547…)
+                national,
+            ]
+        )
+    elif digits.startswith("0") and len(digits) == 10:
+        national = digits[1:]
+        intl = f"233{national}"
+        forms.extend([f"+{intl}", intl, national])
+
+    variants: List[str] = []
+    seen = set()
+    for form in forms:
+        if not form:
+            continue
+        for prefix in ("phone:", "wa:"):
+            key = f"{prefix}{form}"
+            if key not in seen:
+                seen.add(key)
+                variants.append(key)
+    return variants
 
 
 def customer_identity_from(feedback, meta: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
