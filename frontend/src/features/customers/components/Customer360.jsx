@@ -593,7 +593,7 @@ export default function Customer360({ onNavigate }) {
                       return (
                         <span
                           key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
-                          className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
+                          className="inline-flex items-center rounded-full border border-[#009750]/30 bg-[#009750]/10 px-3 py-1.5 text-xs font-semibold text-[#007a42] dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
                           title={value}
                         >
                           {typeLabel}: {value}
