@@ -16,7 +16,7 @@ function formatHourLabel(hour) {
   const h = ((Number(hour) % 24) + 24) % 24
   const period = h >= 12 ? 'pm' : 'am'
   const hour12 = h % 12 === 0 ? 12 : h % 12
-  return `${hour12} ${period}`
+  return `${hour12} ${period}`.toLowerCase()
 }
 
 function safeTags(item) {

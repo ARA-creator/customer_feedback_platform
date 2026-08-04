@@ -114,11 +114,17 @@ export default function InboxSidebar({
               days: 7,
               predicate: sparkPredicate,
             })
-            const value = card.isText ? stats?.[card.key] ?? '—' : stats?.[card.key] ?? 0
+            const rawValue = card.isText ? stats?.[card.key] ?? '—' : stats?.[card.key] ?? 0
+            const value =
+              card.key === 'avgPeakHoursLabel'
+                ? String(rawValue).replace(/\b(am|pm)\b/gi, (m) => m.toLowerCase())
+                : rawValue
             const valueClass =
               card.isText && String(value).length > 14
-                ? 'text-sm font-bold leading-snug text-gray-900 dark:text-gray-100'
-                : 'text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100'
+                ? 'text-sm font-bold leading-snug normal-case text-gray-900 dark:text-gray-100'
+                : card.isText
+                  ? 'text-lg font-bold leading-snug normal-case text-gray-900 dark:text-gray-100'
+                  : 'text-lg font-bold tabular-nums text-gray-900 dark:text-gray-100'
             const interactive = card.key === 'newCount'
             const body = (
               <>
