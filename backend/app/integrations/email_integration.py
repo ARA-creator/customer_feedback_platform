@@ -140,6 +140,9 @@ def parse_email_message(msg) -> Optional[Dict]:
             from ..services.html_text import looks_like_html, html_to_plain_text
 
             if looks_like_html(body):
+                # Prefer HTML source for rich signature rendering; keep plain for search/list.
+                if not html_body:
+                    html_body = body
                 body = html_to_plain_text(body)
 
         if not body.strip() and not subject.strip():
@@ -149,9 +152,14 @@ def parse_email_message(msg) -> Optional[Dict]:
         in_reply_to = parse_message_id_list(msg.get("In-Reply-To"))
         references = parse_message_id_list(msg.get("References"))
 
+        html_for_meta = (html_body or "").strip()
+        if len(html_for_meta) > 80_000:
+            html_for_meta = html_for_meta[:80_000]
+
         return {
             "subject": subject,
             "body": (body or "").strip(),
+            "html_body": html_for_meta or None,
             "sender_email": sender_email,
             "sender_name": sender_name,
             "date": msg.get("Date"),
@@ -467,6 +475,9 @@ def process_email_to_feedback(
     if label:
         meta["channel_label"] = label
         meta["mailbox_label"] = label
+    html_body = (email_data.get("html_body") or "").strip()
+    if html_body:
+        meta["email_html"] = html_body[:80_000]
 
     return {
         "message": full_message,

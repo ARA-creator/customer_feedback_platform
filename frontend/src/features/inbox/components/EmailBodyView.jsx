@@ -1,77 +1,206 @@
 import { useMemo, useState } from 'react'
 import { emailParagraphs, splitEmailBodyParts } from '../utils/emailBodyParts'
+import { looksLikeEmailHtml, sanitizeEmailHtml } from '../utils/sanitizeEmailHtml'
 
 function LinkedBlock({ text, renderLinkedText, className = '' }) {
   const content = renderLinkedText ? renderLinkedText(text) : text
   return <div className={className}>{content}</div>
 }
 
+const SOCIAL_LABEL_RE = /^\[?\s*(facebook|linkedin|twitter|x|youtube|instagram|tiktok)\s*\]?\s*$/i
+const SOCIAL_INLINE_RE =
+  /^\[?\s*(facebook|linkedin|twitter|x|youtube|instagram|tiktok)\s*\]?\s*[:.]?\s*(https?:\/\/\S+|www\.\S+)\s*$/i
+const CONTACT_LABEL_RE =
+  /^(tel(?:ephone)?(?:\s*#)?|phone(?:\s*\/\s*fax)?|mobile|fax|email|e-?mail|web(?:site)?|www)\s*[:.#]?\s*(.*)$/i
+
+function normalizeSocialLabel(raw) {
+  const k = String(raw || '').toLowerCase()
+  if (k === 'x') return 'X'
+  return k.charAt(0).toUpperCase() + k.slice(1)
+}
+
+/**
+ * Turn Outlook plain-text signature lines into a structured HTML-like block.
+ */
 function SignatureLines({ text, renderLinkedText }) {
-  const lines = String(text || '')
-    .split('\n')
-    .map((l) => l.trimEnd())
-    .filter((l, idx, arr) => l.trim() || (idx > 0 && idx < arr.length - 1))
+  const rows = useMemo(() => {
+    const lines = String(text || '')
+      .split('\n')
+      .map((l) => l.trimEnd())
+    const out = []
+    for (let i = 0; i < lines.length; i += 1) {
+      const raw = lines[i]
+      const t = raw.trim()
+      if (!t) {
+        out.push({ type: 'gap' })
+        continue
+      }
+      if (/\[cid:[^\]]+\]/i.test(t)) continue
 
-  if (!lines.length) return null
+      const inlineSocial = t.match(SOCIAL_INLINE_RE)
+      if (inlineSocial) {
+        const url = inlineSocial[2].startsWith('http') ? inlineSocial[2] : `https://${inlineSocial[2]}`
+        out.push({ type: 'social', label: normalizeSocialLabel(inlineSocial[1]), url })
+        continue
+      }
 
-  // First non-empty line after a closing gets name weight when it looks like a person/company.
-  let nameIdx = -1
-  for (let i = 0; i < lines.length; i += 1) {
-    const t = lines[i].trim()
-    if (!t) continue
-    if (/^(?:(?:with\s+)?(?:best|kind|warm|many)\s+)?(?:regards|thanks|thank\s+you|cheers|sincerely|cordially|respectfully|yours)\b/i.test(t)) {
-      continue
+      if (SOCIAL_LABEL_RE.test(t)) {
+        const next = String(lines[i + 1] || '').trim()
+        if (/^https?:\/\//i.test(next) || /^www\./i.test(next)) {
+          const url = next.startsWith('http') ? next : `https://${next}`
+          out.push({ type: 'social', label: normalizeSocialLabel(t.replace(/[\[\]]/g, '')), url })
+          i += 1
+          continue
+        }
+      }
+
+      const contact = t.match(CONTACT_LABEL_RE)
+      if (contact) {
+        out.push({
+          type: 'contact',
+          label: contact[1].replace(/#/g, '').trim(),
+          value: (contact[2] || '').trim() || t,
+        })
+        continue
+      }
+
+      if (/^https?:\/\//i.test(t) || /^www\./i.test(t)) {
+        const url = t.startsWith('http') ? t : `https://${t}`
+        out.push({ type: 'link', url, label: t })
+        continue
+      }
+
+      out.push({ type: 'text', text: t })
     }
-    if (/^sent\s+from\b/i.test(t) || /^get\s+outlook\b/i.test(t)) continue
-    nameIdx = i
-    break
-  }
+
+    // Promote first 1–3 short text lines as identity (name / title).
+    let identityBudget = 3
+    return out.map((row) => {
+      if (row.type !== 'text' || identityBudget <= 0) return row
+      if (row.text.length > 56) return row
+      if (/^(?:regards|thanks|thank you|cheers|sincerely)\b/i.test(row.text)) return row
+      identityBudget -= 1
+      const isTitle =
+        /\b(?:officer|manager|director|executive|analyst|specialist|qcd|claims|life)\b/i.test(row.text) ||
+        row.text === row.text.toUpperCase()
+      return { ...row, type: isTitle ? 'title' : 'name' }
+    })
+  }, [text])
+
+  if (!rows.length) return null
+
+  const socials = rows.filter((r) => r.type === 'social')
+  const rest = rows.filter((r) => r.type !== 'social')
 
   return (
-    <div className="space-y-0.5">
-      {lines.map((line, i) => {
-        const t = line.trim()
-        if (!t) return <div key={`sp-${i}`} className="h-1.5" aria-hidden />
-        const isName = i === nameIdx
-        const isClosing =
-          /^(?:(?:with\s+)?(?:best|kind|warm|many)\s+)?(?:regards|thanks|thank\s+you|cheers|sincerely|cordially|respectfully|yours)\b/i.test(
-            t,
+    <div className="space-y-1.5">
+      {rest.map((row, i) => {
+        if (row.type === 'gap') return <div key={`g-${i}`} className="h-1.5" aria-hidden />
+        if (row.type === 'name') {
+          return (
+            <p key={`n-${i}`} className="text-[14px] font-semibold tracking-tight text-[#0b3b1f] dark:text-emerald-200">
+              {row.text}
+            </p>
           )
-        const isMeta =
-          /@/.test(t) ||
-          /\+?\d[\d\s()./\-]{6,}\d/.test(t) ||
-          /^(tel|phone|mobile|email|web|www\.|fax)\b/i.test(t) ||
-          /^https?:\/\//i.test(t) ||
-          /\b(?:officer|manager|director|executive|analyst|specialist)\b/i.test(t) ||
-          /\b(?:road|street|avenue|complex|accra|ghana|pmb|gpo)\b/i.test(t)
+        }
+        if (row.type === 'title') {
+          return (
+            <p key={`t-${i}`} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#007a42] dark:text-emerald-300/90">
+              {row.text}
+            </p>
+          )
+        }
+        if (row.type === 'contact') {
+          return (
+            <p key={`c-${i}`} className="text-[12px] text-gray-600 dark:text-gray-300">
+              <span className="font-semibold text-gray-500 dark:text-gray-400">{row.label}: </span>
+              <LinkedBlock
+                text={row.value}
+                renderLinkedText={renderLinkedText}
+                className="inline break-words"
+              />
+            </p>
+          )
+        }
+        if (row.type === 'link') {
+          return (
+            <p key={`l-${i}`} className="text-[12px]">
+              <a
+                href={row.url}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-[#009750] hover:underline break-all"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {row.label}
+              </a>
+            </p>
+          )
+        }
         return (
           <LinkedBlock
-            key={`${i}-${t.slice(0, 24)}`}
-            text={t}
+            key={`x-${i}`}
+            text={row.text}
             renderLinkedText={renderLinkedText}
-            className={
-              isName
-                ? 'text-[13px] font-semibold tracking-tight text-[#0b3b1f] dark:text-emerald-200'
-                : isClosing
-                  ? 'text-[13px] italic text-gray-600 dark:text-gray-300'
-                  : isMeta
-                    ? 'text-[12px] text-gray-500 dark:text-gray-400'
-                    : 'text-[12.5px] text-gray-600 dark:text-gray-300'
-            }
+            className="text-[12.5px] text-gray-600 dark:text-gray-300 break-words"
           />
         )
       })}
+
+      {socials.length ? (
+        <div className="flex flex-wrap gap-2 pt-2">
+          {socials.map((s, i) => (
+            <a
+              key={`s-${i}-${s.label}`}
+              href={s.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center rounded-full border border-[#009750]/25 bg-[#009750]/10 px-2.5 py-1 text-[11px] font-semibold text-[#007a42] hover:bg-[#009750]/15 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
 
+function EmailHtmlFrame({ html }) {
+  const safe = useMemo(() => sanitizeEmailHtml(html), [html])
+  if (!safe) return null
+  return (
+    <div
+      className="email-html-body max-w-none overflow-x-auto rounded-xl border border-gray-200/90 bg-white p-4 text-[13px] leading-relaxed text-gray-800 shadow-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100 [&_a]:font-medium [&_a]:text-[#009750] [&_a]:underline-offset-2 hover:[&_a]:underline [&_img]:my-2 [&_img]:max-w-full [&_img]:h-auto [&_table]:max-w-full [&_p]:my-1.5"
+      // Sanitized allowlist HTML from Outlook signatures / email bodies.
+      dangerouslySetInnerHTML={{ __html: safe }}
+    />
+  )
+}
+
 /**
- * Polished email body: message paragraphs, styled signature, muted legal footer.
+ * Polished email body: HTML signature when available, else structured plain-text parts.
  */
-export default function EmailBodyView({ text, renderLinkedText }) {
+export default function EmailBodyView({ text, html, renderLinkedText }) {
   const [disclaimerOpen, setDisclaimerOpen] = useState(false)
+  const htmlSource = String(html || '').trim() || (looksLikeEmailHtml(text) ? String(text || '') : '')
   const parts = useMemo(() => splitEmailBodyParts(text), [text])
   const paragraphs = useMemo(() => emailParagraphs(parts.body), [parts.body])
+
+  if (htmlSource) {
+    return (
+      <div className="space-y-3">
+        <div className="mb-1 flex items-center gap-2">
+          <span className="h-4 w-0.5 rounded-full bg-[#009750]" aria-hidden />
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#009750] dark:text-emerald-300/90">
+            Email
+          </p>
+        </div>
+        <EmailHtmlFrame html={htmlSource} />
+      </div>
+    )
+  }
 
   if (!String(text || '').trim()) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">No message</p>

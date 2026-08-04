@@ -3,6 +3,7 @@ import { FiAlertCircle, FiMail, FiRefreshCw, FiUser, FiX } from 'react-icons/fi'
 import { getCustomerProfile } from '../services/customers.api'
 import { Customer360Skeleton, PageIntro } from '../../../shared/components/ui'
 import { SourcePill } from '../../dashboard/components/SourceIndicators'
+import ChannelMessageView from '../../inbox/components/ChannelMessageView'
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -710,20 +711,23 @@ export default function Customer360({ onNavigate }) {
               </span>
             </div>
 
-            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100">
-              <div className="whitespace-pre-wrap break-words">
-                {renderLinkedText(openItem.message || openItem.message_preview || '', {
-                  policyMatches: [...safeArr(openItem.policy_matches), ...policySummary],
-                  onPolicyClick: (hash) => {
-                    setOpenItem(null)
-                    setPolicyFilterHash(hash)
-                    document.getElementById('cfp-customer-products')?.scrollIntoView({
-                      behavior: 'smooth',
-                      block: 'nearest',
-                    })
-                  },
-                })}
-              </div>
+            <div className="mt-4">
+              <ChannelMessageView
+                item={openItem}
+                renderLinkedText={(text) =>
+                  renderLinkedText(text, {
+                    policyMatches: [...safeArr(openItem.policy_matches), ...policySummary],
+                    onPolicyClick: (hash) => {
+                      setOpenItem(null)
+                      setPolicyFilterHash(hash)
+                      document.getElementById('cfp-customer-products')?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                      })
+                    },
+                  })
+                }
+              />
             </div>
 
             {safeArr(openItem?.channel_metadata?.media).length > 0 && (
