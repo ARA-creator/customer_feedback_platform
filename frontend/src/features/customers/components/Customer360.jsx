@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiAlertCircle, FiRefreshCw, FiUser, FiX } from 'react-icons/fi'
+import { FiAlertCircle, FiMail, FiRefreshCw, FiUser, FiX } from 'react-icons/fi'
 import { getCustomerProfile } from '../services/customers.api'
 import { Customer360Skeleton, LastUpdated, PageIntro } from '../../../shared/components/ui'
 import { SourcePill } from '../../dashboard/components/SourceIndicators'
@@ -365,52 +365,75 @@ export default function Customer360({ onNavigate }) {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#009750]/10 text-[#009750] dark:bg-emerald-500/10 dark:text-emerald-300">
-            <FiUser className="h-5 w-5" aria-hidden />
+        <div className="flex flex-col gap-3 min-w-0">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#009750]/10 text-[#009750] dark:bg-emerald-500/10 dark:text-emerald-300">
+              <FiUser className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <PageIntro
+                title={(() => {
+                  const label = data?.customer?.label || 'Customer 360'
+                  const phoneDisplay = formatGhanaPhoneDisplay(label)
+                  const canon = canonicalizeGhanaPhone(label)
+                  if (phoneDisplay && canon) {
+                    return (
+                      <a href={`tel:${canon}`} className="hover:text-[#009750] hover:underline">
+                        {phoneDisplay}
+                      </a>
+                    )
+                  }
+                  return label
+                })()}
+              />
+              {data?.customer?.policy_holder_status === 'verified' || distinctPolicyCount > 0 ? (
+                <button
+                  type="button"
+                  className="mt-2 text-left text-xs font-semibold text-emerald-800 underline decoration-emerald-700/30 underline-offset-2 hover:decoration-emerald-800 dark:text-emerald-200 dark:decoration-emerald-200/40"
+                  title="View linked policies"
+                  onClick={() => {
+                    document.getElementById('cfp-customer-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                >
+                  Policyholder ·{' '}
+                  {distinctPolicyCount ||
+                    data.customer.verified_policy_count ||
+                    data.customer.linked_policy_count ||
+                    1}{' '}
+                  linked{' '}
+                  {(distinctPolicyCount || data.customer.verified_policy_count || data.customer.linked_policy_count || 1) === 1
+                    ? 'policy'
+                    : 'policies'}{' '}
+                  detected from policy numbers
+                </button>
+              ) : data?.customer?.policy_holder_status === 'estimated' ? (
+                <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
+                  Possible policyholder · product inferred from feedback (no policy number confirmed yet)
+                </p>
+              ) : null}
+            </div>
           </div>
-          <div className="min-w-0">
-            <PageIntro
-              title={(() => {
-                const label = data?.customer?.label || 'Customer 360'
-                const phoneDisplay = formatGhanaPhoneDisplay(label)
-                const canon = canonicalizeGhanaPhone(label)
-                if (phoneDisplay && canon) {
-                  return (
-                    <a href={`tel:${canon}`} className="hover:text-[#009750] hover:underline">
-                      {phoneDisplay}
-                    </a>
-                  )
-                }
-                return label
-              })()}
-            />
-            {data?.customer?.policy_holder_status === 'verified' || distinctPolicyCount > 0 ? (
-              <button
-                type="button"
-                className="mt-2 text-left text-xs font-semibold text-emerald-800 underline decoration-emerald-700/30 underline-offset-2 hover:decoration-emerald-800 dark:text-emerald-200 dark:decoration-emerald-200/40"
-                title="View linked policies"
-                onClick={() => {
-                  document.getElementById('cfp-customer-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                }}
-              >
-                Policyholder ·{' '}
-                {distinctPolicyCount ||
-                  data.customer.verified_policy_count ||
-                  data.customer.linked_policy_count ||
-                  1}{' '}
-                linked{' '}
-                {(distinctPolicyCount || data.customer.verified_policy_count || data.customer.linked_policy_count || 1) === 1
-                  ? 'policy'
-                  : 'policies'}{' '}
-                detected from policy numbers
-              </button>
-            ) : data?.customer?.policy_holder_status === 'estimated' ? (
-              <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
-                Possible policyholder · product inferred from feedback (no policy number confirmed yet)
-              </p>
-            ) : null}
-          </div>
+
+          {data?.customer?.email ? (
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#009750]/10 text-[#009750] dark:bg-emerald-500/10 dark:text-emerald-300">
+                <FiMail className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</p>
+                <a
+                  href={`mailto:${data.customer.email}`}
+                  className="text-sm font-medium text-[#009750] hover:underline break-all"
+                >
+                  {data.customer.email}
+                </a>
+              </div>
+            </div>
+          ) : customerKey ? (
+            <p className="pl-14 text-xs text-gray-500 dark:text-gray-400 break-all">
+              {customerKey.replace(/^email_hash:/, 'Customer key: ')}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-1">
           <button
@@ -424,20 +447,6 @@ export default function Customer360({ onNavigate }) {
           {!loading && lastLoadedAt ? <LastUpdated at={lastLoadedAt} /> : null}
         </div>
       </div>
-
-      {data?.customer?.email ? (
-        <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email </span>
-          <a
-            href={`mailto:${data.customer.email}`}
-            className="font-medium text-[#009750] hover:underline break-all"
-          >
-            {data.customer.email}
-          </a>
-        </p>
-      ) : customerKey ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 break-all">{customerKey.replace(/^email_hash:/, 'Customer key: ')}</p>
-      ) : null}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-3">
