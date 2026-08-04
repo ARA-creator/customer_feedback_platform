@@ -545,10 +545,16 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
                 if email_hash_val:
                     break
     if email_hash_val:
+        email_label = None
+        for key in ("sender_email", "email", "from_email"):
+            cand = str(meta.get(key) or "").strip()
+            if cand and "@" in cand:
+                email_label = cand
+                break
         add(
             "email_hash",
             f"email_hash:{email_hash_val}",
-            meta.get("sender_email") or meta.get("customer_label") or "Email contact",
+            email_label or "Email contact",
         )
 
     phone = normalize_phone_identity(meta.get("phone") or meta.get("from_number") or meta.get("wa_id"))
@@ -577,13 +583,21 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
     if thread and not _is_unstable_message_key(thread):
         # Phone-shaped threads are already covered by phone variants.
         if not normalize_phone_identity(thread):
-            add("thread", f"thread:{thread}", meta.get("author_handle") or thread)
+            # Skip person-name threads (e.g. display name stored as thread_id).
+            thread_label = str(meta.get("author_handle") or thread).strip()
+            if " " in thread_label and "@" not in thread_label and not any(ch.isdigit() for ch in thread_label):
+                pass
+            else:
+                add("thread", f"thread:{thread}", thread_label or thread)
 
     for key in ("author_handle", "author_username", "from_username"):
-        value = str(meta.get(key) or "").strip()
+        value = str(meta.get(key) or "").strip().strip('"')
         if not value or value.startswith("*"):
             continue
         if normalize_phone_identity(value):
+            continue
+        # Don't store display names as social handles.
+        if " " in value and "@" not in value and not any(ch.isdigit() for ch in value):
             continue
         handle = value.lstrip("@").lower()
         add("handle", f"handle:{handle}", value)
@@ -593,7 +607,7 @@ def _collect_matchable_identities(feedback: Feedback, meta: Dict[str, Any]) -> L
     if customer_key.startswith("phone:") or customer_key.startswith("wa:"):
         canon = normalize_phone_identity(customer_key.split(":", 1)[1])
         if canon:
-            add("phone", f"phone:{canon}", canon)
+            add("phone", f"phone:{canon}", format_phone_display(canon) or canon)
     elif customer_key:
         add(customer_key.split(":", 1)[0], customer_key, meta.get("customer_label"))
 
@@ -622,8 +636,13 @@ def _link_identifier_or_merge(
     )
     if existing:
         if int(existing.customer_profile_id) == int(profile.id):
-            if label and not existing.label:
-                existing.label = label
+            if label:
+                prev = str(existing.label or "").strip()
+                # Prefer real email / @handle over a display-name placeholder label.
+                if (not prev) or ("@" in label and "@" not in prev) or (
+                    prev.lower() in {"email contact", "unknown"} and label
+                ):
+                    existing.label = label
             return profile
         owner = db.query(CustomerProfile).filter(CustomerProfile.id == existing.customer_profile_id).first()
         if not owner:

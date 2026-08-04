@@ -66,34 +66,108 @@ function formatGhanaPhoneDisplay(raw) {
   return canon
 }
 
-/** One chip per distinct phone (0… form) + non-phone identities. */
+/** One chip per distinct phone (always 0… for Ghana) + distinct emails; never name handles. */
 function dedupeIdentityChips(idents) {
   const out = []
   const seenPhones = new Set()
+  const seenEmails = new Set()
   const seenOther = new Set()
+
+  const isPersonName = (value) => {
+    const s = String(value || '').trim().replace(/^"|"$/g, '')
+    if (!s || s.includes('@')) return false
+    return s.includes(' ') && !/\d/.test(s)
+  }
+
   for (const ident of safeArr(idents)) {
-    const t = String(ident?.identifier_type || '').toLowerCase()
+    let t = String(ident?.identifier_type || '').toLowerCase().replace(/\s+/g, '_')
     if (t === 'policy' || t === 'policy_hash' || String(ident?.identifier_value || '').startsWith('policy_hash:')) {
       continue
     }
-    if (t === 'phone' || t === 'wa') {
-      const canon = canonicalizeGhanaPhone(ident?.label || ident?.identifier_value)
-      if (!canon || seenPhones.has(canon)) continue
-      seenPhones.add(canon)
+    // Never show name-as-handle / thread / message ids.
+    if (t === 'handle' || t === 'thread' || t === 'msg' || t === 'message_sid') {
+      continue
+    }
+
+    let label = String(ident?.label || ident?.identifier_value || '').trim().replace(/^"|"$/g, '')
+    if (!label) continue
+    if (isPersonName(label)) continue
+
+    // Phone variants (+233 / 233 / 0…) → one chip starting with 0.
+    if (t === 'phone' || t === 'wa' || t === 'whatsapp') {
+      const phoneCanon = canonicalizeGhanaPhone(label) || canonicalizeGhanaPhone(ident?.identifier_value)
+      if (!phoneCanon || seenPhones.has(phoneCanon)) continue
+      seenPhones.add(phoneCanon)
       out.push({
         ...ident,
         identifier_type: 'phone',
-        label: formatGhanaPhoneDisplay(canon) || canon,
+        label: formatGhanaPhoneDisplay(phoneCanon) || phoneCanon,
+        identifier_value: `phone:${phoneCanon}`,
       })
       continue
     }
-    const label = String(ident?.label || ident?.identifier_value || '').trim()
+
+    if (t === 'email' || t === 'email_hash' || label.includes('@')) {
+      const email = label.includes('@') ? label : String(ident?.identifier_value || '')
+      const key = email.trim().toLowerCase()
+      if (!key.includes('@') || seenEmails.has(key)) continue
+      seenEmails.add(key)
+      out.push({
+        ...ident,
+        identifier_type: 'email',
+        label: email.trim().replace(/^"|"$/g, ''),
+      })
+      continue
+    }
+
     const key = `${t}:${label.toLowerCase()}`
-    if (!label || seenOther.has(key)) continue
+    if (seenOther.has(key)) continue
     seenOther.add(key)
-    out.push(ident)
+    out.push({ ...ident, label })
   }
+
+  const order = { email: 0, phone: 1 }
+  out.sort((a, b) => {
+    const ta = String(a.identifier_type || '').toLowerCase()
+    const tb = String(b.identifier_type || '').toLowerCase()
+    const da = order[ta] ?? 9
+    const db = order[tb] ?? 9
+    if (da !== db) return da - db
+    return String(a.label || '').localeCompare(String(b.label || ''), undefined, { sensitivity: 'base' })
+  })
   return out
+}
+
+/** mailto: / tel: / social profile URL for an identity chip, if actionable. */
+function identityChipHref(ident) {
+  const t = String(ident?.identifier_type || '').toLowerCase()
+  const label = String(ident?.label || '').trim().replace(/^"|"$/g, '')
+  const raw = String(ident?.identifier_value || '').trim()
+
+  if (t === 'email' || t === 'email_hash' || label.includes('@')) {
+    const email = label.includes('@')
+      ? label
+      : raw.includes('@')
+        ? raw
+        : ''
+    if (email && email.includes('@')) return `mailto:${email}`
+  }
+
+  if (t === 'phone' || t === 'wa') {
+    const canon = canonicalizeGhanaPhone(label || raw)
+    if (canon) return `tel:${canon}`
+  }
+
+  const handle = label.replace(/^@/, '').trim()
+  if (!handle || handle.includes(' ')) return null
+  if (t === 'instagram') return `https://instagram.com/${encodeURIComponent(handle)}`
+  if (t === 'facebook') return `https://facebook.com/${encodeURIComponent(handle)}`
+  if (t === 'tiktok') return `https://www.tiktok.com/@${encodeURIComponent(handle)}`
+  if (t === 'x' || t === 'twitter') return `https://x.com/${encodeURIComponent(handle)}`
+  if ((t === 'handle' || t === 'author') && label.startsWith('@')) {
+    return `https://x.com/${encodeURIComponent(handle)}`
+  }
+  return null
 }
 
 function extractUrls(text) {
@@ -283,6 +357,16 @@ export default function Customer360({ onNavigate }) {
     }
     return Array.from(map.values()).sort((a, b) => (b.total_mentions || 0) - (a.total_mentions || 0))
   }, [history])
+
+  const distinctPolicyCount = useMemo(() => {
+    return policySummary.filter((p) => {
+      const n = String(p?.policy_number || p?.policy_masked || '')
+        .trim()
+        .toUpperCase()
+      return n && !n.includes('(NAME MATCH)')
+    }).length
+  }, [policySummary])
+
   const openTickets = useMemo(() => safeArr(data?.tickets).filter((t) => String(t?.status || '').toLowerCase() !== 'closed'), [data])
 
   const load = async () => {
@@ -340,7 +424,7 @@ export default function Customer360({ onNavigate }) {
                   : 'Search or open a profile from the inbox to load a customer.'
               }
             />
-            {data?.customer?.policy_holder_status === 'verified' ? (
+            {data?.customer?.policy_holder_status === 'verified' || distinctPolicyCount > 0 ? (
               <button
                 type="button"
                 className="mt-2 text-left text-xs font-semibold text-emerald-800 underline decoration-emerald-700/30 underline-offset-2 hover:decoration-emerald-800 dark:text-emerald-200 dark:decoration-emerald-200/40"
@@ -349,8 +433,16 @@ export default function Customer360({ onNavigate }) {
                   document.getElementById('cfp-customer-products')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                 }}
               >
-                Policyholder · {data.customer.verified_policy_count || data.customer.linked_policy_count || 1} linked{' '}
-                {data.customer.verified_policy_count === 1 ? 'policy' : 'policies'} detected from policy numbers
+                Policyholder ·{' '}
+                {distinctPolicyCount ||
+                  data.customer.verified_policy_count ||
+                  data.customer.linked_policy_count ||
+                  1}{' '}
+                linked{' '}
+                {(distinctPolicyCount || data.customer.verified_policy_count || data.customer.linked_policy_count || 1) === 1
+                  ? 'policy'
+                  : 'policies'}{' '}
+                detected from policy numbers
               </button>
             ) : data?.customer?.policy_holder_status === 'estimated' ? (
               <p className="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-100">
@@ -537,21 +629,45 @@ export default function Customer360({ onNavigate }) {
 
               <div className="card p-5">
                 <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Click email or phone to contact the customer.
+                </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(() => {
                     const idents = dedupeIdentityChips(data.identifiers)
                     if (idents.length === 0) {
                       return <p className="text-sm text-gray-600 dark:text-gray-300">No customer identity yet.</p>
                     }
-                    return idents.slice(0, 14).map((ident, idx) => (
-                      <span
-                        key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
-                        className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200"
-                        title={ident.label || ident.identifier_value}
-                      >
-                        {(ident.identifier_type || 'id').toString().replace(/_/g, ' ')}: {ident.label || ident.identifier_value}
-                      </span>
-                    ))
+                    return idents.slice(0, 24).map((ident, idx) => {
+                      const typeLabel = (ident.identifier_type || 'id').toString().replace(/_/g, ' ')
+                      const value = ident.label || ident.identifier_value
+                      const href = identityChipHref(ident)
+                      const baseClass =
+                        'inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors'
+                      if (href) {
+                        const external = href.startsWith('http')
+                        return (
+                          <a
+                            key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
+                            href={href}
+                            {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+                            className={`${baseClass} border-[#009750]/30 bg-[#009750]/5 text-[#007a42] hover:border-[#009750] hover:bg-[#009750]/10 hover:underline dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200`}
+                            title={href.startsWith('mailto:') ? `Email ${value}` : href.startsWith('tel:') ? `Call ${value}` : `Open ${value}`}
+                          >
+                            {typeLabel}: {value}
+                          </a>
+                        )
+                      }
+                      return (
+                        <span
+                          key={ident.id ?? `${ident.identifier_type}-${ident.label}-${idx}`}
+                          className={`${baseClass} border-gray-200 bg-white text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200`}
+                          title={value}
+                        >
+                          {typeLabel}: {value}
+                        </span>
+                      )
+                    })
                   })()}
                 </div>
               </div>

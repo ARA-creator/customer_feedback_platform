@@ -30,7 +30,7 @@ from ...services.metadata_normalization import (
     phone_identity_variants,
     safe_json_loads,
 )
-from ...services.policy_detection import is_policy_number_match
+from ...services.policy_detection import canonicalize_policy_number, is_policy_number_match
 from ...services.prioritization import normalize_source_group
 from . import api_bp
 from ._helpers import (
@@ -41,6 +41,7 @@ from ._helpers import (
     _scope_feedback_query,
     _serialize_feedback_batch,
     _ticket_summary_for_customer,
+    _upsert_customer_entities,
     _user_permission_keys,
 )
 
@@ -181,6 +182,134 @@ def customer_profile(customer_key: str):
             except Exception:
                 pass
 
+        # Expand further via policies already present on history rows, so one email
+        # that shares a policy with WhatsApp/other emails pulls the full person in.
+        try:
+            base_q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+            base_q = _scope_feedback_query(db, base_q, user=user, perms=perms)
+            seen_ids = {int(r.id) for r in rows if getattr(r, "id", None) is not None}
+            for _ in range(2):
+                row_ids = [int(r.id) for r in rows if getattr(r, "id", None) is not None]
+                if not row_ids:
+                    break
+                policy_hashes = [
+                    h
+                    for (h,) in (
+                        db.query(FeedbackPolicyMatch.policy_hash)
+                        .filter(FeedbackPolicyMatch.feedback_id.in_(row_ids))
+                        .filter(FeedbackPolicyMatch.policy_hash.isnot(None))
+                        .distinct()
+                        .all()
+                    )
+                    if h
+                ]
+                if not policy_hashes:
+                    break
+                extras = (
+                    base_q.join(FeedbackPolicyMatch, FeedbackPolicyMatch.feedback_id == Feedback.id)
+                    .filter(FeedbackPolicyMatch.policy_hash.in_(list(dict.fromkeys(policy_hashes))))
+                    .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                    .limit(100)
+                    .all()
+                )
+                added = 0
+                for row in extras:
+                    rid = getattr(row, "id", None)
+                    if rid is None or int(rid) in seen_ids:
+                        continue
+                    rows.append(row)
+                    seen_ids.add(int(rid))
+                    added += 1
+                if not added:
+                    break
+            rows.sort(
+                key=lambda r: (
+                    r.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                    r.id or 0,
+                ),
+                reverse=True,
+            )
+            rows = rows[:100]
+        except Exception:
+            pass
+
+        # Self-heal: link identities from history onto the profile (merges email/phone/
+        # social/policy profiles that belong to the same person).
+        if profile and rows:
+            try:
+                from ...security import decrypt_text as _dec
+
+                for row in rows[:40]:
+                    try:
+                        msg = _dec(row.message_encrypted) if getattr(row, "message_encrypted", None) else ""
+                    except Exception:
+                        msg = ""
+                    updated = _upsert_customer_entities(db, feedback=row, message_plaintext=msg or "")
+                    if updated is not None:
+                        profile = updated
+                db.flush()
+                # Re-resolve profile in case merges moved identifiers.
+                profile = _find_customer_profile(db, customer_key=customer_key) or profile
+            except Exception:
+                db.rollback()
+                profile = _find_customer_profile(db, customer_key=customer_key) or profile
+
+        # After merges, pull any remaining history via the unified profile's policy/email ids.
+        if profile:
+            try:
+                linked = (
+                    db.query(CustomerIdentifier)
+                    .filter(CustomerIdentifier.customer_profile_id == profile.id)
+                    .all()
+                )
+                seen_ids = {int(r.id) for r in rows if getattr(r, "id", None) is not None}
+                policy_hashes = []
+                email_hashes = []
+                for ident in linked or []:
+                    itype = str(getattr(ident, "identifier_type", "") or "").lower()
+                    ival = str(getattr(ident, "identifier_value", "") or "")
+                    raw = ival.split(":", 1)[1].strip() if ":" in ival else ival.strip()
+                    if not raw:
+                        continue
+                    if itype == "policy_hash":
+                        policy_hashes.append(raw)
+                    elif itype in {"email_hash", "email"}:
+                        email_hashes.append(raw)
+                base_q = db.query(Feedback).filter(Feedback.deleted_at.is_(None))
+                base_q = _scope_feedback_query(db, base_q, user=user, perms=perms)
+                extras = []
+                if policy_hashes:
+                    extras.extend(
+                        base_q.join(FeedbackPolicyMatch, FeedbackPolicyMatch.feedback_id == Feedback.id)
+                        .filter(FeedbackPolicyMatch.policy_hash.in_(list(dict.fromkeys(policy_hashes))))
+                        .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                        .limit(100)
+                        .all()
+                    )
+                if email_hashes:
+                    extras.extend(
+                        base_q.filter(Feedback.email_hash.in_(list(dict.fromkeys(email_hashes))))
+                        .order_by(desc(Feedback.created_at), desc(Feedback.id))
+                        .limit(100)
+                        .all()
+                    )
+                for row in extras:
+                    rid = getattr(row, "id", None)
+                    if rid is None or int(rid) in seen_ids:
+                        continue
+                    rows.append(row)
+                    seen_ids.add(int(rid))
+                rows.sort(
+                    key=lambda r: (
+                        r.created_at or datetime.min.replace(tzinfo=timezone.utc),
+                        r.id or 0,
+                    ),
+                    reverse=True,
+                )
+                rows = rows[:100]
+            except Exception:
+                pass
+
         purchase_summary = (
             _purchase_summary_for_customer(
                 db, getattr(profile, "id", None), getattr(profile, "customer_tier", None)
@@ -286,58 +415,184 @@ def customer_profile(customer_key: str):
                     "metadata": safe_json_loads(demographics.demographics_metadata),
                 }
 
-        policy_holder_status = None
-        linked_policy_count = 0
-        verified_policy_count = 0
+        # Distinct policies only (not mention/row count). Canonicalize so
+        # EB2V000024 and EB2V0000024 count as one.
+        linked_keys = set()
+        verified_keys = set()
+
+        def _policy_key(raw: str, fallback_hash: str | None = None) -> str | None:
+            text = str(raw or "").strip()
+            policy_part = text.split(" · ")[-1].strip() if " · " in text else text
+            canon = canonicalize_policy_number(policy_part) or canonicalize_policy_number(text)
+            if canon:
+                return f"num:{canon}"
+            if policy_part and is_policy_number_match(policy_part):
+                return f"raw:{policy_part.upper()}"
+            if fallback_hash:
+                return f"hash:{fallback_hash}"
+            return None
+
         for ident in identifiers:
             if str(getattr(ident, "identifier_type", "") or "").lower() != "policy_hash":
                 continue
-            linked_policy_count += 1
+            ival = str(getattr(ident, "identifier_value", "") or "")
+            phash = ival.split(":", 1)[1].strip() if ":" in ival else ival.strip()
+            key = _policy_key(getattr(ident, "label", None) or "", phash or None)
+            if not key:
+                continue
+            linked_keys.add(key)
             label = str(getattr(ident, "label", "") or "")
-            # Prefer the policy fragment after " · " when present.
             policy_part = label.split(" · ")[-1].strip() if " · " in label else label
             if is_policy_number_match(policy_part) or is_policy_number_match(label):
-                verified_policy_count += 1
+                verified_keys.add(key)
+
+        # Also include distinct policies from expanded history matches.
+        try:
+            row_ids = [int(r.id) for r in rows if getattr(r, "id", None) is not None]
+            if row_ids:
+                for m in (
+                    db.query(FeedbackPolicyMatch)
+                    .filter(FeedbackPolicyMatch.feedback_id.in_(row_ids))
+                    .all()
+                ):
+                    key = _policy_key(getattr(m, "policy_masked", None) or "", getattr(m, "policy_hash", None))
+                    if not key:
+                        continue
+                    linked_keys.add(key)
+                    if is_policy_number_match(getattr(m, "policy_masked", None) or ""):
+                        verified_keys.add(key)
+        except Exception:
+            pass
+
+        linked_policy_count = len(linked_keys)
+        verified_policy_count = len(verified_keys)
         if verified_policy_count:
             policy_holder_status = "verified"
         elif linked_policy_count:
             policy_holder_status = "estimated"
+        else:
+            policy_holder_status = None
 
-        # Decrypt email for officers (internal tool — show plaintext, not hash).
-        email_plain = None
-        if profile and getattr(profile, "primary_email_encrypted", None):
-            email_plain = decrypt_text(profile.primary_email_encrypted)
-        if not email_plain:
-            for row in rows[:5]:
-                if getattr(row, "email_encrypted", None):
-                    email_plain = decrypt_text(row.email_encrypted)
-                    if email_plain:
+        # Map email_hash -> plaintext from profile + full history (all linked emails).
+        email_by_hash: Dict[str, str] = {}
+        if profile and getattr(profile, "primary_email_hash", None) and getattr(profile, "primary_email_encrypted", None):
+            plain = decrypt_text(profile.primary_email_encrypted)
+            if plain and "@" in plain:
+                email_by_hash[str(profile.primary_email_hash).strip()] = plain.strip()
+        for row in rows:
+            plain = None
+            if getattr(row, "email_encrypted", None):
+                plain = decrypt_text(row.email_encrypted)
+            meta = _normalize_metadata(row)
+            if not (plain and "@" in str(plain)):
+                for key in ("sender_email", "email", "from_email"):
+                    cand = meta.get(key)
+                    if cand and "@" in str(cand):
+                        plain = str(cand).strip()
                         break
-                meta = _normalize_metadata(row)
-                cand = (
-                    meta.get("sender_email")
-                    or meta.get("email")
-                    or meta.get("from_email")
-                )
-                if cand and "@" in str(cand):
-                    email_plain = str(cand).strip()
-                    break
+            if plain and "@" in str(plain):
+                plain = str(plain).strip().strip('"')
+                h = str(getattr(row, "email_hash", None) or hash_email(plain) or "").strip()
+                if h:
+                    email_by_hash[h] = plain
+
+        email_plain = next(iter(email_by_hash.values()), None)
+        if profile and getattr(profile, "primary_email_encrypted", None):
+            primary = decrypt_text(profile.primary_email_encrypted)
+            if primary and "@" in primary:
+                email_plain = primary.strip()
 
         identifiers_payload = []
         seen_display = set()
         seen_phone_canons = set()
+        seen_emails = set()
+
+        def _is_person_name_label(value: str) -> bool:
+            s = str(value or "").strip().strip('"')
+            if not s or "@" in s:
+                return False
+            # "Michael Mensah" / quoted display names — not a channel handle.
+            if " " in s and not any(ch.isdigit() for ch in s):
+                return True
+            return False
+
+        def _add_ident(*, ident_id, display_type: str, stored_value, label, source=None) -> None:
+            dtype = str(display_type or "").lower().strip()
+            label_s = str(label or "").strip().strip('"')
+            if not label_s:
+                return
+
+            # Never show name-as-handle / name-as-thread / message-id threads.
+            if dtype in {"handle", "thread", "author", "sender", "msg", "message_sid"}:
+                if _is_person_name_label(label_s):
+                    return
+                if dtype == "thread" and ("@" in label_s or label_s.startswith("<")):
+                    return
+                # Only keep real social-style handles (@user or single token).
+                if dtype in {"handle", "author", "sender"} and (" " in label_s or not label_s.startswith("@")):
+                    if " " in label_s or _is_person_name_label(label_s):
+                        return
+
+            if dtype in {"email", "email_hash"}:
+                dtype = "email"
+                email = label_s.lower()
+                if "@" not in email or email in seen_emails:
+                    return
+                seen_emails.add(email)
+                label_s = label_s  # keep original casing for display
+                key = f"email:{email}"
+            elif dtype in {"phone", "wa", "whatsapp"}:
+                dtype = "phone"
+                canon = normalize_phone_identity(label_s) or normalize_phone_identity(stored_value)
+                if not canon or canon in seen_phone_canons:
+                    return
+                seen_phone_canons.add(canon)
+                label_s = format_phone_display(canon) or canon
+                stored_value = f"phone:{canon}"
+                key = f"phone:{canon}"
+            else:
+                key = f"{dtype}:{label_s.lower()}"
+
+            if key in seen_display:
+                return
+            seen_display.add(key)
+            identifiers_payload.append(
+                {
+                    "id": ident_id,
+                    "identifier_type": dtype,
+                    "identifier_value": stored_value,
+                    "label": label_s,
+                    "source": source,
+                }
+            )
+
         for ident in identifiers:
             itype = str(ident.identifier_type or "").lower()
             # Policy numbers belong under Products & policies, not Customer Identity.
-            if itype in {"policy_hash", "policy"}:
+            if itype in {"policy_hash", "policy", "msg", "message_sid"}:
                 continue
+            # Drop name/thread noise at the source.
+            if itype in {"handle", "thread"}:
+                if _is_person_name_label(ident.label) or _is_person_name_label(
+                    str(ident.identifier_value or "").split(":", 1)[-1]
+                ):
+                    continue
+                if itype == "thread":
+                    continue  # email Message-IDs / names are not customer contacts
             label = ident.label
             display_type = itype.replace("_", " ")
             stored_value = ident.identifier_value
             if itype in {"email_hash", "email"}:
                 display_type = "email"
-                if email_plain:
-                    label = email_plain
+                raw = str(ident.identifier_value or "")
+                h = raw.split(":", 1)[1].strip() if ":" in raw else raw.strip()
+                resolved = email_by_hash.get(h)
+                if resolved:
+                    label = resolved
+                elif label and "@" in str(label):
+                    label = str(label).strip().strip('"')
+                else:
+                    continue
             elif itype in {"phone", "wa"}:
                 display_type = "phone"
                 raw = str(ident.identifier_value or "")
@@ -346,73 +601,102 @@ def customer_profile(customer_key: str):
                     phone_val = phone_val.split(":", 1)[1].strip()
                 if phone_val.startswith("*"):
                     continue
-                canon = normalize_phone_identity(phone_val)
+                canon = normalize_phone_identity(phone_val) or normalize_phone_identity(label)
                 if not canon:
                     continue
-                if canon in seen_phone_canons:
-                    continue
-                seen_phone_canons.add(canon)
-                # One chip only — prefer local 0… form for Ghana numbers.
                 label = format_phone_display(canon) or canon
                 stored_value = f"phone:{canon}"
-            elif itype in {"msg", "message_sid", "thread"} and str(label or "").startswith("*"):
-                continue
-            key = f"{display_type}:{(label or ident.identifier_value or '').strip().lower()}"
-            if key in seen_display:
-                continue
-            seen_display.add(key)
-            identifiers_payload.append(
-                {
-                    "id": ident.id,
-                    "identifier_type": display_type,
-                    "identifier_value": stored_value,
-                    "label": label,
-                    "source": ident.source,
-                }
+            _add_ident(
+                ident_id=ident.id,
+                display_type=display_type,
+                stored_value=stored_value,
+                label=label,
+                source=ident.source,
             )
-        if email_plain and not any(
-            str(i.get("identifier_type") or "").lower() == "email" for i in identifiers_payload
-        ):
-            identifiers_payload.insert(
-                0,
-                {
-                    "id": None,
-                    "identifier_type": "email",
-                    "identifier_value": email_plain,
-                    "label": email_plain,
-                    "source": "feedback",
-                },
-            )
-            seen_display.add(f"email:{email_plain.strip().lower()}")
 
-        # Surface phone numbers from channel metadata (even for older WhatsApp rows
-        # that only stored a masked display value or used MessageSid as identity).
+        # Harvest every distinct email / phone / social handle from linked history.
+        SOCIAL_SOURCES = {
+            "instagram": "instagram",
+            "facebook": "facebook",
+            "tiktok": "tiktok",
+            "x": "x",
+            "twitter": "x",
+        }
         for row in rows:
             meta = _normalize_metadata(row)
-            for key in ("phone", "from_number", "wa_id", "author_handle"):
+            src_group = (normalize_source_group(getattr(row, "source", None)) or "").lower()
+
+            plain = None
+            if getattr(row, "email_encrypted", None):
+                plain = decrypt_text(row.email_encrypted)
+            if not (plain and "@" in str(plain)):
+                for key in ("sender_email", "email", "from_email"):
+                    cand = meta.get(key)
+                    if cand and "@" in str(cand):
+                        plain = str(cand).strip().strip('"')
+                        break
+            if plain and "@" in str(plain):
+                plain = str(plain).strip().strip('"')
+                h = str(getattr(row, "email_hash", None) or hash_email(plain) or "").strip()
+                _add_ident(
+                    ident_id=None,
+                    display_type="email",
+                    stored_value=f"email_hash:{h}" if h else plain,
+                    label=plain,
+                    source=getattr(row, "source", None) or "feedback",
+                )
+
+            for key in ("phone", "from_number", "wa_id"):
                 cand = str(meta.get(key) or "").strip()
                 if not cand:
                     continue
                 if cand.lower().startswith("whatsapp:"):
                     cand = cand.split(":", 1)[1].strip()
-                # Skip masked placeholders and non-phone handles.
                 if cand.startswith("*") or "@" in cand:
                     continue
                 canon = normalize_phone_identity(cand)
-                if not canon or canon in seen_phone_canons:
+                if not canon:
                     continue
-                seen_phone_canons.add(canon)
-                display = format_phone_display(canon) or canon
-                identifiers_payload.append(
-                    {
-                        "id": None,
-                        "identifier_type": "phone",
-                        "identifier_value": f"phone:{canon}",
-                        "label": display,
-                        "source": getattr(row, "source", None) or "feedback",
-                    }
+                _add_ident(
+                    ident_id=None,
+                    display_type="phone",
+                    stored_value=f"phone:{canon}",
+                    label=format_phone_display(canon) or canon,
+                    source=getattr(row, "source", None) or "feedback",
                 )
                 break
+
+            # Social / channel handles only (never person names).
+            social_type = SOCIAL_SOURCES.get(src_group)
+            if social_type:
+                handle = None
+                for key in ("author_username", "from_username", "author_handle", "author_id", "sender_id", "psid", "ig_user_id"):
+                    cand = str(meta.get(key) or "").strip().strip('"')
+                    if not cand or cand.startswith("*"):
+                        continue
+                    if normalize_phone_identity(cand):
+                        continue
+                    if _is_person_name_label(cand):
+                        continue
+                    handle = cand if cand.startswith("@") else f"@{cand}"
+                    break
+                if handle:
+                    _add_ident(
+                        ident_id=None,
+                        display_type=social_type,
+                        stored_value=f"{social_type}:{handle.lstrip('@').lower()}",
+                        label=handle,
+                        source=getattr(row, "source", None) or social_type,
+                    )
+
+        # Stable order: emails, phones, then socials.
+        _order = {"email": 0, "phone": 1}
+        identifiers_payload.sort(
+            key=lambda it: (
+                _order.get(str(it.get("identifier_type") or "").lower(), 9),
+                str(it.get("label") or "").lower(),
+            )
+        )
 
         return jsonify(
             {
