@@ -950,6 +950,9 @@ def feedback_inbox_opens():
     """
     Who has opened inbox feedback and how many items each person opened.
 
+    Pass ``feedback_ids`` (comma separated) to scope the report to the caller's
+    current inbox filters; omit it for the org-wide totals.
+
     Requires feedback.view_all (managers / leads).
     """
     db = SessionLocal()
@@ -959,7 +962,22 @@ def feedback_inbox_opens():
         if "feedback.view_all" not in perms and "admin.manage_users" not in perms:
             return jsonify({"error": "Missing permission: feedback.view_all"}), 403
         limit = request.args.get("limit", type=int) or 50
-        return jsonify(get_inbox_open_activity(db, limit=limit))
+
+        feedback_ids = None
+        raw_ids = request.args.get("feedback_ids")
+        if raw_ids is not None:
+            feedback_ids = []
+            for part in str(raw_ids).split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    feedback_ids.append(int(part))
+                except ValueError:
+                    continue
+            feedback_ids = feedback_ids[:500]
+
+        return jsonify(get_inbox_open_activity(db, limit=limit, feedback_ids=feedback_ids))
     except PermissionError as e:
         return jsonify({"error": str(e)}), 401
     except Exception:

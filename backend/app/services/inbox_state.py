@@ -231,36 +231,43 @@ def count_inbox_tabs(db, user_id: int, base_query) -> Dict[str, int]:
     }
 
 
-def get_inbox_open_activity(db, *, limit: int = 50) -> Dict[str, object]:
+def get_inbox_open_activity(db, *, limit: int = 50, feedback_ids: Optional[List[int]] = None) -> Dict[str, object]:
     """
-    Org-wide summary of who has opened (read) inbox feedback and how many.
+    Summary of who has opened (read) inbox feedback and how many.
 
     Opening a feedback detail marks it read for that user; those rows power this report.
+    Pass ``feedback_ids`` to scope the report to the caller's current inbox filters.
     """
     from sqlalchemy import desc, func
 
     from ..models import User, UserFeedbackInboxState
 
     lim = max(1, min(int(limit or 50), 200))
+    scoped = feedback_ids is not None
+    ids = [int(x) for x in (feedback_ids or [])]
+    if scoped and not ids:
+        return {"users_opened_count": 0, "total_opens": 0, "users": [], "scoped": True}
+
+    def _scope(q):
+        q = q.filter(UserFeedbackInboxState.read_at.isnot(None))
+        if scoped:
+            q = q.filter(UserFeedbackInboxState.feedback_id.in_(ids))
+        return q
+
     total_opens = int(
-        db.query(func.count(UserFeedbackInboxState.id))
-        .filter(UserFeedbackInboxState.read_at.isnot(None))
-        .scalar()
-        or 0
+        _scope(db.query(func.count(UserFeedbackInboxState.id))).scalar() or 0
     )
     users_opened_count = int(
-        db.query(func.count(func.distinct(UserFeedbackInboxState.user_id)))
-        .filter(UserFeedbackInboxState.read_at.isnot(None))
-        .scalar()
-        or 0
+        _scope(db.query(func.count(func.distinct(UserFeedbackInboxState.user_id)))).scalar() or 0
     )
     rows = (
-        db.query(
-            UserFeedbackInboxState.user_id,
-            func.count(UserFeedbackInboxState.feedback_id).label("opened_count"),
-            func.max(UserFeedbackInboxState.read_at).label("last_opened_at"),
+        _scope(
+            db.query(
+                UserFeedbackInboxState.user_id,
+                func.count(UserFeedbackInboxState.feedback_id).label("opened_count"),
+                func.max(UserFeedbackInboxState.read_at).label("last_opened_at"),
+            )
         )
-        .filter(UserFeedbackInboxState.read_at.isnot(None))
         .group_by(UserFeedbackInboxState.user_id)
         .order_by(desc("opened_count"), desc("last_opened_at"))
         .limit(lim)
