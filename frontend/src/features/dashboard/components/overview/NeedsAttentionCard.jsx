@@ -100,7 +100,7 @@ export default function NeedsAttentionCard({
   onOpenFeedback,
 }) {
   const entries = useMemo(
-    () => buildNeedsAttentionItems([recentFeedback, priorityQueue], { limit: 5 }),
+    () => buildNeedsAttentionItems([recentFeedback, priorityQueue], { limit: 10 }),
     [recentFeedback, priorityQueue],
   )
 
@@ -111,35 +111,42 @@ export default function NeedsAttentionCard({
       title="Needs attention"
       subtitle="Unreplied items that need a next step"
       action={onViewAll ? <ViewAllButton onClick={onViewAll}>View in inbox</ViewAllButton> : null}
+      className="flex h-full flex-col"
     >
-      {showSkeleton ? (
-        <ChartSkeleton className="h-56" />
-      ) : entries.length === 0 ? (
-        <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-4 py-6 text-center dark:border-emerald-900/40 dark:bg-emerald-950/20">
-          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">You’re clear</p>
-          <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-200/80">
-            No unreplied negative, high-priority, or policy-review items in this set.
-          </p>
-        </div>
-      ) : (
-        <>
-          <ul className="space-y-3">
-            {entries.map((entry) => (
-              <AttentionRow key={entry.item.id} entry={entry} onOpen={onOpenFeedback} />
-            ))}
-          </ul>
-          {onViewAll ? (
-            <button
-              type="button"
-              onClick={onViewAll}
-              className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
-            >
-              Open action queue
-              <FiArrowRight className="h-4 w-4" aria-hidden />
-            </button>
-          ) : null}
-        </>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {showSkeleton ? (
+          <ChartSkeleton className="h-56" />
+        ) : entries.length === 0 ? (
+          <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-4 py-6 text-center dark:border-emerald-900/40 dark:bg-emerald-950/20">
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">You’re clear</p>
+            <p className="mt-1 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+              No unreplied negative, high-priority, or policy-review items in this set.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* The list is absolutely positioned so it adds no intrinsic height: the grid row is
+                sized by the sibling cards, and the list then fills that height and scrolls. */}
+            <div className="relative min-h-[13rem] flex-1">
+              <ul className="absolute inset-0 space-y-3 overflow-y-auto overscroll-contain pr-1">
+                {entries.map((entry) => (
+                  <AttentionRow key={entry.item.id} entry={entry} onOpen={onOpenFeedback} />
+                ))}
+              </ul>
+            </div>
+            {onViewAll ? (
+              <button
+                type="button"
+                onClick={onViewAll}
+                className="mt-4 flex w-full shrink-0 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-medium text-gray-800 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+              >
+                Open action queue
+                <FiArrowRight className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+          </>
+        )}
+      </div>
     </DashboardChartCard>
   )
 }
