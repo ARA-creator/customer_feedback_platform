@@ -11,6 +11,10 @@ import {
   channelMessagePreview,
   channelMessageSubtitle,
 } from '../utils/channelMessagePresentation'
+import {
+  computeResponseSla,
+  formatSlaDateTime,
+} from '../utils/emailResponseSla'
 
 const PRIORITY_STYLES = {
   low: 'border-gray-200/80 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
@@ -25,6 +29,13 @@ const SENTIMENT_STYLES = {
   positive: 'border-emerald-200/70 bg-emerald-50/90 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200',
   negative: 'border-rose-200/70 bg-rose-50/90 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200',
   neutral: 'border-amber-200/70 bg-amber-50/90 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100',
+}
+
+const SLA_STATUS_STYLES = {
+  'On track':
+    'border-emerald-200/80 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
+  Overdue:
+    'border-rose-200/80 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
 }
 
 function formatSourceLabel(source) {
@@ -78,6 +89,7 @@ export default function InboxFeedbackRow({
   onToggleReplied,
   formatRelativeTime,
   SourceIcon,
+  nowMs,
 }) {
   const sentiment = sentimentLabelFromItem(item) || 'neutral'
   const SentimentIcon = getSentimentIcon(sentiment)
@@ -95,6 +107,14 @@ export default function InboxFeedbackRow({
   const activeThemeKey = String(highlightTheme || '').trim().toLowerCase()
   const policySummary = getPolicySummary(item)
   const holderBadge = policyHolderBadge(item)
+
+  const sla = computeResponseSla(item, nowMs ?? Date.now())
+  const arrivedLabel = formatSlaDateTime(sla.arrivalAt)
+  const repliedLabel = sla.repliedAt ? formatSlaDateTime(sla.repliedAt) : ''
+  const slaTitle =
+    sla.status && sla.thresholdHours != null
+      ? `${sla.status}: ${sla.mailbox === 'hnw' ? 'HNW' : 'CX'} SLA is ${sla.thresholdHours}h from arrival`
+      : undefined
 
   return (
     <div
@@ -282,6 +302,30 @@ export default function InboxFeedbackRow({
             {item.created_at ? formatRelativeTime(item.created_at) : ''}
           </span>
         </div>
+
+        {(arrivedLabel || sla.status) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400">
+            {arrivedLabel ? (
+              <span title={sla.arrivalAt?.toISOString?.() || undefined}>
+                <span className="font-semibold text-gray-600 dark:text-gray-300">Arrived:</span>{' '}
+                {arrivedLabel}
+              </span>
+            ) : null}
+            <span title={sla.repliedAt?.toISOString?.() || 'Not replied'}>
+              <span className="font-semibold text-gray-600 dark:text-gray-300">Replied:</span>{' '}
+              {repliedLabel || 'Not replied'}
+            </span>
+            {sla.status ? (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${SLA_STATUS_STYLES[sla.status]}`}
+                title={slaTitle}
+                aria-label={slaTitle || sla.status}
+              >
+                {sla.status}
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
     </div>
   )

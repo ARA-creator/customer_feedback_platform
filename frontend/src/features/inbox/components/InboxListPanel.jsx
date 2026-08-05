@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { FiBookmark, FiCheck, FiChevronDown, FiChevronLeft, FiChevronRight, FiInbox, FiMail, FiSend } from 'react-icons/fi'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import InboxFeedbackRow from './InboxFeedbackRow'
@@ -63,6 +64,13 @@ export default function InboxListPanel({
   onClearFilters,
   highlightTheme = 'all',
 }) {
+  // Shared minute clock so unreplied SLA statuses flip Overdue without a refresh.
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+
   const showListControls = !loading && !error && displayedItems.length > 0
   const showPagination = !loading && !error && paginationTotal > 0
 
@@ -227,6 +235,7 @@ export default function InboxListPanel({
                   onToggleReplied={() => onToggleReplied?.(it.id)}
                   formatRelativeTime={formatRelativeTime}
                   SourceIcon={SourceIcon}
+                  nowMs={nowMs}
                 />
               )
             })}

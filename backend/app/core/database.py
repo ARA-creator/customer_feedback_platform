@@ -29,22 +29,27 @@ class Base(DeclarativeBase):
 _pool_recycle = int(os.getenv("SQLALCHEMY_POOL_RECYCLE_SECONDS", "280"))
 _db_uri = _normalize_database_uri(config.SQLALCHEMY_DATABASE_URI)
 _connect_args = {}
+_engine_kwargs = {
+    "echo": config.SQLALCHEMY_ECHO,
+    "future": True,
+    "pool_pre_ping": True,
+    "pool_recycle": max(60, _pool_recycle),
+}
 if _db_uri.startswith("postgresql"):
     _connect_args["connect_timeout"] = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "10"))
-
-
-engine = create_engine(
-    _db_uri,
-    echo=config.SQLALCHEMY_ECHO,
-    future=True,
-    pool_pre_ping=True,
-    pool_recycle=max(60, _pool_recycle),
     # Neon: keep a few warm connections; allow burst for feed + background pollers.
-    pool_size=int(os.getenv("SQLALCHEMY_POOL_SIZE", "5")),
-    max_overflow=int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "10")),
-    pool_timeout=int(os.getenv("SQLALCHEMY_POOL_TIMEOUT", "30")),
-    connect_args=_connect_args,
-)
+    _engine_kwargs.update(
+        {
+            "pool_size": int(os.getenv("SQLALCHEMY_POOL_SIZE", "5")),
+            "max_overflow": int(os.getenv("SQLALCHEMY_MAX_OVERFLOW", "10")),
+            "pool_timeout": int(os.getenv("SQLALCHEMY_POOL_TIMEOUT", "30")),
+            "connect_args": _connect_args,
+        }
+    )
+elif _connect_args:
+    _engine_kwargs["connect_args"] = _connect_args
+
+engine = create_engine(_db_uri, **_engine_kwargs)
 
 SessionLocal = scoped_session(
     sessionmaker(

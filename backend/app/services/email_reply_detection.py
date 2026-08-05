@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 from ..integrations.email_integration import normalize_message_id
@@ -23,6 +24,36 @@ def _parse_meta(raw: Any) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def parse_email_header_datetime(value: Any) -> Optional[datetime]:
+    """
+    Parse an RFC 2822 email Date header (or ISO fallback) into an aware UTC datetime.
+
+    Returns None when the value is missing or invalid so callers can fall back.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    raw = str(value).strip()
+    if not raw:
+        return None
+
+    try:
+        dt = parsedate_to_datetime(raw)
+        if dt is not None:
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        pass
+
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
 
 
 def _feedback_message_id(feedback: Feedback) -> Optional[str]:
@@ -58,10 +89,12 @@ def mark_feedback_replied(
     if feedback is None or feedback.replied_at is not None:
         return False
     now = when or datetime.now(tz=timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     feedback.replied_at = now
     meta = _parse_meta(feedback.channel_metadata)
     meta["officer_reply"] = {
-        "detected_at": now.isoformat(),
+        "detected_at": datetime.now(tz=timezone.utc).isoformat(),
         "source": source,
         **(reply_meta or {}),
     }
@@ -79,6 +112,9 @@ def apply_sent_emails_to_feedback(db, sent_emails: Iterable[Dict[str, Any]]) -> 
     When an officer replies in Gmail/Outlook to a customer message that was ingested
     as feedback, the Sent copy's In-Reply-To points at the original Message-ID stored
     on the feedback row.
+
+    ``replied_at`` prefers the Sent message's RFC Date header; detection time is used
+    only when that header is missing or invalid.
     """
     sent_list = [s for s in (sent_emails or []) if isinstance(s, dict)]
     if not sent_list:
@@ -117,20 +153,22 @@ def apply_sent_emails_to_feedback(db, sent_emails: Iterable[Dict[str, Any]]) -> 
     if not by_mid:
         return 0
 
-    now = datetime.now(tz=timezone.utc)
+    detection_now = datetime.now(tz=timezone.utc)
     marked = 0
     for mid, fb in by_mid.items():
         sent = sent_by_ref.get(mid) or {}
+        sent_date_raw = sent.get("date")
+        replied_when = parse_email_header_datetime(sent_date_raw) or detection_now
         if mark_feedback_replied(
             db,
             fb,
-            when=now,
+            when=replied_when,
             source="imap_sent",
             reply_meta={
                 "matched_message_id": mid,
                 "sent_message_id": sent.get("message_id"),
                 "sent_subject": sent.get("subject"),
-                "sent_date": sent.get("date"),
+                "sent_date": sent_date_raw,
             },
         ):
             marked += 1
