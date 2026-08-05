@@ -54,6 +54,11 @@ function gridClassForCount(count) {
   return 'grid-cols-2 md:grid-cols-2 xl:grid-cols-4 w-full'
 }
 
+function formatShare(value) {
+  const share = Number(value) || 0
+  return `${share.toFixed(share % 1 === 0 ? 0 : 1)}% share`
+}
+
 /**
  * Overview KPI strip (total, sentiment breakdown). Click a card to open the inbox with that filter.
  * When a sentiment pill is active, only that sentiment's card is shown (all four when "All sentiments").
@@ -95,13 +100,14 @@ export default function OverviewMetricCards({
       ) : (
         cardIds.map((id) => {
           const { tintClass, ariaLabel, inboxSentiment, Icon, valueKey, label, kpiKey } = CARD_CONFIG[id]
+          const share = kpiTrackPercent[kpiKey]
           return (
             <button
               key={id}
               type="button"
               className={`metric-card metric-card--kpi ${tintClass} w-full cursor-pointer`}
-              style={{ '--kpi-pct': `${kpiTrackPercent[kpiKey]}%` }}
-              aria-label={ariaLabel}
+              style={{ '--kpi-pct': `${share}%` }}
+              aria-label={`${ariaLabel} (${formatShare(share)})`}
               onClick={() => navigateToInboxPreset({ sentiment: inboxSentiment, priority: 'all' })}
             >
               <div className="metric-card__body">
@@ -111,6 +117,9 @@ export default function OverviewMetricCards({
                 <div className="metric-card__text">
                   <p className="metric-card__value">{metrics[valueKey]}</p>
                   <p className="metric-card__label">{label}</p>
+                  <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-gray-500/90 dark:text-gray-400">
+                    {formatShare(share)}
+                  </p>
                 </div>
               </div>
               <div className="metric-card__footer">

@@ -942,16 +942,23 @@ export default function InboxLite({ onNavigate }) {
     if (page > totalPages) setPage(totalPages)
   }, [page, totalPages])
 
+  // Sidebar mirrors the list on screen so tab, folder, quick filters and
+  // server filters all shape the summary, themes and open activity.
   const sidebarStats = useMemo(
     () =>
-      computeInboxStats(inboxItemsForStats, {
+      computeInboxStats(sortedVisibleItems, {
         readIds,
-        folder: 'inbox',
+        folder,
       }),
-    [inboxItemsForStats, readIds],
+    [sortedVisibleItems, readIds, folder],
   )
 
-  const topThemes = useMemo(() => computeTopThemes(inboxItemsForStats, 0), [inboxItemsForStats])
+  const topThemes = useMemo(() => computeTopThemes(sortedVisibleItems, 0), [sortedVisibleItems])
+
+  const sidebarScopeIds = useMemo(
+    () => sortedVisibleItems.map((it) => normFeedbackId(it?.id)).filter(Boolean),
+    [sortedVisibleItems],
+  )
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
@@ -1360,7 +1367,8 @@ export default function InboxLite({ onNavigate }) {
         </div>
 
         <InboxSidebar
-          items={inboxItemsForStats}
+          items={sortedVisibleItems}
+          scopeIds={sidebarScopeIds}
           stats={sidebarStats}
           topThemes={topThemes}
           activeQuickFilter={activeQuickFilter}

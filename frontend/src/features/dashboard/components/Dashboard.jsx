@@ -79,7 +79,7 @@ import { getQuickFilterPatch } from '../utils/dashboardInboxQuickFilters'
 import { buildInboxActiveFilterLabels } from '../utils/dashboardInboxFilterLabels'
 import { SAVED_VIEWS } from '../utils/dashboardSavedViews'
 import { computePeakTimesTotals, pivotCategoryTrends, pivotProductPulseTrends } from '../utils/dashboardPivots'
-import { buildThemesBarChartData, sentimentChartHasRealData as sentimentChartHasRealDataFn, themesChartHasRealData } from '../utils/dashboardChartData'
+import { buildThemesBarChartData, themesChartHasRealData } from '../utils/dashboardChartData'
 import { useDashboardActions } from '../hooks/useDashboardActions'
 import { useDashboardAutoRefresh } from '../hooks/useDashboardAutoRefresh'
 import { useInboxQuickFilters } from '../hooks/useInboxQuickFilters'
@@ -535,8 +535,6 @@ function Dashboard({
     SAVED_VIEWS,
   })
 
-  const sentimentChartHasRealData = useMemo(() => sentimentChartHasRealDataFn(sentimentData), [sentimentData])
-
   const insuranceTagsBarChartData = useMemo(
     () => buildThemesBarChartData({ insuranceTagsBreakdown, chartPalette: CHART_PALETTE }),
     [insuranceTagsBreakdown],
@@ -632,8 +630,6 @@ function Dashboard({
               isCx={isCx}
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
-              sentimentChartHasRealData={sentimentChartHasRealData}
-              sentimentData={sentimentData}
               insuranceTagsBreakdown={insuranceTagsBreakdown}
               isDarkMode={isDarkMode}
               trendData={trendData}
@@ -642,6 +638,7 @@ function Dashboard({
               sourcePerformance={sourcePerformance}
               productPulse={productPulse}
               recentFeedback={recentFeedback}
+              priorityQueue={priorityQueue}
               overviewSentimentFilter={overviewSentimentFilter}
               recentFeedbackLoading={recentFeedbackLoading}
               navigateToInboxPreset={navigateToInboxPreset}

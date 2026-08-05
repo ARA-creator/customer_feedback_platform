@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import AiInsightBar from './overview/AiInsightBar'
-import SentimentBreakdownCard from './overview/SentimentBreakdownCard'
+import NeedsAttentionCard from './overview/NeedsAttentionCard'
 import RecentFeedbackCard from './overview/RecentFeedbackCard'
 import TopFeedbackTopicsCard from './overview/TopFeedbackTopicsCard'
 import SentimentTrendCard from './overview/SentimentTrendCard'
@@ -19,8 +19,6 @@ export default function OverviewChartsSection({
   isCx,
   analyticsLoading,
   analyticsDelayPassed,
-  sentimentChartHasRealData,
-  sentimentData,
   insuranceTagsBreakdown,
   isDarkMode: _isDarkMode,
   trendData,
@@ -29,6 +27,7 @@ export default function OverviewChartsSection({
   sourcePerformance,
   productPulse = [],
   recentFeedback = [],
+  priorityQueue = [],
   overviewSentimentFilter = 'all',
   recentFeedbackLoading = false,
   navigateToInboxPreset,
@@ -78,6 +77,17 @@ export default function OverviewChartsSection({
     if (navigateToInboxPreset) {
       navigateToInboxPreset({
         sentiment: overviewSentimentFilter || 'all',
+        priority: 'all',
+      })
+      return
+    }
+    onNavigateToInbox?.()
+  }
+
+  const openNeedsAttentionInbox = () => {
+    if (navigateToInboxPreset) {
+      navigateToInboxPreset({
+        sentiment: 'negative',
         priority: 'all',
       })
       return
@@ -146,11 +156,13 @@ export default function OverviewChartsSection({
           />
         </div>
 
-        <SentimentBreakdownCard
+        <NeedsAttentionCard
           ready={ready}
-          sentimentChartHasRealData={sentimentChartHasRealData}
-          sentimentData={sentimentData}
-          trendData={trendData}
+          listLoading={recentFeedbackLoading}
+          recentFeedback={recentFeedback}
+          priorityQueue={priorityQueue}
+          onViewAll={navigateToInboxPreset || onNavigateToInbox ? openNeedsAttentionInbox : undefined}
+          onOpenFeedback={onOpenFeedback}
         />
       </div>
     </div>

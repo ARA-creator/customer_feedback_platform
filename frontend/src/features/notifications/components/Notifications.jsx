@@ -407,24 +407,23 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
               description="New feedback, assignments, and system alerts appear here as they happen."
             />
           )}
-          {!loading && !error && items.length > 0 && (
-            <div className="flex items-center gap-2 px-1">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded-full border-gray-300 text-[#009750] focus:ring-[#009750]/30"
-                checked={allVisibleSelected}
-                onChange={toggleSelectAllVisible}
-                aria-label="Select all notifications"
-              />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Select all</span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                ({visibleItems.length})
-              </span>
-            </div>
-          )}
-          {!loading &&
-            !error &&
-            visibleItems.map((n) => {
+          {!loading && !error && visibleItems.length > 0 && (
+            <div className="card overflow-hidden p-0">
+              <div className="flex items-center gap-2 border-b border-gray-200/80 px-3 py-2 sm:px-4 dark:border-gray-800">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded-full border-gray-300 text-[#009750] focus:ring-[#009750]/30"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  aria-label="Select all notifications"
+                />
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Select all</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  ({visibleItems.length})
+                </span>
+              </div>
+              <ul className="divide-y divide-gray-200/70 dark:divide-white/10">
+                {visibleItems.map((n) => {
               const isUnread = !n.read_at
               const href = String(n?.href || '').trim()
               const meta = n?.meta && typeof n.meta === 'object' ? n.meta : {}
@@ -441,10 +440,7 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                         : 'Open'
                     : null
               return (
-                <div
-                  key={n.id}
-                  className="card p-0 overflow-hidden bg-white/90 dark:bg-gray-950/70"
-                >
+                <li key={n.id}>
                   <div
                     role={canNavigate && canOpenHref ? 'button' : undefined}
                     tabIndex={canNavigate && canOpenHref ? 0 : -1}
@@ -458,121 +454,108 @@ export default function Notifications({ isAdminUI = false, onNavigate }) {
                         openNotification(n)
                       }
                     }}
-                    className={`w-full text-left p-4 sm:p-5 border transition-all ${
-                      isUnread
-                        ? 'border-emerald-200/80 dark:border-emerald-400/20'
-                        : 'border-gray-200/70 dark:border-white/10'
+                    className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors sm:px-4 ${
+                      isUnread ? 'bg-emerald-50/40 dark:bg-emerald-400/[0.04]' : ''
                     } ${
                       !canNavigate || !canOpenHref
                         ? 'cursor-default'
-                        : 'hover:bg-white/70 dark:hover:bg-gray-950/45'
-                    } focus:outline-none focus-visible:ring-2 focus-visible:ring-[#009750]/30`}
+                        : 'hover:bg-gray-50 dark:hover:bg-white/[0.04]'
+                    } focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#009750]/30`}
                     aria-label={canOpenHref ? 'Open notification' : 'Notification'}
                   >
-                  <div className="flex items-start gap-3">
-                    <div className="pt-0.5">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(n.id)}
-                        onChange={() => {
-                          try {
-                            window.event?.stopPropagation?.()
-                          } catch {
-                            // ignore
-                          }
-                          toggleSelected(n.id)
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Select notification"
-                        className="h-4 w-4 rounded-full border-gray-300 text-[#009750] focus:ring-[#009750]/30"
-                      />
-                    </div>
-                    <div
-                      className={`mt-0.5 h-2.5 w-2.5 rounded-full ${
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(n.id)}
+                      onChange={() => toggleSelected(n.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label="Select notification"
+                      className="h-4 w-4 shrink-0 rounded-full border-gray-300 text-[#009750] focus:ring-[#009750]/30"
+                    />
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
                         isUnread ? 'bg-[#009750]' : 'bg-gray-300 dark:bg-gray-700'
                       }`}
                       aria-hidden
                     />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{n.title || 'Notification'}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                          {!isUnread && <ReadTicks />}
-                          <span>{fmtRelative(n.created_at)}</span>
-                        </div>
-                      </div>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {n.title || 'Notification'}
+                      </p>
                       {(() => {
                         const hasMeta = Boolean(meta?.source || meta?.sentiment_label || meta?.sentiment)
-                        if (hasMeta) {
-                          return <NotificationMetaBadges meta={meta} body={n.body} className="mt-1.5" />
-                        }
+                        if (hasMeta) return <NotificationMetaBadges meta={meta} body={n.body} />
                         return n.body ? (
-                          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{n.body}</p>
+                          <span className="truncate text-xs text-gray-600 dark:text-gray-300">{n.body}</span>
                         ) : null
                       })()}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {isUnread && (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              // prevent opening parent button
-                              try {
-                                window.event?.stopPropagation?.()
-                              } catch {
-                                // ignore
-                              }
-                              try {
-                                const res = await markRead({ ids: [n.id] })
-                                setUnread((prev) => {
-                                  const server = Number(res?.unread)
-                                  if (Number.isFinite(server)) return Math.max(0, server)
-                                  return Math.max(0, (Number(prev) || 0) - 1)
-                                })
-                                setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)))
-                              } catch (e) {
-                                setError(e?.response?.data?.error || e?.message || 'Failed to mark read')
-                              }
-                            }}
-                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
-                          >
-                            Mark read
-                          </button>
-                        )}
-                        {!isUnread && (
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              try {
-                                const res = await markUnread({ ids: [n.id] })
-                                setUnread((prev) => {
-                                  const server = Number(res?.unread)
-                                  if (Number.isFinite(server)) return Math.max(0, server)
-                                  return Math.max(0, (Number(prev) || 0) + 1)
-                                })
-                                setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: null } : x)))
-                              } catch (err) {
-                                setError(err?.response?.data?.error || err?.message || 'Failed to mark unread')
-                              }
-                            }}
-                            className="inline-flex min-h-[36px] items-center rounded-xl border border-gray-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-gray-800 shadow-sm hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
-                          >
-                            Mark unread
-                          </button>
-                        )}
-                        {openLabel && canNavigate && canOpenHref && (
-                          <span className="inline-flex min-h-[36px] items-center rounded-xl border border-emerald-200/70 bg-emerald-50/70 px-3 py-1.5 text-xs font-semibold text-emerald-950 shadow-sm dark:border-emerald-400/15 dark:bg-emerald-400/10 dark:text-emerald-100">
-                            {openLabel}
-                          </span>
-                        )}
-                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {isUnread ? (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            try {
+                              const res = await markRead({ ids: [n.id] })
+                              setUnread((prev) => {
+                                const server = Number(res?.unread)
+                                if (Number.isFinite(server)) return Math.max(0, server)
+                                return Math.max(0, (Number(prev) || 0) - 1)
+                              })
+                              setItems((prev) =>
+                                prev.map((x) =>
+                                  x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x,
+                                ),
+                              )
+                            } catch (err) {
+                              setError(err?.response?.data?.error || err?.message || 'Failed to mark read')
+                            }
+                          }}
+                          className="inline-flex min-h-[30px] items-center rounded-lg border border-gray-200 bg-white/90 px-2.5 text-[11px] font-semibold text-gray-800 hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
+                        >
+                          Mark read
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            try {
+                              const res = await markUnread({ ids: [n.id] })
+                              setUnread((prev) => {
+                                const server = Number(res?.unread)
+                                if (Number.isFinite(server)) return Math.max(0, server)
+                                return Math.max(0, (Number(prev) || 0) + 1)
+                              })
+                              setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: null } : x)))
+                            } catch (err) {
+                              setError(err?.response?.data?.error || err?.message || 'Failed to mark unread')
+                            }
+                          }}
+                          className="inline-flex min-h-[30px] items-center rounded-lg border border-gray-200 bg-white/90 px-2.5 text-[11px] font-semibold text-gray-800 hover:bg-white dark:border-white/10 dark:bg-gray-950/70 dark:text-gray-100 dark:hover:bg-gray-950/85"
+                        >
+                          Mark unread
+                        </button>
+                      )}
+                      {openLabel && canNavigate && canOpenHref && (
+                        <span className="inline-flex min-h-[30px] items-center rounded-lg border border-emerald-200/70 bg-emerald-50/70 px-2.5 text-[11px] font-semibold text-emerald-950 dark:border-emerald-400/15 dark:bg-emerald-400/10 dark:text-emerald-100">
+                          {openLabel}
+                        </span>
+                      )}
+                      {!isUnread && <ReadTicks />}
+                      <span className="w-14 shrink-0 text-right text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                        {fmtRelative(n.created_at)}
+                      </span>
                     </div>
                   </div>
-                  </div>
-                </div>
+                </li>
               )
-            })}
+                })}
+              </ul>
+            </div>
+          )}
           {showPagination && (
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
               <p className="text-xs text-gray-500 dark:text-gray-400">

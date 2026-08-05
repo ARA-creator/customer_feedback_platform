@@ -76,18 +76,17 @@ export function Customer360Skeleton() {
 
 export function NotificationListSkeleton({ rows = 4 }) {
   return (
-    <div className="space-y-3" role="status" aria-label="Loading notifications">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="card p-4">
-          <div className="flex gap-3">
-            <SkeletonLine className="h-4 w-4 rounded shrink-0 mt-0.5" />
-            <div className="flex-1 space-y-2">
-              <SkeletonLine className="h-3 w-2/3" />
-              <SkeletonLine className="h-3 w-full" />
-            </div>
+    <div className="card overflow-hidden p-0" role="status" aria-label="Loading notifications">
+      <div className="divide-y divide-gray-200/70 dark:divide-white/10">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-3 py-2.5 sm:px-4">
+            <SkeletonLine className="h-4 w-4 shrink-0 rounded-full" />
+            <SkeletonLine className="h-2 w-2 shrink-0 rounded-full" />
+            <SkeletonLine className="h-3 flex-1" />
+            <SkeletonLine className="h-3 w-16 shrink-0" />
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }

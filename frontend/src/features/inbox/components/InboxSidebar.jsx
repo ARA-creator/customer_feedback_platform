@@ -47,6 +47,7 @@ function displayUserName(u) {
 
 export default function InboxSidebar({
   items,
+  scopeIds,
   stats,
   topThemes,
   activeQuickFilter,
@@ -66,11 +67,16 @@ export default function InboxSidebar({
   }, [allThemes, themesExpanded])
   const canExpandThemes = allThemes.length > THEMES_PREVIEW_COUNT
 
+  const scopeKey = Array.isArray(scopeIds) ? scopeIds.join(',') : null
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const data = await getInboxOpenActivity({ limit: 8 })
+        const data = await getInboxOpenActivity({
+          limit: 8,
+          ...(scopeKey === null ? {} : { feedbackIds: scopeKey ? scopeKey.split(',') : [] }),
+        })
         if (!cancelled) {
           setOpenActivity(data)
           setOpenActivityError(null)
@@ -90,7 +96,7 @@ export default function InboxSidebar({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scopeKey])
 
   return (
     <aside className="hidden w-[280px] shrink-0 space-y-4 lg:block">
@@ -185,7 +191,8 @@ export default function InboxSidebar({
               </div>
               {(openActivity?.users || []).length === 0 ? (
                 <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  No opens recorded yet. Opens are counted when someone views a message.
+                  No opens recorded for the current filters. Opens are counted when someone views a
+                  message.
                 </p>
               ) : (
                 <ul className="mt-3 space-y-2">
