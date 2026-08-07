@@ -26,7 +26,7 @@ export default function ReportsPage({
 
   const subtitle = useMemo(() => {
     if (activeTab === 'insights') {
-      return 'Themes, channels, peak times, and product trends.'
+      return 'Interactive analytics: SLA, workforce, drivers, segments, quality, and leadership KPIs.'
     }
     return 'Build sentiment briefings and export feedback.'
   }, [activeTab])

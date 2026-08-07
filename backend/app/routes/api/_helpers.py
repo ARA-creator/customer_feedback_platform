@@ -1105,6 +1105,8 @@ def _serialize_feedback_batch(
                 "has_policy_number": policy_summary.get("has_policy_number"),
                 "customer_profile_id": profile_id,
                 "replied_at": feedback.replied_at.isoformat() if getattr(feedback, "replied_at", None) else None,
+                "sentiment_override": (meta.get("sentiment_override") if isinstance(meta, dict) else None),
+                "sentiment_review": (meta.get("sentiment_review") if isinstance(meta, dict) else None),
             }
         )
     return out
@@ -1199,6 +1201,8 @@ def _serialize_feedback(feedback: Feedback) -> Dict[str, Any]:
         "has_policy_number": policy_summary.get("has_policy_number"),
         "customer_profile_id": getattr(profile, "id", None),
         "replied_at": feedback.replied_at.isoformat() if getattr(feedback, "replied_at", None) else None,
+        "sentiment_override": (meta.get("sentiment_override") if isinstance(meta, dict) else None),
+        "sentiment_review": (meta.get("sentiment_review") if isinstance(meta, dict) else None),
     }
 
 

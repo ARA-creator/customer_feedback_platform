@@ -1,0 +1,168 @@
+import { Fragment, useMemo, useState } from 'react'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
+import InsightsSectionCard from './InsightsSectionCard'
+import { DOW, fmtHours, fmtPct } from './insightsDeepFormat'
+
+export default function WorkforceSection({ data, isDarkMode, loading, onSelectAssignee }) {
+  const [sortKey, setSortKey] = useState('count')
+  const assignees = useMemo(() => {
+    const rows = [...(data?.assignees || [])]
+    rows.sort((a, b) => (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0))
+    return rows
+  }, [data, sortKey])
+
+  const mix = assignees.slice(0, 12).map((r) => ({
+    key: r.key,
+    open: r.open || 0,
+    closed: r.closed || 0,
+  }))
+
+  const heat = data?.response_heatmap || []
+  const maxH = Math.max(1, ...heat.map((c) => Number(c.count) || 0))
+
+  const tipStyle = {
+    backgroundColor: isDarkMode ? '#0b1220' : '#ffffff',
+    border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+    borderRadius: 12,
+  }
+
+  if (loading) return <div className="h-64 animate-pulse rounded-2xl bg-gray-50 dark:bg-gray-900/40" />
+
+  return (
+    <div className="space-y-4">
+      <InsightsSectionCard
+        title="Assignee productivity"
+        subtitle="Volume handled, response times, open vs closed. Click a row to investigate."
+        right={
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold dark:border-gray-700 dark:bg-gray-950"
+          >
+            <option value="count">Sort: volume</option>
+            <option value="avg_response_hours">Sort: avg response</option>
+            <option value="breach_rate">Sort: breach rate</option>
+            <option value="open_share">Sort: open share</option>
+          </select>
+        }
+      >
+        {assignees.length === 0 ? (
+          <p className="py-8 text-center text-sm text-gray-500">No assignee activity in this period.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-xs">
+              <thead className="text-[10px] uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-2 py-2">Assignee</th>
+                  <th className="px-2 py-2">Volume</th>
+                  <th className="px-2 py-2">Open / Closed</th>
+                  <th className="px-2 py-2">Avg resp</th>
+                  <th className="px-2 py-2">p50 / p90</th>
+                  <th className="px-2 py-2">Breach</th>
+                  <th className="px-2 py-2">Open share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assignees.map((r) => (
+                  <tr
+                    key={r.key}
+                    className="cursor-pointer border-t border-gray-100 hover:bg-emerald-50/60 dark:border-gray-800 dark:hover:bg-emerald-950/20"
+                    onClick={() => onSelectAssignee?.(r.key)}
+                  >
+                    <td className="px-2 py-2 font-semibold text-gray-900 dark:text-gray-100">{r.key}</td>
+                    <td className="px-2 py-2">{r.count}</td>
+                    <td className="px-2 py-2">{r.open} / {r.closed}</td>
+                    <td className="px-2 py-2">{fmtHours(r.avg_response_hours)}</td>
+                    <td className="px-2 py-2">{fmtHours(r.response_p50)} / {fmtHours(r.response_p90)}</td>
+                    <td className="px-2 py-2">{fmtPct(r.breach_rate)}</td>
+                    <td className="px-2 py-2">{fmtPct(r.open_share)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </InsightsSectionCard>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <InsightsSectionCard title="Open vs closed mix" subtitle="Top assignees by volume.">
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={mix} layout="vertical" margin={{ left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#1f2937' : '#e5e7eb'} horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
+                <YAxis type="category" dataKey="key" width={100} tick={{ fontSize: 9, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
+                <Tooltip contentStyle={tipStyle} />
+                <Legend />
+                <Bar dataKey="open" stackId="a" fill="#f59e0b" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
+                <Bar dataKey="closed" stackId="a" fill="#009750" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </InsightsSectionCard>
+
+        <InsightsSectionCard
+          title="Response hour heatmap"
+          subtitle="When first replies are sent (UTC). Intensity hints at after-hours / overtime patterns."
+        >
+          <div className="overflow-x-auto">
+            <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: `32px repeat(24, 14px)` }}>
+              <div />
+              {Array.from({ length: 24 }).map((_, h) => (
+                <div key={`h-${h}`} className="text-center text-[8px] text-gray-400">{h % 6 === 0 ? h : ''}</div>
+              ))}
+              {DOW.map((label, dow) => (
+                <Fragment key={`row-${dow}`}>
+                  <div className="pr-1 text-right text-[10px] text-gray-500">{label}</div>
+                  {Array.from({ length: 24 }).map((_, hour) => {
+                    const cell = heat.find((c) => c.dow === dow && c.hour === hour)
+                    const n = Number(cell?.count) || 0
+                    const alpha = n ? 0.15 + (n / maxH) * 0.85 : 0
+                    return (
+                      <div
+                        key={`${dow}-${hour}`}
+                        title={`${label} ${hour}:00 — ${n}`}
+                        className="h-3.5 w-3.5 rounded-sm border border-gray-100 dark:border-gray-800"
+                        style={{ backgroundColor: n ? `rgba(0,151,80,${alpha})` : 'transparent' }}
+                      />
+                    )
+                  })}
+                </Fragment>
+              ))}
+            </div>
+          </div>
+        </InsightsSectionCard>
+      </div>
+
+      <InsightsSectionCard title="Team rollup" subtitle="Assigned team volume and SLA health.">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left text-xs">
+            <thead className="text-[10px] uppercase text-gray-500">
+              <tr>
+                <th className="px-2 py-2">Team</th>
+                <th className="px-2 py-2">Volume</th>
+                <th className="px-2 py-2">Open / Closed</th>
+                <th className="px-2 py-2">Avg resp</th>
+                <th className="px-2 py-2">Breach</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.teams || []).map((r) => (
+                <tr key={r.key} className="border-t border-gray-100 dark:border-gray-800">
+                  <td className="px-2 py-2 font-semibold">{r.key}</td>
+                  <td className="px-2 py-2">{r.count}</td>
+                  <td className="px-2 py-2">{r.open} / {r.closed}</td>
+                  <td className="px-2 py-2">{fmtHours(r.avg_response_hours)}</td>
+                  <td className="px-2 py-2">{fmtPct(r.breach_rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(data?.teams || []).length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-500">No team assignments in this period.</p>
+          ) : null}
+        </div>
+      </InsightsSectionCard>
+    </div>
+  )
+}

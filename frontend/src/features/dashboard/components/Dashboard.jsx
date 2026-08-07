@@ -25,6 +25,7 @@ import {
   getPriorityQueue,
   getProductPulse,
   getProductPulseTrend,
+  getInsightsDeep,
 } from '../services/dashboard.api'
 import { getBackendOrigin, getClipboardBackendOrigin, USE_DEV_API_PROXY } from '../../../shared/lib/apiClient'
 import { getSourceCounts } from '../../inbox/services/inbox.api'
@@ -175,6 +176,8 @@ function Dashboard({
   /** `prefix|group` from product pulse (empty = all products) */
   const [insightsProductKey, setInsightsProductKey] = useState('')
   const [insightsProductOptions, setInsightsProductOptions] = useState(() => [])
+  const [insightsDeep, setInsightsDeep] = useState(null)
+  const [insightsDeepLoading, setInsightsDeepLoading] = useState(false)
   /** Shared Overview + Insights time scope: matches GET /api/analytics?time_window= */
   const [overviewTimeFilter, setOverviewTimeFilter] = useState(() => {
     const p = getDefaultOverviewPeriod()
@@ -215,7 +218,7 @@ function Dashboard({
   const [analyzerResult, setAnalyzerResult] = useState(null)
   const [analyzerError, setAnalyzerError] = useState(null)
 
-  const { selectedFeedback, isDetailOpen, openFeedbackModal, closeFeedbackModal } = useFeedbackDetailModal({
+  const { selectedFeedback, setSelectedFeedback, isDetailOpen, openFeedbackModal, closeFeedbackModal } = useFeedbackDetailModal({
     unreadPriorityIds,
     setUnreadPriorityIds,
     unreadRecentIds,
@@ -279,6 +282,37 @@ function Dashboard({
     setInsightsProductOptions,
     insightsProductOptions,
   })
+
+  const insightsProductParamsKey = useMemo(
+    () => JSON.stringify(insightsProductParams || {}),
+    [insightsProductParams],
+  )
+
+  useEffect(() => {
+    if (mode !== 'insights') return undefined
+    let cancelled = false
+    ;(async () => {
+      setInsightsDeepLoading(true)
+      try {
+        const params = { time_window: overviewTimeFilter, compare: 1 }
+        if (overviewSentimentFilter && overviewSentimentFilter !== 'all') {
+          params.sentiment = overviewSentimentFilter
+        }
+        Object.assign(params, insightsProductParams || {})
+        const data = await getInsightsDeep(params)
+        if (!cancelled) setInsightsDeep(data)
+      } catch {
+        if (!cancelled) setInsightsDeep(null)
+      } finally {
+        if (!cancelled) setInsightsDeepLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // insightsProductParamsKey stabilizes object identity from useInsightsProductParams
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, overviewTimeFilter, overviewSentimentFilter, insightsProductParamsKey])
 
   const [heatmapHover, setHeatmapHover] = useState(null)
 
@@ -562,6 +596,24 @@ function Dashboard({
         getStatusClasses={getStatusClasses}
         safeParseJson={safeParseJson}
         formatSentimentWord={formatSentimentWord}
+        onSentimentCorrected={(res) => {
+          if (!selectedFeedback?.id && !res?.id) return
+          const id = res?.id ?? selectedFeedback.id
+          const patch = (it) =>
+            it?.id === id
+              ? {
+                  ...it,
+                  sentiment_label: res?.sentiment_label ?? it.sentiment_label,
+                  sentiment_score: res?.sentiment_score ?? it.sentiment_score,
+                  priority: res?.priority ?? it.priority,
+                  sentiment_override: res?.sentiment_override ?? it.sentiment_override,
+                  sentiment_review: res?.sentiment_review ?? it.sentiment_review,
+                }
+              : it
+          setRecentFeedback((prev) => (Array.isArray(prev) ? prev.map(patch) : prev))
+          setPriorityQueue((prev) => (Array.isArray(prev) ? prev.map(patch) : prev))
+          setSelectedFeedback((prev) => (prev ? patch(prev) : prev))
+        }}
       />
       <DashboardTopBar
         mode={mode}
@@ -661,11 +713,14 @@ function Dashboard({
               insightsProductKey={insightsProductKey}
               setInsightsProductKey={setInsightsProductKey}
               insightsProductOptions={insightsProductOptions}
+              insightsProductParams={insightsProductParams}
               timeWindow={overviewTimeFilter}
               timeWindowLabel={overviewTimeFilterLabel}
               sentimentFilter={overviewSentimentFilter}
               analyticsLoading={analyticsLoading}
               analyticsDelayPassed={analyticsDelayPassed}
+              insightsDeep={insightsDeep}
+              insightsDeepLoading={insightsDeepLoading}
               isDarkMode={isDarkMode}
               trendData={trendData}
               metrics={metrics}

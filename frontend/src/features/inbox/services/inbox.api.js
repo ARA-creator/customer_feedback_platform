@@ -39,6 +39,12 @@ export const markFeedbackReplied = async (feedbackId, { replied = true } = {}) =
   return response.data
 }
 
+/** Officer override for a misclassified sentiment label. */
+export const correctFeedbackSentiment = async (feedbackId, { label, note } = {}) => {
+  const response = await api.post(`/feedback/${feedbackId}/sentiment`, { label, note })
+  return response.data
+}
+
 export const patchInboxState = async (payload = {}) => {
   const response = await api.patch('/feedback/inbox-state', payload)
   return response.data

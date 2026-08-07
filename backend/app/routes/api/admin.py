@@ -505,12 +505,14 @@ def admin_reprocess_sentiment():
                         "dry_run": "true|false (default false)",
                         "order": "newest|oldest (default newest)",
                         "cursor_id": "integer; from prior response next_cursor for paged backfill",
+                        "allow_llm": "true|false (default true; Gemini only on ambiguous/clash)",
                         "token": "optional ADMIN_ACTION_TOKEN (if session auth not available)",
                     },
                     "notes": (
                         "Use force=true to refresh all rows. For full history, POST with order=oldest and loop "
                         "cursor_id until done=true. Rows missing insurance_tags get tags computed and stored so "
-                        "insurance-aware sentiment gating applies."
+                        "insurance-aware sentiment gating applies. Stores sentiment_signals / sentiment_review "
+                        "when threat/clash/LLM guards fire."
                     ),
                 }
             )
@@ -532,6 +534,13 @@ def admin_reprocess_sentiment():
         limit = max(1, min(limit, 5000))
         force = (request.args.get("force") or "").strip().lower() in {"1", "true", "yes", "on"}
         dry_run = (request.args.get("dry_run") or "").strip().lower() in {"1", "true", "yes", "on"}
+        # Gemini second pass only for ambiguous/clash; default on for accuracy on backfill
+        allow_llm = (request.args.get("allow_llm") or "true").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
         order_raw = (request.args.get("order") or "newest").strip().lower()
         order_oldest = order_raw in {"oldest", "asc", "oldest_first"}
         cursor_id = request.args.get("cursor_id", type=int)
@@ -587,7 +596,12 @@ def admin_reprocess_sentiment():
                         meta_fb["insurance_tags"] = ins_list
                         fb.channel_metadata = _safe_json_dumps(meta_fb)
 
-            sentiment = analyze_sentiment(msg, source=getattr(fb, "source", None), insurance_tags=ins_list)
+            sentiment = analyze_sentiment(
+                msg,
+                source=getattr(fb, "source", None),
+                insurance_tags=ins_list,
+                allow_llm=allow_llm,
+            )
             label = sentiment.get("label")
             score = sentiment.get("score")
             if label not in {"positive", "neutral", "negative"}:
@@ -598,8 +612,30 @@ def admin_reprocess_sentiment():
                 updated += 1
                 continue
 
+            from ...services.prioritization import priority_from_sentiment
+
             fb.sentiment_label = label
             fb.sentiment_score = float(score) if score is not None else None
+            fb.priority = priority_from_sentiment(
+                sentiment_label=label,
+                sentiment_score=fb.sentiment_score,
+                rating=fb.rating if isinstance(fb.rating, int) else None,
+            )
+            if sentiment.get("signals"):
+                meta_fb["sentiment_signals"] = sentiment.get("signals")
+            if sentiment.get("needs_review"):
+                meta_fb["sentiment_review"] = {
+                    "status": "pending",
+                    "reason": "auto_guard",
+                    "ambiguous": bool(sentiment.get("ambiguous")),
+                    "llm_used": bool(sentiment.get("llm_used")),
+                }
+            elif isinstance(meta_fb.get("sentiment_review"), dict):
+                # Clear stale pending review when reprocess no longer flags it
+                prev = meta_fb["sentiment_review"]
+                if prev.get("status") == "pending" and prev.get("reason") == "auto_guard":
+                    meta_fb["sentiment_review"] = {**prev, "status": "cleared", "reason": "reprocess_clear"}
+            fb.channel_metadata = _safe_json_dumps(meta_fb)
             updated += 1
 
         if not dry_run:

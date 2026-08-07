@@ -8,6 +8,7 @@ import {
   FiUserPlus,
   FiX,
 } from 'react-icons/fi'
+import SentimentCorrectControl from '../../inbox/components/SentimentCorrectControl'
 
 export default function FeedbackDetailModal({
   open,
@@ -20,6 +21,7 @@ export default function FeedbackDetailModal({
   getStatusClasses,
   safeParseJson,
   formatSentimentWord,
+  onSentimentCorrected,
 }) {
   if (!open || !feedback) return null
 
@@ -69,6 +71,11 @@ export default function FeedbackDetailModal({
                 {formatSentimentWord(feedback.sentiment_label)}
               </span>
             )}
+            <SentimentCorrectControl
+              feedbackId={feedback.id}
+              currentLabel={feedback.sentiment_label}
+              onCorrected={onSentimentCorrected}
+            />
             {feedback.category && (
               <span className="px-3 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
                 {feedback.category}

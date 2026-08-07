@@ -14,6 +14,7 @@ import InboxPageIntro from './InboxPageIntro'
 import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import ChannelMessageView from './ChannelMessageView'
+import SentimentCorrectControl from './SentimentCorrectControl'
 import {
   computeInboxStats,
   computeStableUnreadCount,
@@ -431,6 +432,11 @@ export default function InboxLite({ onNavigate }) {
       }
       if (typeof preset.insurance_tag === 'string' && preset.insurance_tag) {
         setInsuranceTagFilter(preset.insurance_tag === 'all' ? 'all' : preset.insurance_tag)
+      }
+      if (typeof preset.search === 'string' && preset.search.trim()) {
+        const s = preset.search.trim()
+        setQ(s)
+        setQDraft(s)
       }
       if (typeof preset.location === 'string' && preset.location.trim()) {
         setLocationFilter(preset.location.trim())
@@ -1483,6 +1489,28 @@ export default function InboxLite({ onNavigate }) {
             <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-4 sm:px-5 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:pb-5">
             <div className="flex flex-wrap items-center gap-2">
               <SentimentPill label={openItem.sentiment_label} />
+              <SentimentCorrectControl
+                feedbackId={openItem.id}
+                currentLabel={openItem.sentiment_label}
+                onCorrected={(res) => {
+                  const nextLabel = res?.sentiment_label
+                  const nextScore = res?.sentiment_score
+                  const nextPriority = res?.priority
+                  const patch = (it) =>
+                    it?.id === openItem.id
+                      ? {
+                          ...it,
+                          sentiment_label: nextLabel ?? it.sentiment_label,
+                          sentiment_score: nextScore ?? it.sentiment_score,
+                          priority: nextPriority ?? it.priority,
+                          sentiment_override: res?.sentiment_override ?? it.sentiment_override,
+                          sentiment_review: res?.sentiment_review ?? it.sentiment_review,
+                        }
+                      : it
+                  setOpenItem((prev) => (prev ? patch(prev) : prev))
+                  setItems((prev) => (Array.isArray(prev) ? prev.map(patch) : prev))
+                }}
+              />
               <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                 {String(
                   openItem.channel_label ||

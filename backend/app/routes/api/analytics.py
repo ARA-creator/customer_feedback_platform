@@ -1215,3 +1215,78 @@ def product_detail():
     finally:
         db.close()
 
+
+@api_bp.route("/analytics/insights-deep", methods=["GET"])
+def insights_deep():
+    """
+    Deep Insights analytics for Reports → Insights modules
+    (SLA, workforce, drivers, segments, quality, leadership, etc.).
+    """
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+
+        time_window = (request.args.get("time_window") or "all").strip().lower()
+        sentiment = (request.args.get("sentiment") or "all").strip().lower()
+        product_prefix = (request.args.get("product_prefix") or "").strip()
+        product_group_raw = request.args.get("product_group")
+        product_group = product_group_raw if product_group_raw is not None else None
+        compare = (request.args.get("compare") or "1").strip().lower() not in {"0", "false", "no", "off"}
+
+        from ...services.insights_analytics import build_insights_deep
+
+        payload = build_insights_deep(
+            db,
+            user=user,
+            perms=perms,
+            time_window=time_window,
+            sentiment=sentiment,
+            product_prefix=product_prefix,
+            product_group=product_group,
+            compare=compare,
+            scope_feedback_query=_scope_feedback_query,
+        )
+        return jsonify(payload), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Failed to compute insights-deep")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        db.close()
+
+
+@api_bp.route("/analytics/insights-release-impact", methods=["GET"])
+def insights_release_impact():
+    """Reports-scoped release before/after impact for Insights Impact module."""
+    db = SessionLocal()
+    try:
+        user = _require_user(db)
+        perms = _user_permission_keys(db, user.id)
+        release_id = request.args.get("release_id", type=int)
+        if not release_id:
+            return jsonify({"error": "release_id is required"}), 400
+        window_days = request.args.get("window_days", type=int) or 7
+
+        from ...services.insights_analytics import compute_release_impact_scoped
+
+        payload = compute_release_impact_scoped(
+            db,
+            user=user,
+            perms=perms,
+            release_id=release_id,
+            window_days=window_days,
+            scope_feedback_query=_scope_feedback_query,
+        )
+        if payload.get("error"):
+            return jsonify(payload), 404 if payload["error"] == "release not found" else 400
+        return jsonify(payload), 200
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 401
+    except Exception:
+        logger.exception("Failed to compute insights release impact")
+        return jsonify({"error": "Internal server error"}), 500
+    finally:
+        db.close()
+

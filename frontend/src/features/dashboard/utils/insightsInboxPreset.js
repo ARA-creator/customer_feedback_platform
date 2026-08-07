@@ -72,3 +72,30 @@ export function inboxPresetStorageKey(preset) {
   const isPeak = Number.isFinite(Number(p.dow)) || Number.isFinite(Number(p.hour))
   return isPeak ? 'cfp_inbox_peak_preset' : 'cfp_inbox_anomaly_preset'
 }
+
+
+export function buildSentimentPreset(sentiment, timeWindow, status = 'all') {
+  const preset = {
+    date_range: timeWindowToInboxDateRange(timeWindow),
+    sentiment: sentiment || 'all',
+  }
+  if (status === 'read' || status === 'replied') preset.list_tab = status
+  return preset
+}
+
+export function buildFeedbackIdPreset(feedbackId) {
+  const id = Number(feedbackId)
+  if (!Number.isFinite(id) || id <= 0) return null
+  return { open_feedback_id: id }
+}
+
+export function openFeedbackInInbox(feedbackId, onNavigateToInbox) {
+  const id = Number(feedbackId)
+  if (!Number.isFinite(id) || id <= 0) return
+  try {
+    sessionStorage.setItem('cfp_inbox_open_feedback_id', String(id))
+  } catch {
+    /* ignore */
+  }
+  onNavigateToInbox?.({ open_feedback_id: id })
+}

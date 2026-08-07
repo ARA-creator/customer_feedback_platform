@@ -29,6 +29,13 @@ import ChannelMonitorsCard from './insights/ChannelMonitorsCard'
 import SourceThemeMatrixCard from './insights/SourceThemeMatrixCard'
 import InsightsInvestigateBar from './insights/InsightsInvestigateBar'
 import InsightsSectionCard from './insights/InsightsSectionCard'
+import InsightsModuleNav from './insights/InsightsModuleNav'
+import OpsSlaSection from './insights/OpsSlaSection'
+import WorkforceSection from './insights/WorkforceSection'
+import DriversSegmentsSection from './insights/DriversSegmentsSection'
+import ImpactRepeatsSection from './insights/ImpactRepeatsSection'
+import QualityTextSection from './insights/QualityTextSection'
+import LeadershipSection from './insights/LeadershipSection'
 import { formatTrendAxisDate } from './overview/chartUi'
 
 function clamp(n, min, max) {
@@ -84,12 +91,15 @@ export default function DashboardInsightsSection({
   insightsProductKey,
   setInsightsProductKey,
   insightsProductOptions,
+  insightsProductParams = {},
   timeWindow = 'all',
   timeWindowLabel = 'All time',
   sentimentFilter = 'all',
   statusFilter = 'all',
   analyticsLoading,
   analyticsDelayPassed,
+  insightsDeep = null,
+  insightsDeepLoading = false,
   isDarkMode,
   trendData,
   metrics,
@@ -110,6 +120,8 @@ export default function DashboardInsightsSection({
 }) {
   const [selectedThemeKey, setSelectedThemeKey] = useState('')
   const [selectedSourceKey, setSelectedSourceKey] = useState('')
+  const [selectedAssignee, setSelectedAssignee] = useState('')
+  const [activeModule, setActiveModule] = useState('overview')
 
   const rangeLabel = timeWindowLabel
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -173,6 +185,10 @@ export default function DashboardInsightsSection({
   const clearSelection = () => {
     setSelectedThemeKey('')
     setSelectedSourceKey('')
+    setSelectedAssignee('')
+  }
+  const selectAssignee = (key) => {
+    setSelectedAssignee((prev) => (prev === key ? '' : key))
   }
 
   const peakHeatmapSubtitle =
@@ -336,9 +352,12 @@ export default function DashboardInsightsSection({
         onSelectSource={toggleSource}
       />
 
+      <InsightsModuleNav active={activeModule} onChange={setActiveModule} />
+
       <InsightsInvestigateBar
         selectedThemeKey={selectedThemeKey}
         selectedSourceKey={selectedSourceKey}
+        selectedAssignee={selectedAssignee}
         timeWindow={timeWindow}
         timeWindowLabel={rangeLabel}
         sentimentFilter={sentimentFilter}
@@ -347,6 +366,77 @@ export default function DashboardInsightsSection({
         onNavigateToInbox={onNavigateToInbox}
       />
 
+      {activeModule === 'ops' ? (
+        <OpsSlaSection
+          data={insightsDeep?.ops_sla}
+          escalations={insightsDeep?.escalations}
+          isDarkMode={isDarkMode}
+          loading={insightsDeepLoading || loadingState}
+          onSelectTheme={toggleTheme}
+          onSelectSource={toggleSource}
+          onSelectAssignee={selectAssignee}
+        />
+      ) : null}
+
+      {activeModule === 'workforce' ? (
+        <WorkforceSection
+          data={insightsDeep?.workforce}
+          isDarkMode={isDarkMode}
+          loading={insightsDeepLoading || loadingState}
+          onSelectAssignee={selectAssignee}
+        />
+      ) : null}
+
+      {activeModule === 'impact' ? (
+        <ImpactRepeatsSection
+          impact={insightsDeep?.impact}
+          repeats={insightsDeep?.repeats}
+          isDarkMode={isDarkMode}
+          loading={insightsDeepLoading || loadingState}
+          onNavigateToInbox={onNavigateToInbox}
+        />
+      ) : null}
+
+      {activeModule === 'drivers' ? (
+        <DriversSegmentsSection
+          drivers={insightsDeep?.drivers}
+          segments={insightsDeep?.segments}
+          productLob={insightsDeep?.product_lob}
+          channelMix={insightsDeep?.channel_mix}
+          crossTabs={insightsDeep?.cross_tabs}
+          isDarkMode={isDarkMode}
+          loading={insightsDeepLoading || loadingState}
+          onSelectTheme={toggleTheme}
+          onSelectSource={toggleSource}
+        />
+      ) : null}
+
+      {activeModule === 'quality' ? (
+        <QualityTextSection
+          quality={insightsDeep?.quality}
+          verbatim={insightsDeep?.verbatim}
+          csat={insightsDeep?.csat}
+          isDarkMode={isDarkMode}
+          loading={insightsDeepLoading || loadingState}
+          onNavigateToInbox={onNavigateToInbox}
+          onSelectTheme={toggleTheme}
+          onSelectSource={toggleSource}
+        />
+      ) : null}
+
+      {activeModule === 'leadership' ? (
+        <LeadershipSection
+          benchmark={insightsDeep?.benchmark}
+          capacity={insightsDeep?.capacity}
+          timeWindow={timeWindow}
+          sentimentFilter={sentimentFilter}
+          insightsProductParams={insightsProductParams}
+          loading={insightsDeepLoading || loadingState}
+        />
+      ) : null}
+
+      {activeModule === 'overview' ? (
+      <>
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           <ThemeLandscapeCard
@@ -650,6 +740,8 @@ export default function DashboardInsightsSection({
           )}
         </InsightsSectionCard>
       </div>
+      </>
+      ) : null}
     </div>
   )
 }

@@ -147,6 +147,10 @@ class SentimentResult(TypedDict):
     label: Literal["positive", "neutral", "negative"]
     score: float
     domain_score: NotRequired[float]
+    signals: NotRequired[dict]
+    ambiguous: NotRequired[bool]
+    llm_used: NotRequired[bool]
+    needs_review: NotRequired[bool]
 
 
 def _nltk_data_dir() -> str:
@@ -452,6 +456,8 @@ def analyze_sentiment(
     text: str,
     source: Optional[str] = None,
     insurance_tags: Optional[List[str]] = None,
+    *,
+    allow_llm: bool = True,
 ) -> SentimentResult:
     """
     Analyze sentiment using VADER on the given text.
@@ -464,16 +470,20 @@ def analyze_sentiment(
     small compound adjustment for insurance feedback channels so domain words like
     "benefits" do not inflate sentiment alone.
 
+    Post-VADER guards (threat/hostility, sarcasm clash, emoji polarity) can force a safer
+    label. When the score is still ambiguous or a clash fired, an optional Gemini second
+    pass may refine the label if ``allow_llm`` is True and ``GEMINI_API_KEY`` is configured.
+
     Returns:
         dict with:
-            - label: "positive" | "neutral" | "negative" (from domain points when strong,
-              else from combined score bands)
-            - score: VADER compound plus domain adjustment, clipped to [-1, 1]
+            - label: "positive" | "neutral" | "negative"
+            - score: combined compound in [-1, 1]
             - domain_score: optional; phrase-rule total only (excludes procedural nudge)
+            - signals / ambiguous / llm_used / needs_review: optional diagnostics
     """
     prepared = _prepare_text_for_analysis(text, source)
     if not prepared:
-        return {"label": "neutral", "score": 0.0}
+        return {"label": "neutral", "score": 0.0, "signals": {}, "ambiguous": False, "llm_used": False, "needs_review": False}
 
     phrase_domain = _insurance_phrase_rule_score(prepared)
     procedural = _procedural_request_compensation(prepared)
@@ -484,39 +494,85 @@ def analyze_sentiment(
         # Fallback: still apply domain phrase tuning even when NLTK/VADER isn't available.
         compound = float(rule_delta)
         label = _derive_sentiment_label(compound, phrase_domain)
-        return {"label": label, "score": compound, "domain_score": phrase_domain}
+    else:
+        scores = vader.polarity_scores(prepared)
+        compound = float(scores.get("compound", 0.0))
 
-    scores = vader.polarity_scores(prepared)
-    compound = float(scores.get("compound", 0.0))
+        parts = [p.strip() for p in re.split(r"[.!?\n]+", prepared) if p and p.strip()]
+        if parts:
+            worst = min(float(vader.polarity_scores(p).get("compound", 0.0)) for p in parts)
+            if worst <= -0.20:
+                compound = min(compound, worst)
 
-    parts = [p.strip() for p in re.split(r"[.!?\n]+", prepared) if p and p.strip()]
-    if parts:
-        worst = min(float(vader.polarity_scores(p).get("compound", 0.0)) for p in parts)
-        if worst <= -0.20:
-            compound = min(compound, worst)
+        compound = _adjust_compound_for_insurance_context(compound, insurance_tags, source, prepared)
 
-    compound = _adjust_compound_for_insurance_context(compound, insurance_tags, source, prepared)
-
-    # If the text is primarily a workflow/status update, keep neutral unless there are
-    # strong positive/negative signals from rules (phrase-only; procedural is not domain signal).
-    if any(rx.search(prepared) for rx in _FORCE_NEUTRAL_PHRASES) and abs(phrase_domain) < 0.15:
-        compound = 0.0
-    if any(rx.search(prepared) for rx in _NEUTRAL_WORKFLOW_PHRASES):
-        if abs(compound) < 0.35 and abs(phrase_domain) < 0.15:
+        # If the text is primarily a workflow/status update, keep neutral unless there are
+        # strong positive/negative signals from rules (phrase-only; procedural is not domain signal).
+        if any(rx.search(prepared) for rx in _FORCE_NEUTRAL_PHRASES) and abs(phrase_domain) < 0.15:
             compound = 0.0
+        if any(rx.search(prepared) for rx in _NEUTRAL_WORKFLOW_PHRASES):
+            if abs(compound) < 0.35 and abs(phrase_domain) < 0.15:
+                compound = 0.0
 
-    # Combine VADER with phrase rules plus procedural compensation.
-    compound = max(-1.0, min(1.0, float(compound) + float(rule_delta)))
+        # Combine VADER with phrase rules plus procedural compensation.
+        compound = max(-1.0, min(1.0, float(compound) + float(rule_delta)))
 
-    # Insurance lexicon polarity (~1.2k+ terms) — modest additional domain nudge.
-    try:
-        from .insurance_lexicon import lexicon_sentiment_delta
+        # Insurance lexicon polarity (~1.2k+ terms) — modest additional domain nudge.
+        try:
+            from .insurance_lexicon import lexicon_sentiment_delta
 
-        lex_delta = float(lexicon_sentiment_delta(prepared) or 0.0)
-        if abs(lex_delta) >= 0.01:
-            compound = max(-1.0, min(1.0, float(compound) + lex_delta))
-    except Exception:
-        pass
+            lex_delta = float(lexicon_sentiment_delta(prepared) or 0.0)
+            if abs(lex_delta) >= 0.01:
+                compound = max(-1.0, min(1.0, float(compound) + lex_delta))
+        except Exception:
+            pass
 
-    label = _derive_sentiment_label(compound, phrase_domain)
-    return {"label": label, "score": compound, "domain_score": phrase_domain}
+        label = _derive_sentiment_label(compound, phrase_domain)
+
+    # Threat / sarcasm clash / emoji polarity (always on; offline).
+    from .sentiment_guards import apply_threat_and_clash, is_ambiguous_score, llm_rescore_sentiment
+
+    guarded = apply_threat_and_clash(compound=compound, label=label, text=prepared)
+    compound = float(guarded["compound"])
+    label = guarded["label"]  # type: ignore[assignment]
+
+    signals = {
+        "threat": bool(guarded.get("threat")),
+        "threat_hits": list(guarded.get("threat_hits") or []),
+        "sarcasm_clash": bool(guarded.get("sarcasm_clash")),
+        "emoji_delta": float(guarded.get("emoji_delta") or 0.0),
+        "emoji_counts": dict(guarded.get("emoji_counts") or {}),
+        "forced": bool(guarded.get("forced")),
+    }
+    ambiguous = bool(is_ambiguous_score(compound) or signals["sarcasm_clash"])
+    llm_used = False
+
+    # LLM second pass only for ambiguous / clash cases (never for clear safe scores).
+    if allow_llm and (ambiguous or signals["threat"]):
+        # Skip LLM when threat already forced a clear negative — still allow clash/ambiguous.
+        should_llm = signals["sarcasm_clash"] or is_ambiguous_score(compound)
+        if should_llm:
+            llm = llm_rescore_sentiment(
+                prepared,
+                heuristic_label=label,
+                heuristic_score=compound,
+                signals=signals,
+            )
+            if llm:
+                label = llm["label"]  # type: ignore[assignment]
+                compound = float(llm["score"])
+                llm_used = True
+                signals["llm_reason"] = llm.get("reason")
+                signals["llm_provider"] = llm.get("provider")
+
+    needs_review = bool(signals["threat"] or signals["sarcasm_clash"] or llm_used)
+
+    return {
+        "label": label,
+        "score": compound,
+        "domain_score": phrase_domain,
+        "signals": signals,
+        "ambiguous": ambiguous,
+        "llm_used": llm_used,
+        "needs_review": needs_review,
+    }

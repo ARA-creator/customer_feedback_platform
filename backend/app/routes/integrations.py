@@ -274,6 +274,16 @@ def _submit_to_feedback_api(payload: dict) -> dict:
     sentiment = analyze_sentiment(message, source=source, insurance_tags=channel_metadata.get("insurance_tags"))
     sentiment_label = sentiment["label"]
     sentiment_score = sentiment["score"]
+    if isinstance(channel_metadata, dict):
+        if sentiment.get("signals"):
+            channel_metadata["sentiment_signals"] = sentiment.get("signals")
+        if sentiment.get("needs_review"):
+            channel_metadata["sentiment_review"] = {
+                "status": "pending",
+                "reason": "auto_guard",
+                "ambiguous": bool(sentiment.get("ambiguous")),
+                "llm_used": bool(sentiment.get("llm_used")),
+            }
 
     # priority: only strongly negative scores (<= -0.7) are High; mild negatives are Medium
     from ..services.prioritization import priority_from_sentiment

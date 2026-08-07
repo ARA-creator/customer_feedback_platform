@@ -85,3 +85,22 @@ export const getFeedbackAnalyzer = async (params = undefined) => {
   })
   return response.data
 }
+
+
+/** Deep Insights modules (SLA, workforce, drivers, quality, leadership). */
+export const getInsightsDeep = async (params = undefined) => {
+  const response = await api.get(
+    '/analytics/insights-deep',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
+  return response.data
+}
+
+/** Release before/after for Insights Impact module. */
+export const getInsightsReleaseImpact = async (params = undefined) => {
+  const response = await api.get(
+    '/analytics/insights-release-impact',
+    withAnalyticsTimeout(withParamsConfig(params) || {}),
+  )
+  return response.data
+}

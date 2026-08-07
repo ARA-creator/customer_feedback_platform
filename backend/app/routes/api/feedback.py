@@ -1065,6 +1065,95 @@ def feedback_mark_replied(feedback_id: int):
         db.close()
 
 
+@api_bp.route("/feedback/<int:feedback_id>/sentiment", methods=["POST"])
+def feedback_correct_sentiment(feedback_id: int):
+    """
+    Officer override for a misclassified sentiment label.
+
+    JSON body: { "label": "positive"|"neutral"|"negative", "note": "optional" }
+    Updates sentiment_label / score / priority and records the override in channel_metadata
+    (also clears a pending sentiment_review entry).
+    """
+    db = SessionLocal()
+    try:
+        user = _require_authenticated_user(db)
+        _require_any_permission(db, ["feedback.reply", "feedback.approve", "feedback.view_all"])
+        fb = (
+            db.query(Feedback)
+            .filter(Feedback.id == int(feedback_id), Feedback.deleted_at.is_(None))
+            .first()
+        )
+        if not fb:
+            return jsonify({"error": "Feedback not found"}), 404
+
+        data = request.get_json(silent=True) or {}
+        label = str(data.get("label") or "").strip().lower()
+        if label not in {"positive", "neutral", "negative"}:
+            return jsonify({"error": "label must be positive, neutral, or negative"}), 400
+        note = str(data.get("note") or "").strip()[:500] or None
+
+        previous_label = fb.sentiment_label
+        previous_score = fb.sentiment_score
+        score_map = {"negative": -0.7, "neutral": 0.0, "positive": 0.7}
+        new_score = float(score_map[label])
+
+        from ...services.prioritization import priority_from_sentiment
+
+        fb.sentiment_label = label
+        fb.sentiment_score = new_score
+        fb.priority = priority_from_sentiment(
+            sentiment_label=label,
+            sentiment_score=new_score,
+            rating=fb.rating if isinstance(fb.rating, int) else None,
+        )
+
+        meta = safe_json_loads(fb.channel_metadata) or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        from datetime import datetime, timezone
+
+        meta["sentiment_override"] = {
+            "label": label,
+            "previous_label": previous_label,
+            "previous_score": previous_score,
+            "score": new_score,
+            "note": note,
+            "by_user_id": getattr(user, "id", None),
+            "by_email": getattr(user, "email", None),
+            "at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        review = meta.get("sentiment_review") if isinstance(meta.get("sentiment_review"), dict) else {}
+        meta["sentiment_review"] = {
+            **review,
+            "status": "resolved",
+            "resolved_by_user_id": getattr(user, "id", None),
+            "resolved_at": datetime.now(tz=timezone.utc).isoformat(),
+            "reason": review.get("reason") or "officer_override",
+        }
+        fb.channel_metadata = json.dumps(meta)
+        db.commit()
+
+        return jsonify(
+            {
+                "ok": True,
+                "id": fb.id,
+                "sentiment_label": fb.sentiment_label,
+                "sentiment_score": fb.sentiment_score,
+                "priority": fb.priority,
+                "sentiment_override": meta.get("sentiment_override"),
+                "sentiment_review": meta.get("sentiment_review"),
+            }
+        )
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("Error correcting feedback sentiment")
+        return jsonify({"error": "Failed to correct sentiment"}), 500
+    finally:
+        db.close()
+
+
 @api_bp.route("/feedback/inbox-state", methods=["PATCH"])
 def feedback_inbox_state_patch():
     """

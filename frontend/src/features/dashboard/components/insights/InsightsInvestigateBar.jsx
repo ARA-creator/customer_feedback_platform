@@ -1,10 +1,11 @@
 import { formatInsuranceTagChartLabel } from '../../utils/dashboardFormatters'
 import { humanizeSource } from '../../utils/insightsMetrics'
-import { buildCombinedPreset } from '../../utils/insightsInboxPreset'
+import { buildCombinedPreset, timeWindowToInboxDateRange } from '../../utils/insightsInboxPreset'
 
 export default function InsightsInvestigateBar({
   selectedThemeKey,
   selectedSourceKey,
+  selectedAssignee,
   timeWindow = 'all',
   timeWindowLabel = 'All time',
   sentimentFilter = 'all',
@@ -12,11 +13,12 @@ export default function InsightsInvestigateBar({
   onClear,
   onNavigateToInbox,
 }) {
-  if (!selectedThemeKey && !selectedSourceKey) return null
+  if (!selectedThemeKey && !selectedSourceKey && !selectedAssignee) return null
 
   const parts = []
   if (selectedThemeKey) parts.push(formatInsuranceTagChartLabel(selectedThemeKey))
   if (selectedSourceKey) parts.push(humanizeSource(selectedSourceKey))
+  if (selectedAssignee) parts.push(selectedAssignee)
   parts.push(timeWindowLabel)
   if (sentimentFilter && sentimentFilter !== 'all') {
     parts.push(sentimentFilter.charAt(0).toUpperCase() + sentimentFilter.slice(1))
@@ -28,14 +30,22 @@ export default function InsightsInvestigateBar({
   }
 
   const openInbox = () => {
-    const preset = buildCombinedPreset({
+    let preset = buildCombinedPreset({
       themeKey: selectedThemeKey,
       sourceKey: selectedSourceKey,
       timeWindow,
       sentiment: sentimentFilter || 'all',
       status: statusFilter || 'all',
     })
-    if (preset) onNavigateToInbox?.(preset)
+    if (!preset) {
+      preset = {
+        date_range: timeWindowToInboxDateRange(timeWindow),
+        sentiment: sentimentFilter || 'all',
+      }
+      if (statusFilter === 'read' || statusFilter === 'replied') preset.list_tab = statusFilter
+    }
+    if (selectedAssignee) preset.search = selectedAssignee
+    onNavigateToInbox?.(preset)
   }
 
   return (
