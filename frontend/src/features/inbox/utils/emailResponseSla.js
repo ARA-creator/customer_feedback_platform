@@ -1,11 +1,20 @@
 /**
- * Resolve arrival/reply timestamps and HNW/CX response SLA status for inbox rows.
+ * Resolve arrival/reply timestamps and response SLA status for inbox rows.
  *
  * Prefer actual email header times (metadata), fall back to platform timestamps.
+ *
+ * SLA channels:
+ * - HNW email: Overdue when elapsed > 24h
+ * - CX email: Overdue when elapsed > 48h
+ * - Facebook, TikTok, Instagram, Jotform, WhatsApp: Overdue when elapsed > 24h
  */
 
 const HNW_SLA_HOURS = 24
 const CX_SLA_HOURS = 48
+const CHANNEL_24H_SLA_HOURS = 24
+
+/** Channels that use the 24h SLA (besides HNW email). */
+const CHANNEL_24H = new Set(['facebook', 'tiktok', 'instagram', 'jotform', 'whatsapp'])
 
 export function parseTimestamp(value) {
   if (value == null || value === '') return null
@@ -26,7 +35,7 @@ function channelMeta(item) {
 }
 
 /**
- * Normalize mailbox channel to 'hnw' | 'cx' | null.
+ * Normalize channel to an SLA key: 'hnw' | 'cx' | social/form keys | null.
  */
 export function resolveMailboxKind(item) {
   const meta = channelMeta(item)
@@ -41,14 +50,15 @@ export function resolveMailboxKind(item) {
     .filter(Boolean)
 
   for (const label of labels) {
+    // Email mailboxes first so HNW/CX stay exact.
     if (label === 'cx' || label === 'cx_email' || label.includes('cx email')) return 'cx'
-    if (
-      label === 'hnw' ||
-      label === 'hnw_email' ||
-      label.includes('hnw')
-    ) {
-      return 'hnw'
-    }
+    if (label === 'hnw' || label === 'hnw_email' || label.includes('hnw')) return 'hnw'
+
+    if (label === 'facebook' || label.includes('facebook') || label === 'fb') return 'facebook'
+    if (label === 'tiktok' || label.includes('tiktok')) return 'tiktok'
+    if (label === 'instagram' || label.includes('instagram') || label === 'ig') return 'instagram'
+    if (label === 'jotform' || label.includes('jotform')) return 'jotform'
+    if (label === 'whatsapp' || label.includes('whatsapp') || label === 'wa') return 'whatsapp'
   }
   return null
 }
@@ -89,15 +99,34 @@ export function formatSlaDateTime(value) {
   }
 }
 
+export function slaChannelLabel(mailbox) {
+  if (mailbox === 'hnw') return 'HNW'
+  if (mailbox === 'cx') return 'CX'
+  if (mailbox === 'facebook') return 'Facebook'
+  if (mailbox === 'tiktok') return 'TikTok'
+  if (mailbox === 'instagram') return 'Instagram'
+  if (mailbox === 'jotform') return 'Jotform'
+  if (mailbox === 'whatsapp') return 'WhatsApp'
+  return mailbox || ''
+}
+
+function thresholdForMailbox(mailbox) {
+  if (mailbox === 'hnw') return HNW_SLA_HOURS
+  if (mailbox === 'cx') return CX_SLA_HOURS
+  if (CHANNEL_24H.has(mailbox)) return CHANNEL_24H_SLA_HOURS
+  return null
+}
+
 /**
- * @returns {{ status: 'Overdue'|'On track'|null, mailbox: 'hnw'|'cx'|null, thresholdHours: number|null, elapsedHours: number|null, arrivalAt: Date|null, repliedAt: Date|null }}
+ * @returns {{ status: 'Overdue'|'On track'|null, mailbox: string|null, thresholdHours: number|null, elapsedHours: number|null, arrivalAt: Date|null, repliedAt: Date|null }}
  */
 export function computeResponseSla(item, now = Date.now()) {
   const mailbox = resolveMailboxKind(item)
   const arrivalAt = resolveArrivalAt(item)
   const repliedAt = resolveRepliedAt(item)
+  const thresholdHours = thresholdForMailbox(mailbox)
 
-  if (!mailbox || !arrivalAt) {
+  if (!mailbox || !arrivalAt || thresholdHours == null) {
     return {
       status: null,
       mailbox,
@@ -108,7 +137,6 @@ export function computeResponseSla(item, now = Date.now()) {
     }
   }
 
-  const thresholdHours = mailbox === 'hnw' ? HNW_SLA_HOURS : CX_SLA_HOURS
   const endMs = repliedAt ? repliedAt.getTime() : Number(now)
   const startMs = arrivalAt.getTime()
   const elapsedMs = Math.max(0, endMs - startMs)

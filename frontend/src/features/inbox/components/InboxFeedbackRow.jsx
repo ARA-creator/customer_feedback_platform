@@ -14,6 +14,7 @@ import {
 import {
   computeResponseSla,
   formatSlaDateTime,
+  slaChannelLabel,
 } from '../utils/emailResponseSla'
 
 const PRIORITY_STYLES = {
@@ -113,7 +114,7 @@ export default function InboxFeedbackRow({
   const repliedLabel = sla.repliedAt ? formatSlaDateTime(sla.repliedAt) : ''
   const slaTitle =
     sla.status && sla.thresholdHours != null
-      ? `${sla.status}: ${sla.mailbox === 'hnw' ? 'HNW' : 'CX'} SLA is ${sla.thresholdHours}h from arrival`
+      ? `${sla.status}: ${slaChannelLabel(sla.mailbox)} SLA is ${sla.thresholdHours}h from arrival`
       : undefined
 
   return (
@@ -311,9 +312,9 @@ export default function InboxFeedbackRow({
                 {arrivedLabel}
               </span>
             ) : null}
-            <span title={sla.repliedAt?.toISOString?.() || 'Not replied'}>
+            <span title={sla.repliedAt?.toISOString?.() || 'Pending'}>
               <span className="font-semibold text-gray-600 dark:text-gray-300">Replied:</span>{' '}
-              {repliedLabel || 'Not replied'}
+              {repliedLabel || 'Pending'}
             </span>
             {sla.status ? (
               <span
