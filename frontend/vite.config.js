@@ -1,5 +1,49 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import { execSync } from 'node:child_process'
+import fs from 'node:fs'
+import path from 'node:path'
+
+function resolveBuildId() {
+  const fromEnv =
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.CF_PAGES_COMMIT_SHA ||
+    process.env.GITHUB_SHA ||
+    process.env.VITE_APP_BUILD_ID
+  if (fromEnv && String(fromEnv).trim()) return String(fromEnv).trim().slice(0, 40)
+  try {
+    return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()
+  } catch {
+    return `local-${Date.now()}`
+  }
+}
+
+/** Emit /version.json next to index.html and bake the id into the client bundle. */
+function appVersionPlugin(buildId) {
+  return {
+    name: 'app-version',
+    config() {
+      return {
+        define: {
+          'import.meta.env.VITE_APP_BUILD_ID': JSON.stringify(buildId),
+        },
+      }
+    },
+    writeBundle(outputOptions) {
+      const outDir = outputOptions.dir || path.resolve(process.cwd(), 'dist')
+      const payload = JSON.stringify(
+        {
+          version: buildId,
+          builtAt: new Date().toISOString(),
+        },
+        null,
+        0,
+      )
+      fs.mkdirSync(outDir, { recursive: true })
+      fs.writeFileSync(path.join(outDir, 'version.json'), payload, 'utf8')
+    },
+  }
+}
 
 /**
  * In dev, when VITE_BACKEND_ORIGIN is unset, the frontend uses relative /api and
@@ -12,9 +56,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const proxyTarget = (env.VITE_PROXY_TARGET || 'http://127.0.0.1:5000').replace(/\/+$/, '')
+  const buildId = resolveBuildId()
 
   return {
-    plugins: [react()],
+    plugins: [react(), appVersionPlugin(buildId)],
     build: {
       // Enable source maps so production runtime errors can be traced back to
       // the original source modules during deployment debugging.

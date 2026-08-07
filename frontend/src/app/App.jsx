@@ -23,6 +23,7 @@ import Customer360 from '../features/customers/components/Customer360'
 import { AuthLoadingScreen } from '../shared/components/ui/LoadingSkeleton'
 import ErrorBoundary from '../shared/components/ui/ErrorBoundary'
 import SoftErrorBoundary from '../shared/components/ui/SoftErrorBoundary'
+import AppUpdateBanner from '../shared/components/ui/AppUpdateBanner'
 import DashboardOverviewPage from '../pages/dashboard/Overview'
 import InboxPage from '../pages/inbox/Inbox'
 import SettingsLayout from '../pages/settings/SettingsLayout'
@@ -517,7 +518,10 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <DisplayPreferencesProvider>{content}</DisplayPreferencesProvider>
+      <DisplayPreferencesProvider>
+        {content}
+        <AppUpdateBanner />
+      </DisplayPreferencesProvider>
     </ErrorBoundary>
   )
 }
