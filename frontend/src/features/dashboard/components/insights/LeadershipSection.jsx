@@ -1,8 +1,5 @@
-import { useState } from 'react'
 import InsightsSectionCard from './InsightsSectionCard'
 import { DOW, fmtDelta, fmtHours, fmtPct } from './insightsDeepFormat'
-import { downloadAnalystExport } from '../../../reports/services/reports.api'
-import { triggerExportDownload } from '../../../reports/utils/downloadExport'
 
 function DeltaCard({ label, current, prior, delta, format = 'num' }) {
   const cur =
@@ -32,33 +29,10 @@ function DeltaCard({ label, current, prior, delta, format = 'num' }) {
 export default function LeadershipSection({
   benchmark,
   capacity,
-  timeWindow,
-  sentimentFilter,
-  insightsProductParams,
   loading,
 }) {
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState(null)
   const heat = capacity?.volume_heatmap || []
   const maxH = Math.max(1, ...heat.map((c) => Number(c.count) || 0))
-
-  const downloadView = async () => {
-    setBusy(true)
-    setErr(null)
-    try {
-      const params = {
-        time_window: timeWindow || 'all',
-        sentiment: sentimentFilter && sentimentFilter !== 'all' ? sentimentFilter : undefined,
-        ...(insightsProductParams || {}),
-        limit: 5000,
-      }
-      await triggerExportDownload(downloadAnalystExport, params, 'csv')
-    } catch (e) {
-      setErr(e?.message || 'Export failed')
-    } finally {
-      setBusy(false)
-    }
-  }
 
   if (loading) return <div className="h-64 animate-pulse rounded-2xl bg-gray-50 dark:bg-gray-900/40" />
 
@@ -72,16 +46,6 @@ export default function LeadershipSection({
       <InsightsSectionCard
         title="Period-over-period KPI pack"
         subtitle={`${b.current_label || 'Current'} vs ${b.prior_label || 'prior equal window'}.`}
-        right={
-          <button
-            type="button"
-            disabled={busy}
-            onClick={downloadView}
-            className="rounded-lg bg-[#009750] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
-          >
-            {busy ? 'Exporting…' : 'Download view CSV'}
-          </button>
-        }
       >
         {!benchmark ? (
           <p className="py-8 text-center text-sm text-gray-500">Benchmark disabled for this load.</p>
@@ -118,10 +82,6 @@ export default function LeadershipSection({
             />
           </div>
         )}
-        {err ? <p className="mt-2 text-xs text-rose-600">{err}</p> : null}
-        <p className="mt-3 text-[11px] text-gray-500">
-          For free-form Power BI / Excel models, use Briefings & exports. This download uses the current Insights filters.
-        </p>
       </InsightsSectionCard>
 
       <InsightsSectionCard

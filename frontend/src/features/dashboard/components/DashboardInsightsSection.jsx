@@ -17,7 +17,6 @@ import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
 import { buildPeakPreset } from '../utils/insightsInboxPreset'
 import {
-  buildInsightBrief,
   buildTopNegativeIssues,
   buildTopThemes,
   fmtPct,
@@ -236,42 +235,6 @@ export default function DashboardInsightsSection({
 
   const loadingState = analyticsLoading || !analyticsDelayPassed
 
-  const exportInsights = () => {
-    try {
-      const brief = buildInsightBrief({
-        topThemes,
-        sourcePerformance,
-        metrics,
-        rangeLabel,
-      })
-      const payload = {
-        time_window: timeWindow,
-        time_window_label: rangeLabel,
-        sentiment: sentimentFilter || 'all',
-        product_scope: insightsProductKey || 'all',
-        generated_at: new Date().toISOString(),
-        metrics,
-        brief,
-        selected_theme: selectedThemeKey || null,
-        selected_source: selectedSourceKey || null,
-        source_theme_matrix: sourceThemeMatrix,
-        source_totals: sourceTotals,
-        sentiment_trend: sentimentSeries,
-        top_themes: topThemes,
-        top_issues: topIssuesChartRows.rows,
-      }
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `customer-pulse-insights-${timeWindow || 'all'}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      // ignore
-    }
-  }
-
   // Channel trend legend pills: shares among channels with >0 volume.
   const sourcePillKeys = sources
   const sourcePillTotal = sourcePillKeys.reduce((sum, k) => sum + (Number(sourceTotals.totals?.[k]) || 0), 0)
@@ -299,14 +262,6 @@ export default function DashboardInsightsSection({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={exportInsights}
-            className="inline-flex min-h-[40px] items-center justify-center rounded-xl bg-[#009750] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#007a42] focus:outline-none focus:ring-2 focus:ring-[#009750]/25"
-            title="Export insights (JSON)"
-          >
-            Export
-          </button>
         </div>
       </div>
 

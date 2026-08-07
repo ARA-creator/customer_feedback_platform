@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   FiCalendar,
   FiClock,
-  FiDownload,
   FiMoreHorizontal,
   FiPlus,
   FiTrash2,
@@ -23,12 +22,10 @@ import { REPORT_FIELD_CLASSES, REPORT_LABEL_CLASSES } from '../reportFieldClasse
 import {
   createReportSchedule,
   deleteReportSchedule,
-  downloadAnalystExport,
   getReportPreview,
   listReportSchedules,
   updateReportSchedule,
 } from '../services/reports.api'
-import { blobErrorMessage, formatLabel, triggerExportDownload } from '../utils/downloadExport'
 import { formatDisplayRange, formatTrendTick, quickPackRange, thisWeekRange } from '../utils/reportDates'
 
 const SENTIMENT_OPTIONS = [
@@ -85,26 +82,6 @@ function SentimentBar({ label, pct, color }) {
   )
 }
 
-function FormatLinks({ onDownload, disabled, busyFormat }) {
-  return (
-    <div className="flex items-center gap-2 text-xs font-semibold">
-      {(['csv', 'xlsx', 'pdf']).map((fmt, i) => (
-        <span key={fmt} className="inline-flex items-center gap-2">
-          {i > 0 && <span className="text-gray-300 dark:text-gray-600">|</span>}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => onDownload(fmt)}
-            className="text-[#009750] hover:underline disabled:opacity-50"
-          >
-            {busyFormat === fmt ? '…' : formatLabel(fmt)}
-          </button>
-        </span>
-      ))}
-    </div>
-  )
-}
-
 function cadenceSummary(schedule) {
   const cadence = String(schedule.cadence || '').toLowerCase()
   const time = schedule.time_of_day || '08:00'
@@ -129,7 +106,6 @@ export default function ReportsWorkspace() {
   const [previewLoading, setPreviewLoading] = useState(true)
   const [products, setProducts] = useState([])
   const [error, setError] = useState(null)
-  const [downloading, setDownloading] = useState(null)
 
   const [schedules, setSchedules] = useState([])
   const [schedulesLoading, setSchedulesLoading] = useState(true)
@@ -188,21 +164,6 @@ export default function ReportsWorkspace() {
     return () => window.clearTimeout(handle)
   }, [exportParams, loadPreview])
 
-  const download = async (format, params = exportParams) => {
-    const key = `${format}:${JSON.stringify(params)}`
-    setDownloading(key)
-    setError(null)
-    try {
-      await triggerExportDownload(downloadAnalystExport, params, format)
-    } catch (e) {
-      setError(await blobErrorMessage(e))
-    } finally {
-      setDownloading(null)
-    }
-  }
-
-  const isBusy = Boolean(downloading)
-
   const applyQuickPack = (packId) => {
     const range = quickPackRange(packId)
     setFilters((f) => ({
@@ -214,20 +175,6 @@ export default function ReportsWorkspace() {
       productKey: 'all',
       priority: 'all',
     }))
-  }
-
-  const quickDownload = (packId, format) => {
-    const range = quickPackRange(packId)
-    const params = buildExportParams({
-      dateFrom: range.dateFrom,
-      dateTo: range.dateTo,
-      sentiment: 'all',
-      source: 'all',
-      productKey: 'all',
-      priority: 'all',
-    })
-    download(format, params)
-    applyQuickPack(packId)
   }
 
   const toggleSchedule = async (schedule) => {
@@ -366,13 +313,6 @@ export default function ReportsWorkspace() {
                     <p className="metric-card__label">
                       {pack.count == null ? '—' : `${Number(pack.count).toLocaleString()} feedback`}
                     </p>
-                    <div className="metric-card__footer mt-3">
-                      <FormatLinks
-                        disabled={isBusy}
-                        busyFormat={downloading ? downloading.split(':')[0] : null}
-                        onDownload={(fmt) => quickDownload(pack.id, fmt)}
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -472,30 +412,6 @@ export default function ReportsWorkspace() {
                 <option value="all">All priorities</option>
                 <option value="high">High priority</option>
               </select>
-            </div>
-
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => download('csv')}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#009750] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#007a42] disabled:opacity-60"
-            >
-              <FiDownload className="h-4 w-4" />
-              {downloading?.startsWith('csv:') ? 'Preparing…' : 'Download report'}
-            </button>
-
-            <div className="flex flex-wrap gap-2">
-              {(['csv', 'xlsx', 'pdf']).map((fmt) => (
-                <button
-                  key={fmt}
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => download(fmt)}
-                  className="inline-flex min-h-[40px] flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
-                >
-                  {downloading?.startsWith(`${fmt}:`) ? '…' : formatLabel(fmt)}
-                </button>
-              ))}
             </div>
           </div>
         </div>

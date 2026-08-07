@@ -6,7 +6,7 @@ import ReportsWorkspace from '../../features/reports/components/ReportsWorkspace
 
 const TABS = [
   { id: 'insights', label: 'Insights', icon: FiBarChart2 },
-  { id: 'exports', label: 'Briefings & exports', icon: FiDownload },
+  { id: 'exports', label: 'Briefings', icon: FiDownload },
 ]
 
 export default function ReportsPage({
@@ -28,7 +28,7 @@ export default function ReportsPage({
     if (activeTab === 'insights') {
       return 'Interactive analytics: SLA, workforce, drivers, segments, quality, and leadership KPIs.'
     }
-    return 'Build sentiment briefings and export feedback.'
+      return 'Build sentiment briefings and scheduled deliveries.'
   }, [activeTab])
 
   return (
