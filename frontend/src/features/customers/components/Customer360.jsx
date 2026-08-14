@@ -4,6 +4,8 @@ import { getCustomerProfile } from '../services/customers.api'
 import { Customer360Skeleton, PageIntro } from '../../../shared/components/ui'
 import { SourcePill } from '../../dashboard/components/SourceIndicators'
 import ChannelMessageView from '../../inbox/components/ChannelMessageView'
+import { channelKind } from '../../inbox/utils/channelMessagePresentation'
+import { listReplyDrafts } from '../../inbox/services/inbox.api'
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -246,6 +248,7 @@ export default function Customer360({ onNavigate }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [openItem, setOpenItem] = useState(null)
+  const [replyDrafts, setReplyDrafts] = useState([])
   const [policyFilterHash, setPolicyFilterHash] = useState('')
 
   const history = useMemo(() => safeArr(data?.history), [data])
@@ -359,6 +362,24 @@ export default function Customer360({ onNavigate }) {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerKey])
+
+  useEffect(() => {
+    if (!openItem?.id || channelKind(openItem) !== 'whatsapp') {
+      setReplyDrafts([])
+      return undefined
+    }
+    let cancelled = false
+    listReplyDrafts(openItem.id)
+      .then((data) => {
+        if (!cancelled) setReplyDrafts(data?.drafts || [])
+      })
+      .catch(() => {
+        if (!cancelled) setReplyDrafts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [openItem?.id])
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -714,6 +735,7 @@ export default function Customer360({ onNavigate }) {
             <div className="mt-4">
               <ChannelMessageView
                 item={openItem}
+                replyDrafts={replyDrafts}
                 renderLinkedText={(text) =>
                   renderLinkedText(text, {
                     policyMatches: [...safeArr(openItem.policy_matches), ...policySummary],

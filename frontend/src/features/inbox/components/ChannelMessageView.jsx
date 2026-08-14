@@ -15,11 +15,82 @@ function formatWhen(when) {
   return t.toLocaleString()
 }
 
+function isSentCustomerReply(draft) {
+  if (!draft?.sent_at) return false
+  const status = String(draft.send_status || '').toLowerCase()
+  if (status !== 'sent' && status !== 'queued_internal') return false
+  const channel = String(draft.channel || '').toLowerCase()
+  const visibility = String(draft.visibility || '').toLowerCase()
+  if (channel === 'internal' && visibility === 'private') return false
+  return true
+}
+
+function buildWhatsAppThread(item, replyDrafts) {
+  const bodyText = String(item?.message || item?.message_preview || '').trim()
+  const messages = [
+    {
+      key: `inbound-${item?.id || 'item'}`,
+      direction: 'inbound',
+      body: bodyText || 'No message',
+      when: item?.created_at,
+      label: null,
+    },
+  ]
+  for (const draft of replyDrafts || []) {
+    if (!isSentCustomerReply(draft)) continue
+    messages.push({
+      key: `outbound-${draft.id}`,
+      direction: 'outbound',
+      body: String(draft.body || '').trim() || 'No message',
+      when: draft.sent_at || draft.created_at,
+      label: draft.created_by_email || 'You',
+    })
+  }
+  messages.sort((a, b) => {
+    const ta = new Date(a.when || 0).getTime()
+    const tb = new Date(b.when || 0).getTime()
+    return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0)
+  })
+  return messages
+}
+
+function WhatsAppBubble({ direction, body, when, label, renderLinkedText }) {
+  const renderedBody = renderLinkedText ? renderLinkedText(body) : body
+  const isOutbound = direction === 'outbound'
+  return (
+    <div className={isOutbound ? 'ml-auto max-w-[min(100%,28rem)]' : 'mr-auto max-w-[min(100%,28rem)]'}>
+      {isOutbound && label ? (
+        <p className="mb-1 text-right text-[10px] font-medium text-gray-500 dark:text-gray-400">{label}</p>
+      ) : null}
+      <div
+        className={
+          isOutbound
+            ? 'rounded-2xl rounded-tr-sm bg-[#dcf8c6] px-3.5 py-2.5 text-sm leading-relaxed text-gray-900 shadow-sm dark:bg-[#005c4b] dark:text-gray-100'
+            : 'rounded-2xl rounded-tl-sm bg-white px-3.5 py-2.5 text-sm leading-relaxed text-gray-900 shadow-sm dark:bg-[#1f2c34] dark:text-gray-100'
+        }
+      >
+        <div className="whitespace-pre-wrap break-words">{renderedBody}</div>
+        {when ? (
+          <p
+            className={`mt-1.5 text-[10px] tabular-nums ${
+              isOutbound
+                ? 'text-right text-gray-500 dark:text-emerald-100/70'
+                : 'text-right text-gray-400 dark:text-gray-500'
+            }`}
+          >
+            {formatWhen(when)}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Renders feedback in a layout that mirrors the originating channel
  * (email header + body, WhatsApp bubble, social post, form card).
  */
-export default function ChannelMessageView({ item, renderLinkedText }) {
+export default function ChannelMessageView({ item, renderLinkedText, replyDrafts = [] }) {
   const kind = channelKind(item)
   const meta = item?.channel_metadata && typeof item.channel_metadata === 'object' ? item.channel_metadata : {}
   const title = channelMessageTitle(item)
@@ -94,19 +165,24 @@ export default function ChannelMessageView({ item, renderLinkedText }) {
   }
 
   if (kind === 'whatsapp') {
+    const thread = buildWhatsAppThread(item, replyDrafts)
     return (
       <div className="overflow-hidden rounded-2xl border border-[#25D366]/25 bg-[#ece5dd] p-4 dark:border-emerald-900/40 dark:bg-[#0b141a]">
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#075E54] dark:text-emerald-300/80">
           {channelLabel}
           {subtitle ? ` · ${subtitle}` : ''}
         </p>
-        <div className="ml-auto max-w-[min(100%,28rem)] rounded-2xl rounded-tr-sm bg-[#dcf8c6] px-3.5 py-2.5 text-sm leading-relaxed text-gray-900 shadow-sm dark:bg-[#005c4b] dark:text-gray-100">
-          <div className="whitespace-pre-wrap break-words">{body}</div>
-          {when ? (
-            <p className="mt-1.5 text-right text-[10px] tabular-nums text-gray-500 dark:text-emerald-100/70">
-              {formatWhen(when)}
-            </p>
-          ) : null}
+        <div className="space-y-2">
+          {thread.map((msg) => (
+            <WhatsAppBubble
+              key={msg.key}
+              direction={msg.direction}
+              body={msg.body}
+              when={msg.when}
+              label={msg.label}
+              renderLinkedText={renderLinkedText}
+            />
+          ))}
         </div>
       </div>
     )

@@ -3,7 +3,7 @@ import { FiAlertCircle, FiArchive, FiBookmark, FiEye, FiInbox, FiMail, FiRefresh
 import { FaEnvelope, FaFacebook, FaGoogle, FaInstagram, FaTiktok, FaWhatsapp, FaXTwitter } from 'react-icons/fa6'
 import { FiGlobe, FiLayers } from 'react-icons/fi'
 import JotformIcon from '../../../shared/components/icons/JotformIcon'
-import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackOpenReaders, getFeedbackPolicyMatches, getSourceCounts, markFeedbackReplied } from '../services/inbox.api'
+import { addPolicyNumber, removePolicyMatches, setPrimaryPolicyMatch, getFeedbackFeed, getFeedbackOpenReaders, getFeedbackPolicyMatches, getSourceCounts, listReplyDrafts, markFeedbackReplied } from '../services/inbox.api'
 import { normFeedbackId, useInboxUserState } from '../hooks/useInboxUserState'
 import { EmptyState, InboxListSkeleton } from '../../../shared/components/ui'
 import { loadInboxPreferences } from '../../../shared/lib/inboxPreferences'
@@ -15,6 +15,7 @@ import InboxSidebar from './InboxSidebar'
 import InboxListPanel from './InboxListPanel'
 import ChannelMessageView from './ChannelMessageView'
 import SentimentCorrectControl from './SentimentCorrectControl'
+import { channelKind } from '../utils/channelMessagePresentation'
 import {
   computeInboxStats,
   computeStableUnreadCount,
@@ -271,6 +272,7 @@ export default function InboxLite({ onNavigate }) {
   const [openFeedbackId, setOpenFeedbackId] = useState(null)
   const [openItem, setOpenItem] = useState(null)
   const [openReaders, setOpenReaders] = useState(null)
+  const [replyDrafts, setReplyDrafts] = useState([])
   const [policyBusy, setPolicyBusy] = useState(false)
   const [policyError, setPolicyError] = useState('')
   const [addPolicyDraft, setAddPolicyDraft] = useState('')
@@ -1062,6 +1064,24 @@ export default function InboxLite({ onNavigate }) {
     }
   }, [openItem?.id])
 
+  useEffect(() => {
+    if (!openItem?.id || channelKind(openItem) !== 'whatsapp') {
+      setReplyDrafts([])
+      return undefined
+    }
+    let cancelled = false
+    listReplyDrafts(openItem.id)
+      .then((data) => {
+        if (!cancelled) setReplyDrafts(data?.drafts || [])
+      })
+      .catch(() => {
+        if (!cancelled) setReplyDrafts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [openItem?.id])
+
   visibleItemsRef.current = sortedVisibleItems
 
   useEffect(() => {
@@ -1678,7 +1698,7 @@ export default function InboxLite({ onNavigate }) {
               </div>
 
             <div className="mt-4">
-              <ChannelMessageView item={openItem} renderLinkedText={renderLinkedText} />
+              <ChannelMessageView item={openItem} replyDrafts={replyDrafts} renderLinkedText={renderLinkedText} />
             </div>
 
             {Array.isArray(openItem?.channel_metadata?.media) && openItem.channel_metadata.media.length > 0 && (
