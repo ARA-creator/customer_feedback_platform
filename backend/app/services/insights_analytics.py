@@ -473,9 +473,12 @@ def _aggregate_modules(
         ra = it.get("response_at")
         if not ra:
             continue
-        # After-hours proxy: weekends or hour < 8 or >= 18 UTC
         dow = ra.weekday()
         hour = ra.hour
+        from .working_hours import is_working_slot
+
+        if not is_working_slot(dow, hour):
+            continue
         after_hours[dow][hour] += 1
     workforce = {
         "assignees": workforce_rows,
@@ -690,14 +693,23 @@ def _aggregate_modules(
         "by_theme": _rating_breakdown(items, "theme"),
     }
 
-    # Capacity: volume by dow×hour × handle time
+    # Capacity: volume by dow×hour × handle time (working hours only)
+    from .working_hours import is_working_slot
+
     handle = ops_sla["response"]["avg"] or ops_sla["response"]["p50"] or 4.0
     vol_grid = [[0 for _ in range(24)] for _ in range(7)]
     for it in items:
         if not it.get("created_at"):
             continue
-        vol_grid[it["created_at"].weekday()][it["created_at"].hour] += 1
-    peak_hour_vol = max((vol_grid[d][h] for d in range(7) for h in range(24)), default=0)
+        created = it["created_at"]
+        dow, hour = created.weekday(), created.hour
+        if not is_working_slot(dow, hour):
+            continue
+        vol_grid[dow][hour] += 1
+    peak_hour_vol = max(
+        (vol_grid[d][h] for d in range(7) for h in range(24) if is_working_slot(d, h)),
+        default=0,
+    )
     # staffing hint: peak hourly arrivals * handle_hours (very rough FTE proxy / day)
     capacity = {
         "assumed_handle_hours": round(float(handle), 2),

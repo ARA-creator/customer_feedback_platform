@@ -16,6 +16,7 @@ import {
 import { CHART_PALETTE } from '../constants/palette'
 import { getPeakHeatmapCellStyles } from '../utils/dashboardRole'
 import { buildPeakPreset } from '../utils/insightsInboxPreset'
+import { WORKING_DOW, WORKING_DOW_LABELS, WORKING_HOURS, WORKING_HOURS_LABEL } from '../utils/workingHours'
 import {
   buildTopNegativeIssues,
   buildTopThemes,
@@ -123,7 +124,7 @@ export default function DashboardInsightsSection({
   const [activeModule, setActiveModule] = useState('overview')
 
   const rangeLabel = timeWindowLabel
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const days = WORKING_DOW_LABELS
   const safeTrends = Array.isArray(trendData) ? trendData : []
 
   const sentimentSeries = safeTrends.map((r) => ({
@@ -193,7 +194,7 @@ export default function DashboardInsightsSection({
   const peakHeatmapSubtitle =
     selectedThemeKey || selectedSourceKey
       ? 'Click a peak cell for time-of-week drill-down. Theme and channel filters apply when you open inbox from Investigate above.'
-      : 'Counts by day and hour (UTC). Color reflects sentiment balance; intensity reflects volume. Click a cell to open inbox for that slot.'
+      : `Counts by day and hour during working hours (${WORKING_HOURS_LABEL}). Color reflects sentiment balance; intensity reflects volume. Click a cell to open inbox for that slot.`
 
   const topIssuesChartRows = buildTopNegativeIssues(insuranceTagsBreakdown, categoryNegativeMap, 8)
 
@@ -204,17 +205,17 @@ export default function DashboardInsightsSection({
   for (const pt of Array.isArray(peakTimes) ? peakTimes : []) {
     peakByKey.set(`${pt?.day_of_week}-${pt?.hour}`, pt)
   }
-  const rowTotals = Array.from({ length: 24 }).map((_, hour) => {
+  const rowTotals = WORKING_HOURS.map((hour) => {
     let sum = 0
-    for (let dow = 0; dow < 7; dow += 1) {
+    for (const dow of WORKING_DOW) {
       const cell = peakByKey.get(`${dow}-${hour}`)
       sum += Number(cell?.count ?? 0) || 0
     }
     return sum
   })
-  const colTotals = Array.from({ length: 7 }).map((_, dow) => {
+  const colTotals = WORKING_DOW.map((dow) => {
     let sum = 0
-    for (let hour = 0; hour < 24; hour += 1) {
+    for (const hour of WORKING_HOURS) {
       const cell = peakByKey.get(`${dow}-${hour}`)
       sum += Number(cell?.count ?? 0) || 0
     }
@@ -222,8 +223,8 @@ export default function DashboardInsightsSection({
   })
   const peakHighlights = (() => {
     const all = []
-    for (let hour = 0; hour < 24; hour += 1) {
-      for (let dow = 0; dow < 7; dow += 1) {
+    for (const hour of WORKING_HOURS) {
+      for (const dow of WORKING_DOW) {
         const cell = peakByKey.get(`${dow}-${hour}`)
         const count = Number(cell?.count ?? 0) || 0
         if (count > 0) all.push({ dow, hour, count })
@@ -626,12 +627,12 @@ export default function DashboardInsightsSection({
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.from({ length: 24 }).map((_, hour) => (
+                    {WORKING_HOURS.map((hour) => (
                       <tr key={hour} className="border-t border-gray-100 dark:border-gray-800">
                         <td className="px-2 py-1.5 text-gray-500 dark:text-gray-400 font-semibold">
                           {String(hour).padStart(2, '0')}:00
                         </td>
-                        {Array.from({ length: 7 }).map((__, dow) => {
+                        {WORKING_DOW.map((dow) => {
                           const cell = peakByKey.get(`${dow}-${hour}`)
                           const count = Number(cell?.count ?? 0) || 0
                           const pos = Number(cell?.positive ?? 0) || 0
@@ -640,6 +641,7 @@ export default function DashboardInsightsSection({
                           const hm = getPeakHeatmapCellStyles(pos, neg, count, peakTimesMaxCount, isDarkMode)
                           const canClick = count > 0
                           const isPeak = peakHighlights.has(`${dow}-${hour}`)
+                          const dayLabel = days[WORKING_DOW.indexOf(dow)] || ''
                           return (
                             <td
                               key={dow}
@@ -649,7 +651,7 @@ export default function DashboardInsightsSection({
                                   : ''
                               } ${isPeak ? 'ring-2 ring-teal-400/60 ring-inset' : ''}`}
                               style={hm.style}
-                              title={`${days[dow]} ${String(hour).padStart(2, '0')}:00 · ${count} total · ${pos} pos · ${neu} neu · ${neg} neg`}
+                              title={`${dayLabel} ${String(hour).padStart(2, '0')}:00 · ${count} total · ${pos} pos · ${neu} neu · ${neg} neg`}
                               onMouseEnter={() => setHeatmapHover({ dow, hour, count, pos, neg, neu })}
                               onMouseLeave={() => setHeatmapHover(null)}
                               onClick={() => {
@@ -671,7 +673,7 @@ export default function DashboardInsightsSection({
                           )
                         })}
                         <td className="px-2 py-1.5 text-center font-semibold text-gray-600 dark:text-gray-300">
-                          {rowTotals[hour] || ''}
+                          {rowTotals[WORKING_HOURS.indexOf(hour)] || ''}
                         </td>
                       </tr>
                     ))}

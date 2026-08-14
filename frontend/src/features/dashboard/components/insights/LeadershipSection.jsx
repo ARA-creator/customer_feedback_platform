@@ -1,5 +1,6 @@
 import InsightsSectionCard from './InsightsSectionCard'
-import { DOW, fmtDelta, fmtHours, fmtPct } from './insightsDeepFormat'
+import { fmtDelta, fmtHours, fmtPct } from './insightsDeepFormat'
+import { WORKING_DOW, WORKING_DOW_LABELS, WORKING_HOURS, WORKING_HOURS_LABEL } from '../../utils/workingHours'
 
 function DeltaCard({ label, current, prior, delta, format = 'num' }) {
   const cur =
@@ -86,7 +87,7 @@ export default function LeadershipSection({
 
       <InsightsSectionCard
         title="Capacity planning"
-        subtitle={capacity?.note || 'Volume × handle-time staffing hint.'}
+        subtitle={`${capacity?.note || 'Volume × handle-time staffing hint.'} Working hours only (${WORKING_HOURS_LABEL}).`}
       >
         <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
@@ -103,15 +104,24 @@ export default function LeadershipSection({
           </div>
         </div>
         <div className="overflow-x-auto">
-          <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: `32px repeat(24, 14px)` }}>
+          <div
+            className="inline-grid gap-0.5"
+            style={{ gridTemplateColumns: `32px repeat(${WORKING_HOURS.length}, 14px)` }}
+          >
             <div />
-            {Array.from({ length: 24 }).map((_, h) => (
+            {WORKING_HOURS.map((h) => (
               <div key={`h-${h}`} className="text-center text-[8px] text-gray-400">
-                {h % 6 === 0 ? h : ''}
+                {h % 3 === 0 ? h : ''}
               </div>
             ))}
-            {DOW.map((label, dow) => (
-              <HeatRow key={label} label={label} dow={dow} heat={heat} maxH={maxH} />
+            {WORKING_DOW.map((dow, idx) => (
+              <HeatRow
+                key={WORKING_DOW_LABELS[idx]}
+                label={WORKING_DOW_LABELS[idx]}
+                dow={dow}
+                heat={heat}
+                maxH={maxH}
+              />
             ))}
           </div>
         </div>
@@ -124,7 +134,7 @@ function HeatRow({ label, dow, heat, maxH }) {
   return (
     <>
       <div className="pr-1 text-right text-[10px] text-gray-500">{label}</div>
-      {Array.from({ length: 24 }).map((_, hour) => {
+      {WORKING_HOURS.map((hour) => {
         const cell = heat.find((c) => c.dow === dow && c.hour === hour)
         const n = Number(cell?.count) || 0
         const alpha = n ? 0.15 + (n / maxH) * 0.85 : 0

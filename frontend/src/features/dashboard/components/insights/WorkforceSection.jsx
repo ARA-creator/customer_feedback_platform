@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
 import InsightsSectionCard from './InsightsSectionCard'
-import { DOW, fmtHours, fmtPct } from './insightsDeepFormat'
+import { fmtHours, fmtPct } from './insightsDeepFormat'
+import { WORKING_DOW, WORKING_DOW_LABELS, WORKING_HOURS, WORKING_HOURS_LABEL } from '../../utils/workingHours'
 
 export default function WorkforceSection({ data, isDarkMode, loading, onSelectAssignee }) {
   const [sortKey, setSortKey] = useState('count')
@@ -103,25 +104,30 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
 
         <InsightsSectionCard
           title="Response hour heatmap"
-          subtitle="When first replies are sent (UTC). Intensity hints at after-hours / overtime patterns."
+          subtitle={`When first replies are sent during working hours (${WORKING_HOURS_LABEL}).`}
         >
           <div className="overflow-x-auto">
-            <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: `32px repeat(24, 14px)` }}>
+            <div
+              className="inline-grid gap-0.5"
+              style={{ gridTemplateColumns: `32px repeat(${WORKING_HOURS.length}, 14px)` }}
+            >
               <div />
-              {Array.from({ length: 24 }).map((_, h) => (
-                <div key={`h-${h}`} className="text-center text-[8px] text-gray-400">{h % 6 === 0 ? h : ''}</div>
+              {WORKING_HOURS.map((h) => (
+                <div key={`h-${h}`} className="text-center text-[8px] text-gray-400">
+                  {h % 3 === 0 ? h : ''}
+                </div>
               ))}
-              {DOW.map((label, dow) => (
+              {WORKING_DOW.map((dow, idx) => (
                 <Fragment key={`row-${dow}`}>
-                  <div className="pr-1 text-right text-[10px] text-gray-500">{label}</div>
-                  {Array.from({ length: 24 }).map((_, hour) => {
+                  <div className="pr-1 text-right text-[10px] text-gray-500">{WORKING_DOW_LABELS[idx]}</div>
+                  {WORKING_HOURS.map((hour) => {
                     const cell = heat.find((c) => c.dow === dow && c.hour === hour)
                     const n = Number(cell?.count) || 0
                     const alpha = n ? 0.15 + (n / maxH) * 0.85 : 0
                     return (
                       <div
                         key={`${dow}-${hour}`}
-                        title={`${label} ${hour}:00 — ${n}`}
+                        title={`${WORKING_DOW_LABELS[idx]} ${hour}:00 — ${n}`}
                         className="h-3.5 w-3.5 rounded-sm border border-gray-100 dark:border-gray-800"
                         style={{ backgroundColor: n ? `rgba(0,151,80,${alpha})` : 'transparent' }}
                       />

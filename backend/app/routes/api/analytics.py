@@ -277,6 +277,10 @@ def get_analytics():
             created_at = created_at.astimezone(timezone.utc)
             day_of_week = created_at.weekday()
             hour = created_at.hour
+            from ...services.working_hours import is_working_slot
+
+            if not is_working_slot(day_of_week, hour):
+                continue
             key = (day_of_week, hour)
             bucket = heatmap.setdefault(key, {"positive": 0, "negative": 0, "neutral": 0, "total": 0})
             sentiment_key = (label or "neutral").lower()
