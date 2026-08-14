@@ -592,7 +592,7 @@ export default function Customer360({ onNavigate }) {
               </div>
 
               <div className="card p-5">
-                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Identity</h2>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Customer Channels</h2>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {(() => {
                     const idents = dedupeIdentityChips(data.identifiers)
@@ -619,7 +619,7 @@ export default function Customer360({ onNavigate }) {
               <div id="cfp-customer-products" className="card p-5 scroll-mt-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">My Policies</h2>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Related Policies</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-md">
                       Click a chip to filter history. “Review” means the match needs staff confirmation.
                     </p>
