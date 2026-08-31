@@ -43,3 +43,12 @@ def test_breakdown_stats():
     assert rows[0]["key"] == "email"
     assert rows[0]["count"] == 2
     assert rows[0]["breach_count"] == 1
+
+
+def test_is_assigned_bucket_excludes_unassigned():
+    from app.services.insights_analytics import _is_assigned_bucket
+
+    assert _is_assigned_bucket("Unassigned") is False
+    assert _is_assigned_bucket("unassigned") is False
+    assert _is_assigned_bucket("") is False
+    assert _is_assigned_bucket("Jane Doe <jane@example.com>") is True

@@ -291,7 +291,7 @@ function Dashboard({
   useEffect(() => {
     if (mode !== 'insights') return undefined
     let cancelled = false
-    ;(async () => {
+          ;(async () => {
       setInsightsDeepLoading(true)
       try {
         const params = { time_window: overviewTimeFilter, compare: 1 }
@@ -305,8 +305,8 @@ function Dashboard({
         if (!cancelled) setInsightsDeep(null)
       } finally {
         if (!cancelled) setInsightsDeepLoading(false)
-      }
-    })()
+            }
+          })()
     return () => {
       cancelled = true
     }
@@ -655,8 +655,8 @@ function Dashboard({
             onToggleAutoRefresh={setDashboardAutoRefresh}
             showActions={mode === 'overview'}
           />
-          {mode === 'overview' && (
-            <>
+      {mode === 'overview' && (
+        <>
               <FeedbackAnalyzerModal
                 open={analyzerOpen}
                 onClose={handleCloseAnalyzer}

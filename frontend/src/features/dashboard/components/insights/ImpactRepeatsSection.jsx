@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts'
 import InsightsSectionCard from './InsightsSectionCard'
+import RepeatPoliciesCharts from './RepeatPoliciesCharts'
 import { fmtPct } from './insightsDeepFormat'
 import { getInsightsReleaseImpact } from '../../services/dashboard.api'
 import { openFeedbackInInbox } from '../../utils/insightsInboxPreset'
@@ -150,10 +151,9 @@ export default function ImpactRepeatsSection({
         >
           <RepeatTable rows={repeats?.customers || []} onNavigateToInbox={onNavigateToInbox} />
         </InsightsSectionCard>
-        <InsightsSectionCard title="Repeat policies" subtitle="Same policy across multiple feedback rows.">
-          <RepeatTable rows={repeats?.policies || []} onNavigateToInbox={onNavigateToInbox} />
-        </InsightsSectionCard>
       </div>
+
+      <RepeatPoliciesCharts repeats={repeats} isDarkMode={isDarkMode} onNavigateToInbox={onNavigateToInbox} />
     </div>
   )
 }

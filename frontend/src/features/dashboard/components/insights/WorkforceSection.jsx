@@ -4,13 +4,23 @@ import InsightsSectionCard from './InsightsSectionCard'
 import { fmtHours, fmtPct } from './insightsDeepFormat'
 import { WORKING_DOW, WORKING_DOW_LABELS, WORKING_HOURS, WORKING_HOURS_LABEL } from '../../utils/workingHours'
 
+function isAssignedKey(key) {
+  const label = String(key || '').trim()
+  return Boolean(label) && label.toLowerCase() !== 'unassigned'
+}
+
 export default function WorkforceSection({ data, isDarkMode, loading, onSelectAssignee }) {
   const [sortKey, setSortKey] = useState('count')
   const assignees = useMemo(() => {
-    const rows = [...(data?.assignees || [])]
+    const rows = (data?.assignees || []).filter((r) => isAssignedKey(r?.key))
     rows.sort((a, b) => (Number(b[sortKey]) || 0) - (Number(a[sortKey]) || 0))
     return rows
   }, [data, sortKey])
+
+  const teams = useMemo(
+    () => (data?.teams || []).filter((r) => isAssignedKey(r?.key)),
+    [data],
+  )
 
   const mix = assignees.slice(0, 12).map((r) => ({
     key: r.key,
@@ -33,7 +43,7 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
     <div className="space-y-4">
       <InsightsSectionCard
         title="Assignee productivity"
-        subtitle="Volume handled, response times, open vs closed. Click a row to investigate."
+        subtitle="Assigned officers only — volume, response times, open vs closed. Click a row to investigate."
         right={
           <select
             value={sortKey}
@@ -48,7 +58,7 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
         }
       >
         {assignees.length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-500">No assignee activity in this period.</p>
+          <p className="py-8 text-center text-sm text-gray-500">No assigned officers in this period.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-xs">
@@ -86,40 +96,49 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
       </InsightsSectionCard>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <InsightsSectionCard title="Open vs closed mix" subtitle="Top assignees by volume.">
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mix} layout="vertical" margin={{ left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#1f2937' : '#e5e7eb'} horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
-                <YAxis type="category" dataKey="key" width={100} tick={{ fontSize: 9, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
-                <Tooltip contentStyle={tipStyle} />
-                <Legend />
-                <Bar dataKey="open" stackId="a" fill="#f59e0b" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
-                <Bar dataKey="closed" stackId="a" fill="#009750" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <InsightsSectionCard title="Open vs closed mix" subtitle="Top assigned officers by volume.">
+          {mix.length === 0 ? (
+            <p className="flex h-64 items-center justify-center text-sm text-gray-500">No assigned officers in this period.</p>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mix} layout="vertical" margin={{ left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#1f2937' : '#e5e7eb'} horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
+                  <YAxis type="category" dataKey="key" width={100} tick={{ fontSize: 9, fill: isDarkMode ? '#cbd5e1' : '#64748b' }} />
+                  <Tooltip contentStyle={tipStyle} />
+                  <Legend />
+                  <Bar dataKey="open" stackId="a" fill="#f59e0b" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
+                  <Bar dataKey="closed" stackId="a" fill="#009750" cursor="pointer" onClick={(d) => onSelectAssignee?.(d.key)} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </InsightsSectionCard>
 
         <InsightsSectionCard
           title="Response hour heatmap"
           subtitle={`When first replies are sent during working hours (${WORKING_HOURS_LABEL}).`}
         >
-          <div className="overflow-x-auto">
+          <div className="h-64 w-full">
             <div
-              className="inline-grid gap-0.5"
-              style={{ gridTemplateColumns: `32px repeat(${WORKING_HOURS.length}, 14px)` }}
+              className="grid h-full w-full gap-1"
+              style={{
+                gridTemplateColumns: `2.25rem repeat(${WORKING_HOURS.length}, minmax(0, 1fr))`,
+                gridTemplateRows: `auto repeat(${WORKING_DOW.length}, minmax(0, 1fr))`,
+              }}
             >
               <div />
               {WORKING_HOURS.map((h) => (
-                <div key={`h-${h}`} className="text-center text-[8px] text-gray-400">
+                <div key={`h-${h}`} className="flex items-end justify-center pb-0.5 text-[9px] text-gray-400">
                   {h % 3 === 0 ? h : ''}
                 </div>
               ))}
               {WORKING_DOW.map((dow, idx) => (
                 <Fragment key={`row-${dow}`}>
-                  <div className="pr-1 text-right text-[10px] text-gray-500">{WORKING_DOW_LABELS[idx]}</div>
+                  <div className="flex items-center justify-end pr-1 text-[10px] font-medium text-gray-500">
+                    {WORKING_DOW_LABELS[idx]}
+                  </div>
                   {WORKING_HOURS.map((hour) => {
                     const cell = heat.find((c) => c.dow === dow && c.hour === hour)
                     const n = Number(cell?.count) || 0
@@ -128,7 +147,7 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
                       <div
                         key={`${dow}-${hour}`}
                         title={`${WORKING_DOW_LABELS[idx]} ${hour}:00 — ${n}`}
-                        className="h-3.5 w-3.5 rounded-sm border border-gray-100 dark:border-gray-800"
+                        className="min-h-0 rounded-sm border border-gray-100 dark:border-gray-800"
                         style={{ backgroundColor: n ? `rgba(0,151,80,${alpha})` : 'transparent' }}
                       />
                     )
@@ -140,7 +159,7 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
         </InsightsSectionCard>
       </div>
 
-      <InsightsSectionCard title="Team rollup" subtitle="Assigned team volume and SLA health.">
+      <InsightsSectionCard title="Team rollup" subtitle="Assigned teams only — volume and SLA health.">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs">
             <thead className="text-[10px] uppercase text-gray-500">
@@ -153,7 +172,7 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
               </tr>
             </thead>
             <tbody>
-              {(data?.teams || []).map((r) => (
+              {teams.map((r) => (
                 <tr key={r.key} className="border-t border-gray-100 dark:border-gray-800">
                   <td className="px-2 py-2 font-semibold">{r.key}</td>
                   <td className="px-2 py-2">{r.count}</td>
@@ -164,8 +183,8 @@ export default function WorkforceSection({ data, isDarkMode, loading, onSelectAs
               ))}
             </tbody>
           </table>
-          {(data?.teams || []).length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">No team assignments in this period.</p>
+          {teams.length === 0 ? (
+            <p className="py-6 text-center text-sm text-gray-500">No assigned teams in this period.</p>
           ) : null}
         </div>
       </InsightsSectionCard>

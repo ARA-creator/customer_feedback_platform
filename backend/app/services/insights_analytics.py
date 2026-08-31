@@ -127,6 +127,12 @@ def _is_closed(status: str) -> bool:
     return status in _CLOSED_STATUSES
 
 
+def _is_assigned_bucket(key: Optional[str]) -> bool:
+    """Exclude placeholder buckets when nothing is assigned on the platform."""
+    label = str(key or "").strip()
+    return bool(label) and label.lower() != "unassigned"
+
+
 def _prior_window(
     filter_from: Optional[datetime],
     filter_to: Optional[datetime],
@@ -457,14 +463,15 @@ def _aggregate_modules(
         "by_channel": _breakdown_stats(items, "channel"),
     }
 
-    # Workforce
-    workforce_rows = _breakdown_stats(items, "assignee", top_n=25)
-    team_rows = _breakdown_stats(items, "team", top_n=15)
-    open_total = max(1, len(open_items))
+    # Workforce (assigned officers/teams only — skip unassigned backlog bucket)
+    workforce_rows = [
+        r for r in _breakdown_stats(items, "assignee", top_n=25) if _is_assigned_bucket(r.get("key"))
+    ]
+    team_rows = [r for r in _breakdown_stats(items, "team", top_n=15) if _is_assigned_bucket(r.get("key"))]
+    assigned_open_items = [it for it in open_items if _is_assigned_bucket(it.get("assignee"))]
+    open_total = max(1, len(assigned_open_items))
     for row in workforce_rows:
-        open_share = sum(
-            1 for it in open_items if (it.get("assignee") or "Unassigned") == row["key"]
-        )
+        open_share = sum(1 for it in assigned_open_items if it.get("assignee") == row["key"])
         row["open_share"] = round(open_share / open_total, 4)
         row["workload_balance"] = row["open_share"]
 
@@ -530,6 +537,11 @@ def _aggregate_modules(
                 continue
             neg = sum(1 for r in rows_g if r.get("sentiment") == "negative")
             sample = rows_g[0]
+            timeline_ctr: Counter = Counter()
+            for r in rows_g:
+                created = _ensure_aware(r.get("created_at"))
+                if created:
+                    timeline_ctr[_month_key(created)] += 1
             rows_out.append(
                 {
                     "key": key,
@@ -540,14 +552,42 @@ def _aggregate_modules(
                     "negative_share": round(neg / max(1, len(rows_g)), 4),
                     "label": sample.get("policy_masked") if kind == "policy" else key,
                     "feedback_ids": [r["id"] for r in rows_g[:8]],
+                    "timeline": [{"period": p, "count": c} for p, c in sorted(timeline_ctr.items())],
                 }
             )
         rows_out.sort(key=lambda x: x["count"], reverse=True)
         return rows_out[:20]
 
+    policies = _repeat_rows(by_policy, kind="policy")
+    policy_periods = sorted({t["period"] for row in policies for t in row.get("timeline", [])})
+    policy_heatmap: List[Dict[str, Any]] = []
+    for row in policies[:12]:
+        label = str(row.get("label") or row["key"])
+        by_period = {t["period"]: int(t["count"]) for t in row.get("timeline", [])}
+        for period in policy_periods:
+            policy_heatmap.append(
+                {
+                    "policy": label,
+                    "policy_key": row["key"],
+                    "period": period,
+                    "count": by_period.get(period, 0),
+                }
+            )
+
     repeats = {
         "customers": _repeat_rows(by_customer, kind="customer"),
-        "policies": _repeat_rows(by_policy, kind="policy"),
+        "policies": policies,
+        "policy_periods": policy_periods,
+        "policy_heatmap": policy_heatmap,
+        "policy_summary": {
+            "policy_count": len(policies),
+            "chronic_count": sum(1 for r in policies if r.get("chronic")),
+            "repeat_count": sum(1 for r in policies if not r.get("chronic")),
+            "feedback_rows": sum(int(r["count"]) for r in policies),
+            "avg_negative_share": round(
+                sum(float(r.get("negative_share") or 0) for r in policies) / max(1, len(policies)), 4
+            ),
+        },
         "chronic_threshold": _CHRONIC_MIN,
     }
 
