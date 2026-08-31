@@ -88,7 +88,10 @@ export default function OpsSlaSection({
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <InsightsSectionCard title="First-response distribution" subtitle="Hours to first sent reply.">
+        <InsightsSectionCard
+          title="First-response distribution"
+          subtitle="Hours to first reply (in-app send, email, WhatsApp, or marked replied)."
+        >
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ops.response?.histogram || []}>

@@ -218,3 +218,17 @@ git push -u origin main
 - The first reorganization pass preserves behavior while making the codebase easier to scale and split further by domain.
 
 python scripts/data/reprocess_sentiment.py --force --until-done --order oldest
+
+# 1. Commit on main (you're already on main)
+git add -A
+git commit -m "Your message"
+
+# 2. Move CustomerPulse-2 to the same commit
+git checkout CustomerPulse-2
+git merge --ff-only main
+
+# 3. Push both in one command
+git push origin main CustomerPulse-2
+
+# 4. Back to main for daily work
+git checkout main

@@ -16,6 +16,7 @@ import {
   formatSlaDateTime,
   slaChannelLabel,
 } from '../utils/emailResponseSla'
+import { WORKING_HOURS_LABEL } from '../../../shared/utils/workingHours'
 
 const PRIORITY_STYLES = {
   low: 'border-gray-200/80 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300',
@@ -113,8 +114,8 @@ export default function InboxFeedbackRow({
   const arrivedLabel = formatSlaDateTime(sla.arrivalAt)
   const repliedLabel = sla.repliedAt ? formatSlaDateTime(sla.repliedAt) : ''
   const slaTitle =
-    sla.status && sla.thresholdHours != null
-      ? `${sla.status}: ${slaChannelLabel(sla.mailbox)} SLA is ${sla.thresholdHours}h from arrival`
+    sla.status && sla.thresholdWorkingDays != null
+      ? `${sla.status}: ${slaChannelLabel(sla.mailbox)} SLA is ${sla.thresholdWorkingDays === 1 ? '1 working day' : `${sla.thresholdWorkingDays} working days`} (${WORKING_HOURS_LABEL}) from arrival`
       : undefined
 
   return (

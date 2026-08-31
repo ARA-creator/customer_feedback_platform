@@ -25,6 +25,17 @@ function isSentCustomerReply(draft) {
   return true
 }
 
+function buildWhatsAppThreadFromApi(threadMessages) {
+  const rows = Array.isArray(threadMessages) ? threadMessages : []
+  return rows.map((msg) => ({
+    key: String(msg?.id || `${msg?.direction}-${msg?.sent_at}`),
+    direction: msg?.direction === 'outbound' ? 'outbound' : 'inbound',
+    body: String(msg?.body || '').trim() || 'No message',
+    when: msg?.sent_at,
+    label: msg?.label || (msg?.direction === 'outbound' ? 'You' : null),
+  }))
+}
+
 function buildWhatsAppThread(item, replyDrafts) {
   const bodyText = String(item?.message || item?.message_preview || '').trim()
   const messages = [
@@ -90,7 +101,7 @@ function WhatsAppBubble({ direction, body, when, label, renderLinkedText }) {
  * Renders feedback in a layout that mirrors the originating channel
  * (email header + body, WhatsApp bubble, social post, form card).
  */
-export default function ChannelMessageView({ item, renderLinkedText, replyDrafts = [] }) {
+export default function ChannelMessageView({ item, renderLinkedText, replyDrafts = [], whatsappThread = null }) {
   const kind = channelKind(item)
   const meta = item?.channel_metadata && typeof item.channel_metadata === 'object' ? item.channel_metadata : {}
   const title = channelMessageTitle(item)
@@ -165,7 +176,10 @@ export default function ChannelMessageView({ item, renderLinkedText, replyDrafts
   }
 
   if (kind === 'whatsapp') {
-    const thread = buildWhatsAppThread(item, replyDrafts)
+    const thread =
+      Array.isArray(whatsappThread) && whatsappThread.length > 0
+        ? buildWhatsAppThreadFromApi(whatsappThread)
+        : buildWhatsAppThread(item, replyDrafts)
     return (
       <div className="overflow-hidden rounded-2xl border border-[#25D366]/25 bg-[#ece5dd] p-4 dark:border-emerald-900/40 dark:bg-[#0b141a]">
         <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#075E54] dark:text-emerald-300/80">

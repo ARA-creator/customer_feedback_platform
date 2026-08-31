@@ -12,7 +12,51 @@ from flask import request
 
 logger = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
+
+def phone_from_twilio_address(addr: str) -> str:
+    phone = (addr or "").strip()
+    if phone.lower().startswith("whatsapp:"):
+        phone = phone.split(":", 1)[1].strip()
+    return phone
+
+
+def parse_twilio_outbound_record(msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Parse a Twilio REST outbound WhatsApp message (console / API send).
+
+    Customer phone is in ``To``; business number is in ``From``.
+    """
+    from ..services.metadata_normalization import normalize_phone_identity
+
+    body = str(msg.get("body") or "").strip()
+    if not body:
+        return None
+
+    to_raw = str(msg.get("to") or "")
+    from_raw = str(msg.get("from") or "")
+    if "whatsapp" not in to_raw.lower():
+        return None
+
+    customer_phone = phone_from_twilio_address(to_raw)
+    thread_key = normalize_phone_identity(customer_phone)
+    if not thread_key:
+        digits = "".join(ch for ch in customer_phone if ch.isdigit())
+        if len(digits) < 7:
+            return None
+        thread_key = normalize_phone_identity(digits) or f"+{digits}"
+
+    sid = str(msg.get("sid") or msg.get("MessageSid") or "").strip()
+    sent_at = parse_message_datetime(msg)
+
+    return {
+        "thread_key": thread_key,
+        "body": body,
+        "message_sid": sid or None,
+        "sent_at": sent_at,
+        "from_number": phone_from_twilio_address(from_raw) or from_raw,
+        "to_number": customer_phone or to_raw,
+        "direction": "outbound",
+    }
 
 
 def verify_twilio_signature(url: str, params: Dict, auth_token: str) -> bool:

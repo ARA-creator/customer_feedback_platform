@@ -3,18 +3,23 @@
  *
  * Prefer actual email header times (metadata), fall back to platform timestamps.
  *
- * SLA channels:
- * - HNW email: Overdue when elapsed > 24h
- * - CX email: Overdue when elapsed > 48h
- * - Facebook, TikTok, Instagram, Jotform, WhatsApp: Overdue when elapsed > 24h
+ * SLA channels (working time only — Mon–Fri 08:00–17:59 UTC):
+ * - HNW email: Overdue when elapsed > 1 working day
+ * - CX email: Overdue when elapsed > 2 working days
+ * - Facebook, TikTok, Instagram, Jotform, WhatsApp: Overdue when elapsed > 1 working day
  */
 
-const HNW_SLA_HOURS = 24
-const CX_SLA_HOURS = 48
-const CHANNEL_24H_SLA_HOURS = 24
+import {
+  WORKING_HOURS_PER_DAY,
+  elapsedWorkingHours,
+} from '../../../shared/utils/workingHours'
 
-/** Channels that use the 24h SLA (besides HNW email). */
-const CHANNEL_24H = new Set(['facebook', 'tiktok', 'instagram', 'jotform', 'whatsapp'])
+const HNW_SLA_WORKING_DAYS = 1
+const CX_SLA_WORKING_DAYS = 2
+const CHANNEL_1DAY_SLA_WORKING_DAYS = 1
+
+/** Channels that use the 1 working-day SLA (besides HNW email). */
+const CHANNEL_1DAY = new Set(['facebook', 'tiktok', 'instagram', 'jotform', 'whatsapp'])
 
 export function parseTimestamp(value) {
   if (value == null || value === '') return null
@@ -111,44 +116,59 @@ export function slaChannelLabel(mailbox) {
 }
 
 function thresholdForMailbox(mailbox) {
-  if (mailbox === 'hnw') return HNW_SLA_HOURS
-  if (mailbox === 'cx') return CX_SLA_HOURS
-  if (CHANNEL_24H.has(mailbox)) return CHANNEL_24H_SLA_HOURS
+  if (mailbox === 'hnw') return HNW_SLA_WORKING_DAYS
+  if (mailbox === 'cx') return CX_SLA_WORKING_DAYS
+  if (CHANNEL_1DAY.has(mailbox)) return CHANNEL_1DAY_SLA_WORKING_DAYS
   return null
 }
 
+export function formatSlaThresholdLabel(workingDays) {
+  const n = Number(workingDays)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  return n === 1 ? '1 working day' : `${n} working days`
+}
+
 /**
- * @returns {{ status: 'Overdue'|'On track'|null, mailbox: string|null, thresholdHours: number|null, elapsedHours: number|null, arrivalAt: Date|null, repliedAt: Date|null }}
+ * @returns {{
+ *   status: 'Overdue'|'On track'|null,
+ *   mailbox: string|null,
+ *   thresholdWorkingDays: number|null,
+ *   thresholdWorkingHours: number|null,
+ *   elapsedWorkingHours: number|null,
+ *   arrivalAt: Date|null,
+ *   repliedAt: Date|null,
+ * }}
  */
 export function computeResponseSla(item, now = Date.now()) {
   const mailbox = resolveMailboxKind(item)
   const arrivalAt = resolveArrivalAt(item)
   const repliedAt = resolveRepliedAt(item)
-  const thresholdHours = thresholdForMailbox(mailbox)
+  const thresholdWorkingDays = thresholdForMailbox(mailbox)
 
-  if (!mailbox || !arrivalAt || thresholdHours == null) {
+  if (!mailbox || !arrivalAt || thresholdWorkingDays == null) {
     return {
       status: null,
       mailbox,
-      thresholdHours: null,
-      elapsedHours: null,
+      thresholdWorkingDays: null,
+      thresholdWorkingHours: null,
+      elapsedWorkingHours: null,
       arrivalAt,
       repliedAt,
     }
   }
 
-  const endMs = repliedAt ? repliedAt.getTime() : Number(now)
-  const startMs = arrivalAt.getTime()
-  const elapsedMs = Math.max(0, endMs - startMs)
-  const elapsedHours = elapsedMs / (1000 * 60 * 60)
+  const endAt = repliedAt || new Date(Number(now))
+  const elapsedWorkingHoursValue = elapsedWorkingHours(arrivalAt, endAt)
+  const thresholdWorkingHours = thresholdWorkingDays * WORKING_HOURS_PER_DAY
   // Strictly greater than the threshold is Overdue; exact boundary stays On track.
-  const status = elapsedHours > thresholdHours ? 'Overdue' : 'On track'
+  const status = elapsedWorkingHoursValue > thresholdWorkingHours ? 'Overdue' : 'On track'
 
   return {
     status,
     mailbox,
-    thresholdHours,
-    elapsedHours,
+    thresholdWorkingDays,
+    thresholdWorkingHours,
+    elapsedWorkingHours: elapsedWorkingHoursValue,
     arrivalAt,
     repliedAt,
   }

@@ -45,7 +45,10 @@ from ..integrations.tiktok_integration import (
     tiktok_item_hash,
     tiktok_item_to_feedback_payload,
 )
-from ..integrations.twilio_whatsapp_poll import fetch_recent_inbound_whatsapp_form_messages
+from ..integrations.twilio_whatsapp_poll import (
+    fetch_recent_inbound_whatsapp_form_messages,
+    fetch_recent_outbound_whatsapp_messages,
+)
 from ..models import Feedback, FeedbackPolicyMatch, ExternalIngestedItem
 from ..security import encrypt_text, hash_email
 from ..sentiment_analyzer import analyze_sentiment
@@ -687,11 +690,38 @@ def poll_twilio_whatsapp_and_ingest(
     finally:
         db.close()
 
+    outbound_synced = 0
+    db = SessionLocal()
+    try:
+        from ..services.whatsapp_thread import ingest_twilio_outbound_message
+
+        outbound_raw = fetch_recent_outbound_whatsapp_messages(
+            account_sid,
+            auth_token,
+            hours_back=max(1, int(hours_back)),
+            to_number_filter=to_filter,
+            max_pages=5,
+        )
+        for msg in outbound_raw:
+            try:
+                _row, created = ingest_twilio_outbound_message(db, msg)
+                if created:
+                    db.commit()
+                    outbound_synced += 1
+                else:
+                    db.rollback()
+            except Exception:
+                db.rollback()
+                logger.exception("Failed to ingest outbound WhatsApp message")
+    finally:
+        db.close()
+
     return {
         "message": f"Processed {processed_count} WhatsApp messages (Twilio poll)",
         "messages_found": len(form_messages),
         "inbound_whatsapp_candidates": candidates,
         "processed": processed_count,
+        "outbound_synced": outbound_synced,
     }
 
 

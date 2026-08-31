@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .whatsapp_integration import parse_message_datetime, twilio_rest_message_to_webhook_form
+from .whatsapp_integration import parse_message_datetime, twilio_rest_message_to_webhook_form, normalize_whatsapp_address
 
 logger = logging.getLogger(__name__)
 
@@ -114,5 +114,52 @@ def fetch_recent_inbound_whatsapp_form_messages(
         if not (form.get("Body") or "").strip():
             continue
         result.append(form)
+
+    return result
+
+
+def fetch_recent_outbound_whatsapp_messages(
+    account_sid: str,
+    auth_token: str,
+    *,
+    hours_back: int = 24,
+    to_number_filter: Optional[str] = None,
+    max_pages: int = 5,
+) -> List[Dict[str, Any]]:
+    """
+    Return raw Twilio REST message dicts for outbound WhatsApp sent within hours_back.
+
+    Officer sends (Twilio console / API) have direction outbound-* and To = customer whatsapp.
+    """
+    since = datetime.now(tz=timezone.utc) - timedelta(hours=max(1, hours_back))
+    raw = twilio_api_list_messages(account_sid, auth_token, max_pages=max_pages)
+    result: List[Dict[str, Any]] = []
+
+    for msg in raw:
+        if not isinstance(msg, dict):
+            continue
+        direction = str(msg.get("direction") or "").lower()
+        if not direction.startswith("outbound"):
+            continue
+        to_ = str(msg.get("to") or "")
+        if "whatsapp" not in to_.lower():
+            continue
+        from_ = str(msg.get("from") or "")
+        if "whatsapp" not in from_.lower():
+            continue
+        if to_number_filter and to_number_filter.strip():
+            # Optional: only messages from our business line (From matches filter).
+            if from_.strip().lower() != to_number_filter.strip().lower():
+                if normalize_whatsapp_address(from_) != normalize_whatsapp_address(to_number_filter):
+                    continue
+
+        dt = parse_message_datetime(msg)
+        if dt is not None and dt < since:
+            continue
+
+        body = str(msg.get("body") or "").strip()
+        if not body:
+            continue
+        result.append(msg)
 
     return result

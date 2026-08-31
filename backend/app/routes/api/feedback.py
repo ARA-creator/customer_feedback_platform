@@ -1013,6 +1013,70 @@ def feedback_item_opens(feedback_id: int):
         db.close()
 
 
+@api_bp.route("/feedback/<int:feedback_id>/whatsapp-thread", methods=["GET"])
+def feedback_whatsapp_thread(feedback_id: int):
+    """Merged WhatsApp conversation (inbound feedback + Twilio outbound + sent drafts)."""
+    db = SessionLocal()
+    try:
+        user, perms = _require_any_permission(
+            db,
+            ["feedback.view_all", "feedback.view_team", "feedback.view_assigned", "feedback.reply"],
+        )
+        q = db.query(Feedback).filter(Feedback.id == int(feedback_id), Feedback.deleted_at.is_(None))
+        q = _scope_feedback_query(db, q, user=user, perms=perms)
+        fb = q.first()
+        if not fb:
+            return jsonify({"error": "Feedback not found"}), 404
+
+        from ...services.whatsapp_thread import (
+            build_whatsapp_thread_messages,
+            feedback_is_whatsapp_thread,
+            ingest_twilio_outbound_message,
+            resolve_whatsapp_thread_key,
+        )
+        from ...integrations.twilio_whatsapp_poll import fetch_recent_outbound_whatsapp_messages
+        from ...core.config import get_config
+
+        if not feedback_is_whatsapp_thread(fb):
+            return jsonify({"error": "Not a WhatsApp feedback item"}), 400
+
+        thread_key = resolve_whatsapp_thread_key(fb)
+        cfg = get_config()
+        account_sid = (getattr(cfg, "TWILIO_ACCOUNT_SID", "") or "").strip()
+        auth_token = (getattr(cfg, "TWILIO_AUTH_TOKEN", "") or "").strip()
+        to_number = getattr(cfg, "TWILIO_WHATSAPP_TO_NUMBER", None)
+        if account_sid and auth_token:
+            try:
+                synced_any = False
+                outbound_raw = fetch_recent_outbound_whatsapp_messages(
+                    account_sid,
+                    auth_token,
+                    hours_back=72,
+                    to_number_filter=(to_number or "").strip() or None,
+                    max_pages=3,
+                )
+                for msg in outbound_raw:
+                    _row, created = ingest_twilio_outbound_message(db, msg)
+                    if created:
+                        synced_any = True
+                if synced_any:
+                    db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception("WhatsApp thread outbound sync failed")
+
+        messages = build_whatsapp_thread_messages(db, feedback=fb)
+        return jsonify({"thread_key": thread_key, "messages": messages})
+    except PermissionError as e:
+        msg = str(e)
+        return jsonify({"error": msg}), 401 if "authenticated" in msg.lower() else 403
+    except Exception:
+        logger.exception("Error loading WhatsApp thread")
+        return jsonify({"error": "Failed to load WhatsApp thread"}), 500
+    finally:
+        db.close()
+
+
 @api_bp.route("/feedback/<int:feedback_id>/mark-replied", methods=["POST"])
 def feedback_mark_replied(feedback_id: int):
     """

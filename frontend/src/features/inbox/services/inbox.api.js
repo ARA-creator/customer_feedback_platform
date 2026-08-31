@@ -173,6 +173,11 @@ export const listReplyDrafts = async (feedbackId) => {
   return response.data
 }
 
+export const getWhatsAppThread = async (feedbackId) => {
+  const response = await api.get(`/feedback/${feedbackId}/whatsapp-thread`)
+  return response.data
+}
+
 export const createReplyDraft = async (feedbackId, payload) => {
   const response = await api.post(`/feedback/${feedbackId}/draft-replies`, payload)
   return response.data

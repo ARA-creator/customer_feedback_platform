@@ -513,3 +513,20 @@ class ExternalIngestedItem(Base):
         nullable=False,
         server_default=func.now(),
     )
+
+
+class WhatsAppThreadMessage(Base):
+    """Officer/customer WhatsApp messages synced from Twilio (esp. outbound from console)."""
+
+    __tablename__ = "whatsapp_thread_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    thread_key = Column(String(64), nullable=False, index=True)
+    direction = Column(String(16), nullable=False, default="outbound")
+    body = Column(Text, nullable=False)
+    message_sid = Column(String(64), nullable=True, unique=True, index=True)
+    sent_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    from_number = Column(String(64), nullable=True)
+    to_number = Column(String(64), nullable=True)
+    provider = Column(String(32), nullable=False, default="twilio")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from ..models import Feedback, FeedbackReplyDraft, FeedbackWorkflow, User
+from ..models import Feedback, FeedbackReplyDraft, FeedbackWorkflow, User, WhatsAppThreadMessage
 from ..security import decrypt_text
 from ..services.analytics_time_window import parse_overview_time_window
 from ..services.metadata_normalization import safe_json_loads
@@ -79,6 +79,54 @@ def _hours_between(start: Optional[datetime], end: Optional[datetime]) -> Option
     if end.tzinfo is None:
         end = end.replace(tzinfo=timezone.utc)
     return round((end - start).total_seconds() / 3600.0, 2)
+
+
+def _coerce_aware_dt(value: Any) -> Optional[datetime]:
+    """Parse a datetime / ISO string into an aware UTC datetime."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        dt = value
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _take_earliest_response(
+    current: Optional[datetime],
+    candidate: Any,
+    *,
+    created_at: Optional[datetime] = None,
+) -> Optional[datetime]:
+    """Keep the earliest valid first-response time (not before created_at)."""
+    cand = _coerce_aware_dt(candidate)
+    if cand is None:
+        return current
+    created = _coerce_aware_dt(created_at)
+    if created is not None and cand < created:
+        return current
+    if current is None:
+        return cand
+    return cand if cand < current else current
+
+
+def _officer_reply_timestamp(meta: Any) -> Optional[datetime]:
+    if not isinstance(meta, dict):
+        return None
+    officer = meta.get("officer_reply")
+    if not isinstance(officer, dict):
+        return None
+    return (
+        _coerce_aware_dt(officer.get("sent_date"))
+        or _coerce_aware_dt(officer.get("sent_at"))
+        or _coerce_aware_dt(officer.get("detected_at"))
+    )
 
 
 def _theme_label(tags: List[str]) -> str:
@@ -217,9 +265,36 @@ def _load_assignees(db: Session, user_ids: List[int]) -> Dict[int, User]:
 
 
 def _load_first_response_at(db: Session, feedback_ids: List[int]) -> Dict[int, datetime]:
+    """
+    Earliest officer first-response time per feedback item.
+
+    Sources (min wins):
+    - In-app reply drafts with sent_at
+    - Feedback.replied_at (email Sent-folder, Twilio outbound, manual mark)
+    - channel_metadata.officer_reply timestamps
+    - Twilio WhatsApp outbound thread messages after the item was created
+    """
     if not feedback_ids:
         return {}
-    rows = (
+
+    first_sent: Dict[int, datetime] = {}
+    created_by_id: Dict[int, Optional[datetime]] = {}
+
+    fb_rows = (
+        db.query(Feedback.id, Feedback.created_at, Feedback.replied_at, Feedback.source, Feedback.channel_metadata)
+        .filter(Feedback.id.in_(feedback_ids), Feedback.deleted_at.is_(None))
+        .all()
+    )
+    for fid, created_at, replied_at, _source, meta_raw in fb_rows:
+        fid_i = int(fid)
+        created_by_id[fid_i] = created_at
+        first_sent[fid_i] = _take_earliest_response(first_sent.get(fid_i), replied_at, created_at=created_at)
+        meta = safe_json_loads(meta_raw) if meta_raw else {}
+        first_sent[fid_i] = _take_earliest_response(
+            first_sent.get(fid_i), _officer_reply_timestamp(meta), created_at=created_at
+        )
+
+    draft_rows = (
         db.query(FeedbackReplyDraft)
         .filter(
             FeedbackReplyDraft.feedback_id.in_(feedback_ids),
@@ -228,12 +303,57 @@ def _load_first_response_at(db: Session, feedback_ids: List[int]) -> Dict[int, d
         .order_by(FeedbackReplyDraft.sent_at.asc())
         .all()
     )
-    first_sent: Dict[int, datetime] = {}
-    for row in rows:
+    for row in draft_rows:
         fid = int(row.feedback_id)
-        if fid not in first_sent and row.sent_at:
-            first_sent[fid] = row.sent_at
-    return first_sent
+        first_sent[fid] = _take_earliest_response(
+            first_sent.get(fid), row.sent_at, created_at=created_by_id.get(fid)
+        )
+
+    try:
+        from .whatsapp_thread import resolve_whatsapp_thread_key
+
+        keys_needed: Dict[str, List[int]] = {}
+        for fid, created_at, _replied_at, source, meta_raw in fb_rows:
+            if "whatsapp" not in str(source or "").lower():
+                continue
+            stub = type("FbStub", (), {"channel_metadata": meta_raw})()
+            key = resolve_whatsapp_thread_key(stub)
+            if key:
+                keys_needed.setdefault(key, []).append(int(fid))
+
+        if keys_needed:
+            outbound = (
+                db.query(WhatsAppThreadMessage)
+                .filter(
+                    WhatsAppThreadMessage.thread_key.in_(list(keys_needed.keys())),
+                    WhatsAppThreadMessage.direction == "outbound",
+                )
+                .order_by(WhatsAppThreadMessage.sent_at.asc())
+                .all()
+            )
+            by_key: Dict[str, List[datetime]] = {}
+            for msg in outbound:
+                dt = _coerce_aware_dt(msg.sent_at)
+                if dt is None:
+                    continue
+                by_key.setdefault(str(msg.thread_key), []).append(dt)
+
+            for key, fids in keys_needed.items():
+                times = by_key.get(key) or []
+                if not times:
+                    continue
+                for fid in fids:
+                    created = created_by_id.get(fid)
+                    created_aware = _coerce_aware_dt(created)
+                    for dt in times:
+                        if created_aware is not None and dt < created_aware:
+                            continue
+                        first_sent[fid] = _take_earliest_response(first_sent.get(fid), dt, created_at=created)
+                        break
+    except Exception:
+        pass
+
+    return {fid: dt for fid, dt in first_sent.items() if dt is not None}
 
 
 def _assigned_to_label(user: Optional[User]) -> str:

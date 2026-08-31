@@ -109,3 +109,43 @@ def test_analyst_export_strips_html_from_feedback_text(app):
     assert "<table>" not in row["feedback_text"]
     assert "Claim delayed again" in row["feedback_text"]
     assert "Get it on Google Play" in row["feedback_text"]
+
+
+def test_first_response_helpers():
+    from app.services.analyst_export import (
+        _coerce_aware_dt,
+        _officer_reply_timestamp,
+        _take_earliest_response,
+    )
+
+    created = datetime(2026, 8, 1, 10, 0, tzinfo=timezone.utc)
+    early = datetime(2026, 8, 1, 9, 0, tzinfo=timezone.utc)
+    later = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
+
+    assert _take_earliest_response(None, later, created_at=created) == later
+    # Before created_at is ignored
+    assert _take_earliest_response(None, early, created_at=created) is None
+    assert _take_earliest_response(later, datetime(2026, 8, 1, 11, 0, tzinfo=timezone.utc), created_at=created) == datetime(
+        2026, 8, 1, 11, 0, tzinfo=timezone.utc
+    )
+    assert _coerce_aware_dt("2026-08-01T12:00:00Z").hour == 12
+    assert _officer_reply_timestamp({"officer_reply": {"sent_date": "2026-08-01T13:00:00+00:00"}}).hour == 13
+
+
+def test_load_first_response_uses_replied_at(app):
+    from app.services.analyst_export import _load_first_response_at
+
+    fb = _insert_feedback(message="Need help")
+    created = fb.created_at
+    replied = created + timedelta(hours=5) if created.tzinfo else created.replace(tzinfo=timezone.utc) + timedelta(hours=5)
+    db = SessionLocal()
+    try:
+        row = db.query(Feedback).filter(Feedback.id == fb.id).first()
+        row.replied_at = replied
+        db.commit()
+        mapping = _load_first_response_at(db, [fb.id])
+    finally:
+        db.close()
+
+    assert fb.id in mapping
+    assert abs((mapping[fb.id] - replied).total_seconds()) < 2
