@@ -1,7 +1,7 @@
 export default function InsightsSectionCard({ title, subtitle, right, children, className = '' }) {
   return (
     <section
-      className={`rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-gray-800 dark:bg-gray-950 ${className}`}
+      className={`min-w-0 overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-gray-800 dark:bg-gray-950 ${className}`}
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0">
@@ -14,9 +14,9 @@ export default function InsightsSectionCard({ title, subtitle, right, children, 
             </p>
           ) : null}
         </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
+        {right ? <div className="w-full shrink-0 sm:w-auto">{right}</div> : null}
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0">{children}</div>
     </section>
   )
 }

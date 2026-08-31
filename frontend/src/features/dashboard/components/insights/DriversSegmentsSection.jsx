@@ -7,17 +7,141 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  LineChart,
-  Line,
   Legend,
   AreaChart,
   Area,
 } from 'recharts'
 import InsightsSectionCard from './InsightsSectionCard'
-import { fmtPct } from './insightsDeepFormat'
 import { formatInsuranceTagChartLabel } from '../../utils/dashboardFormatters'
 import { humanizeSource } from '../../utils/insightsMetrics'
 import { CHART_PALETTE } from '../../constants/palette'
+
+function ProductHeatCell({ cell, product, theme, max, isDarkMode, onSelectTheme }) {
+  const total = Number(cell?.total) || 0
+  const negative = Number(cell?.negative) || 0
+  const positive = Number(cell?.positive) || 0
+  const neutral = Number(cell?.neutral) || 0
+  const alpha = total ? 0.12 + (total / max) * 0.75 : 0
+
+  return (
+    <td className="relative px-1 py-1">
+      <button
+        type="button"
+        disabled={!total}
+        onClick={() => onSelectTheme?.(theme)}
+        className="group relative flex h-9 w-full min-w-[3.5rem] items-center justify-center rounded-md border border-gray-100 disabled:opacity-40 dark:border-gray-800"
+        style={{ backgroundColor: total ? `rgba(0,151,80,${alpha})` : 'transparent' }}
+        aria-label={
+          total
+            ? `${product} × ${theme}: ${total} total, ${negative} negative, ${positive} positive, ${neutral} neutral`
+            : `${product} × ${theme}: no feedback`
+        }
+      >
+        <span className="font-semibold">{total || ''}</span>
+        {total > 0 ? (
+          <span
+            className={`pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden w-max min-w-[8.5rem] -translate-x-1/2 rounded-lg border px-2.5 py-2 text-left shadow-lg group-hover:block group-focus-visible:block ${
+              isDarkMode
+                ? 'border-gray-700 bg-gray-950 text-gray-100'
+                : 'border-gray-200 bg-white text-gray-900'
+            }`}
+            role="tooltip"
+          >
+            <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+              {formatInsuranceTagChartLabel(theme)}
+            </p>
+            <p className="mt-1 text-[11px]">
+              <span className="font-medium text-rose-600 dark:text-rose-400">Negative:</span> {negative}
+            </p>
+            <p className="text-[11px]">
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">Positive:</span> {positive}
+            </p>
+            <p className="text-[11px]">
+              <span className="font-medium text-gray-600 dark:text-gray-300">Neutral:</span> {neutral}
+            </p>
+            <p className="mt-1 border-t border-gray-100 pt-1 text-[10px] text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              Total: {total}
+            </p>
+          </span>
+        ) : null}
+      </button>
+    </td>
+  )
+}
+
+function formatSegmentLabel(segment) {
+  const raw = String(segment || '').trim()
+  if (!raw || raw.toLowerCase() === 'unknown') return 'No tier tagged'
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function CustomerSegmentRow({ segment, count, positive, neutral, negative, topThemes }) {
+  const total = Math.max(1, Number(count) || 0)
+  const pos = Number(positive) || 0
+  const neu = Number(neutral) || 0
+  const neg = Number(negative) || 0
+  const label = formatSegmentLabel(segment)
+  const isUntagged = label === 'No tier tagged'
+
+  return (
+    <li className="rounded-xl border border-gray-100 p-3 dark:border-gray-800">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</p>
+          <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+            {isUntagged
+              ? 'Feedback with no customer tier in metadata (e.g. Gold, Platinum).'
+              : 'Customer tier from feedback metadata.'}
+          </p>
+        </div>
+        <p className="shrink-0 text-right text-xs text-gray-500">
+          <span className="block text-base font-semibold tabular-nums text-gray-900 dark:text-gray-100">{count}</span>
+          messages
+        </p>
+      </div>
+
+      <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-gray-500">Sentiment mix</p>
+      <div className="mt-1.5 flex h-2.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-900">
+        {pos > 0 ? <div className="bg-emerald-500" style={{ width: `${(pos / total) * 100}%` }} title={`${pos} positive`} /> : null}
+        {neu > 0 ? <div className="bg-slate-400" style={{ width: `${(neu / total) * 100}%` }} title={`${neu} neutral`} /> : null}
+        {neg > 0 ? <div className="bg-rose-500" style={{ width: `${(neg / total) * 100}%` }} title={`${neg} negative`} /> : null}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+        <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
+          Positive <span className="font-semibold tabular-nums">{pos}</span>
+          <span className="text-gray-400">({Math.round((pos / total) * 100)}%)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+          <span className="h-2 w-2 rounded-full bg-slate-400" aria-hidden />
+          Neutral <span className="font-semibold tabular-nums">{neu}</span>
+          <span className="text-gray-400">({Math.round((neu / total) * 100)}%)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
+          <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden />
+          Negative <span className="font-semibold tabular-nums">{neg}</span>
+          <span className="text-gray-400">({Math.round((neg / total) * 100)}%)</span>
+        </span>
+      </div>
+
+      {(topThemes || []).length > 0 ? (
+        <div className="mt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Most common topics</p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {(topThemes || []).map((x) => (
+              <span
+                key={x.theme}
+                className="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              >
+                {formatInsuranceTagChartLabel(x.theme)} · {x.count}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </li>
+  )
+}
 
 export default function DriversSegmentsSection({
   drivers,
@@ -97,31 +221,25 @@ export default function DriversSegmentsSection({
       </InsightsSectionCard>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <InsightsSectionCard title="Customer segments" subtitle="Volume and sentiment by segment / tier.">
+        <InsightsSectionCard
+          title="Customer segments"
+          subtitle="Feedback grouped by customer tier (Gold, Platinum, etc.) from metadata. Items without a tier are shown separately."
+        >
           {segDetail.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500">No segment metadata in this period.</p>
+            <p className="py-8 text-center text-sm text-gray-500">No feedback in this period.</p>
           ) : (
-            <ul className="space-y-2">
-              {segDetail.map((s) => {
-                const t = Math.max(1, s.count)
-                return (
-                  <li key={s.segment} className="rounded-xl border border-gray-100 p-3 dark:border-gray-800">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{s.segment}</p>
-                      <p className="text-xs text-gray-500">{s.count}</p>
-                    </div>
-                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-900">
-                      <div className="bg-emerald-500" style={{ width: `${(s.positive / t) * 100}%` }} />
-                      <div className="bg-slate-400" style={{ width: `${(s.neutral / t) * 100}%` }} />
-                      <div className="bg-rose-500" style={{ width: `${(s.negative / t) * 100}%` }} />
-                    </div>
-                    <p className="mt-1 text-[11px] text-gray-500">
-                      Top themes:{' '}
-                      {(s.top_themes || []).map((x) => formatInsuranceTagChartLabel(x.theme)).join(', ') || '—'}
-                    </p>
-                  </li>
-                )
-              })}
+            <ul className="space-y-3">
+              {segDetail.map((s) => (
+                <CustomerSegmentRow
+                  key={s.segment}
+                  segment={s.segment}
+                  count={s.count}
+                  positive={s.positive}
+                  neutral={s.neutral}
+                  negative={s.negative}
+                  topThemes={s.top_themes}
+                />
+              ))}
             </ul>
           )}
         </InsightsSectionCard>
@@ -156,11 +274,14 @@ export default function DriversSegmentsSection({
         </InsightsSectionCard>
       </div>
 
-      <InsightsSectionCard title="Product × theme" subtitle="Heatmap of volume (primary product match). Click a cell theme to investigate.">
+      <InsightsSectionCard
+        title="Product × theme"
+        subtitle="Heatmap of volume (primary product match). Hover for sentiment split; click a cell theme to investigate."
+      >
         {productHeat.products.length === 0 ? (
           <p className="py-8 text-center text-sm text-gray-500">No product-linked feedback in this period.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-visible pb-2">
             <table className="min-w-full text-[11px]">
               <thead>
                 <tr>
@@ -176,27 +297,17 @@ export default function DriversSegmentsSection({
                 {productHeat.products.map((p) => (
                   <tr key={p}>
                     <td className="px-2 py-1 font-semibold text-gray-800 dark:text-gray-100">{p}</td>
-                    {productHeat.themes.map((t) => {
-                      const cell = productHeat.rows.find((r) => r.product === p && r.theme === t)
-                      const n = Number(cell?.total) || 0
-                      const neg = Number(cell?.negative) || 0
-                      const alpha = n ? 0.12 + (n / productHeat.max) * 0.75 : 0
-                      return (
-                        <td key={`${p}-${t}`} className="px-1 py-1">
-                          <button
-                            type="button"
-                            disabled={!n}
-                            onClick={() => onSelectTheme?.(t)}
-                            className="flex h-9 w-full min-w-[3.5rem] flex-col items-center justify-center rounded-md border border-gray-100 disabled:opacity-40 dark:border-gray-800"
-                            style={{ backgroundColor: n ? `rgba(0,151,80,${alpha})` : 'transparent' }}
-                            title={`${p} × ${t}: ${n} (${neg} neg)`}
-                          >
-                            <span className="font-semibold">{n || ''}</span>
-                            {neg ? <span className="text-[9px] text-rose-700 dark:text-rose-300">{neg}−</span> : null}
-                          </button>
-                        </td>
-                      )
-                    })}
+                    {productHeat.themes.map((t) => (
+                      <ProductHeatCell
+                        key={`${p}-${t}`}
+                        cell={productHeat.rows.find((r) => r.product === p && r.theme === t)}
+                        product={p}
+                        theme={t}
+                        max={productHeat.max}
+                        isDarkMode={isDarkMode}
+                        onSelectTheme={onSelectTheme}
+                      />
+                    ))}
                   </tr>
                 ))}
               </tbody>

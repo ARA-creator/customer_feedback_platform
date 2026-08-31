@@ -345,7 +345,6 @@ export default function DashboardInsightsSection({
 
       {activeModule === 'impact' ? (
         <ImpactRepeatsSection
-          impact={insightsDeep?.impact}
           repeats={insightsDeep?.repeats}
           isDarkMode={isDarkMode}
           loading={insightsDeepLoading || loadingState}
@@ -371,7 +370,6 @@ export default function DashboardInsightsSection({
         <QualityTextSection
           quality={insightsDeep?.quality}
           verbatim={insightsDeep?.verbatim}
-          csat={insightsDeep?.csat}
           isDarkMode={isDarkMode}
           loading={insightsDeepLoading || loadingState}
           onNavigateToInbox={onNavigateToInbox}
