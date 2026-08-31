@@ -149,3 +149,24 @@ def test_load_first_response_uses_replied_at(app):
 
     assert fb.id in mapping
     assert abs((mapping[fb.id] - replied).total_seconds()) < 2
+
+
+def test_resolution_at_uses_replied_at_when_open():
+    from app.services.analyst_export import _resolution_at
+
+    created = datetime(2026, 8, 1, 10, 0, tzinfo=timezone.utc)
+    replied = created + timedelta(hours=6)
+    wf = FeedbackWorkflow(feedback_id=1, status="open")
+
+    assert _resolution_at(created_at=created, replied_at=replied, workflow=wf) == replied
+
+
+def test_resolution_at_prefers_closed_workflow():
+    from app.services.analyst_export import _resolution_at
+
+    created = datetime(2026, 8, 1, 10, 0, tzinfo=timezone.utc)
+    replied = created + timedelta(hours=2)
+    closed = created + timedelta(hours=8)
+    wf = FeedbackWorkflow(feedback_id=1, status="closed", updated_at=closed)
+
+    assert _resolution_at(created_at=created, replied_at=replied, workflow=wf) == closed

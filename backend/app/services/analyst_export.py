@@ -129,6 +129,31 @@ def _officer_reply_timestamp(meta: Any) -> Optional[datetime]:
     )
 
 
+def _resolution_at(
+    *,
+    created_at: Optional[datetime] = None,
+    replied_at: Optional[datetime] = None,
+    workflow: Optional[FeedbackWorkflow] = None,
+) -> Optional[datetime]:
+    """
+    When a feedback item was resolved.
+
+    Prefer formal workflow close/resolve time; otherwise use replied_at for
+    items handled in the inbox without an explicit close step.
+    """
+    status = str(workflow.status or "open").strip().lower() if workflow else "open"
+    if workflow and status in _CLOSED_STATUSES:
+        return _coerce_aware_dt(workflow.updated_at)
+
+    resolved = _coerce_aware_dt(replied_at)
+    if resolved is None:
+        return None
+    created = _coerce_aware_dt(created_at)
+    if created is not None and resolved < created:
+        return None
+    return resolved
+
+
 def _theme_label(tags: List[str]) -> str:
     if not tags:
         return ""
@@ -702,9 +727,12 @@ def _collect_feedback_export_rows(
         response_at = first_response_at.get(int(fb.id))
         response_hours = _hours_between(fb.created_at, response_at) if response_at else None
 
-        resolution_hours = None
-        if wf and status in _CLOSED_STATUSES:
-            resolution_hours = _hours_between(fb.created_at, wf.updated_at)
+        resolution_at = _resolution_at(
+            created_at=fb.created_at,
+            replied_at=fb.replied_at,
+            workflow=wf,
+        )
+        resolution_hours = _hours_between(fb.created_at, resolution_at) if resolution_at else None
 
         escalation_flag = False
         if wf:

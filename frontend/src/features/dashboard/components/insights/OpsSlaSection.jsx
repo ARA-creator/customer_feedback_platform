@@ -105,7 +105,10 @@ export default function OpsSlaSection({
           </div>
         </InsightsSectionCard>
 
-        <InsightsSectionCard title="Resolution distribution" subtitle="Hours from created to closed/resolved.">
+        <InsightsSectionCard
+          title="Resolution distribution"
+          subtitle="Hours from created to closed/resolved or marked replied."
+        >
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={ops.resolution?.histogram || []}>

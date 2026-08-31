@@ -24,6 +24,7 @@ from ..services.analyst_export import (
     _load_first_response_at,
     _load_workflows,
     _plain_text_for_export,
+    _resolution_at,
     _theme_label,
 )
 from ..services.metadata_normalization import safe_json_loads
@@ -310,9 +311,8 @@ def _enrich_rows(db: Session, rows: List[Feedback], *, now: datetime) -> List[Di
 
         response_at = first_response_at.get(fid)
         response_hours = _hours_between(created, response_at) if response_at else None
-        resolution_hours = None
-        if wf and closed:
-            resolution_hours = _hours_between(created, _ensure_aware(wf.updated_at))
+        resolution_at = _resolution_at(created_at=created, replied_at=fb.replied_at, workflow=wf)
+        resolution_hours = _hours_between(created, resolution_at) if resolution_at else None
 
         sla_due = _ensure_aware(wf.sla_due_at) if wf else None
         breached = False

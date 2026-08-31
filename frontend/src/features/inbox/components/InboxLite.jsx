@@ -272,6 +272,7 @@ export default function InboxLite({ onNavigate }) {
   const [openFeedbackId, setOpenFeedbackId] = useState(null)
   const [openItem, setOpenItem] = useState(null)
   const [openReaders, setOpenReaders] = useState(null)
+  const [whatsappThread, setWhatsappThread] = useState(null)
   const [policyBusy, setPolicyBusy] = useState(false)
   const [policyError, setPolicyError] = useState('')
   const [addPolicyDraft, setAddPolicyDraft] = useState('')
